@@ -35,7 +35,8 @@ End Sub
 Private Sub PrintStylesMac()
 
     ' ===== DEPENDENCIES ==========================================================
-    ' Requires modules AttachTemplateMacro (and thus also Macmillan style templates) and SharedMacros
+    ' Requires modules AttachTemplateMacro (and thus also Macmillan style templates)
+    ' and ProgressBar userform/class
 
     
     ' ===== LIMITATIONS ==========================================================
@@ -93,14 +94,14 @@ Private Sub PrintStylesMac()
     ' Needs to have the BoundMS template attached before copying so the styles match
     ' the new document later, or won't copy any styles
     Dim currentTemplate As String
-    Dim currentDoc As Document
-    Set currentDoc = ActiveDocument
+    Dim CurrentDoc As Document
+    Set CurrentDoc = ActiveDocument
     ' Record current template
-    currentTemplate = currentDoc.AttachedTemplate
+    currentTemplate = CurrentDoc.AttachedTemplate
     
     ' Attach BoundMS template to original doc, then copy contents
     Call AttachTemplateMacro.zz_AttachBoundMSTemplate
-    currentDoc.StoryRanges(wdMainTextStory).Copy
+    CurrentDoc.StoryRanges(wdMainTextStory).Copy
     
     Dim tempDoc As Document
     ' Create a new document
@@ -166,7 +167,7 @@ Private Sub PrintStylesMac()
     Dim strStyle As String
     Dim lngTextBoxes As Long
     Dim activeParas As Long
-    Dim a As Long
+    Dim A As Long
     
     ' Count the number of current text boxes etc., because the index number of the new ones
     ' will be offset by that amount
@@ -174,10 +175,10 @@ Private Sub PrintStylesMac()
     lngTextBoxes = tempDoc.Shapes.Count
     activeParas = tempDoc.Paragraphs.Count
     
-    For a = 1 To activeParas
-        If a Mod 50 = 0 Then
-            sglPercentComplete = Round((((a / activeParas) * 0.85) + 0.1), 2)
-            strStatusLoop = "* Adding style names to paragraph " & a & " of " & activeParas & "..." & vbNewLine & strStatus
+    For A = 1 To activeParas
+        If A Mod 50 = 0 Then
+            sglPercentComplete = Round((((A / activeParas) * 0.85) + 0.1), 2)
+            strStatusLoop = "* Adding style names to paragraph " & A & " of " & activeParas & "..." & vbNewLine & strStatus
             
             Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatusLoop
             DoEvents
@@ -186,7 +187,7 @@ Private Sub PrintStylesMac()
             'Debug.Print "Paragraph " & a & " in " & SecondsElapsed & " seconds"
         End If
     
-        tempDoc.Paragraphs(a).Range.Select
+        tempDoc.Paragraphs(A).Range.Select
         strStyle = Selection.Style
         
         ' Do not tag Text Std to speed up the macro (most common style)
@@ -217,13 +218,13 @@ Private Sub PrintStylesMac()
             End With
         End If
         
-    Next a
+    Next A
     
     strStatus = "* Adding style names to margin..." & vbNewLine & strStatus
 
     ' Now open the print dialog so user can print the document.
     sglPercentComplete = 0.97
-    strStatus = strStatus & "* Printing document with style names in  margin..." & vbNewLine
+    strStatus = "* Printing document with style names in  margin..." & vbNewLine & strStatus
     
     Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
     DoEvents
@@ -248,7 +249,7 @@ Cleanup:
         tempDoc.Close wdDoNotSaveChanges
     
     ' Return original document to original template
-    currentDoc.Activate
+    CurrentDoc.Activate
     Call AttachTemplateMacro.AttachMe(TemplateName:=currentTemplate)
     
     ' Reset settings to original
@@ -266,7 +267,7 @@ End Sub
 Private Sub PrintStylesPC()
 
     ' ===== DEPENDENCIES ==========================================================
-    ' Requires modules AttachTemplateMacro (and thus also Macmillan style templates) and SharedMacros
+    ' Requires modules AttachTemplateMacro (and thus also Macmillan style templates), SharedMacros, and ProgressBar
     ' Before you run this, create a text box with the listed settings below, then select the
     ' text box and go to Insert > Text Box > Save Selection to Text Box Gallery (Word 2013). In the
     ' Create New Building Block dialog that opens, name the Building Block "StyleNames1" and
@@ -291,18 +292,15 @@ Private Sub PrintStylesPC()
     ' Doesn't work on tables -- breaks the whole macro
     
 
-    ' ====== Check if doc is saved/protected ================
-    If CheckSave = True Then
+    ' ======= Run startup checks ========
+    ' True means a check failed (e.g., doc protection on)
+    If StartupSettings = True Then
+        Call Cleanup
         Exit Sub
     End If
     
-    Application.ScreenUpdating = False
     
-    ' ===== Progress Bar / Status Bar ========================
-    Dim currentStatusBar As Boolean
-    currentStatusBar = Application.DisplayStatusBar
-    Application.DisplayStatusBar = True
-    
+    ' ===== Progress Bar ========================
     Dim sglPercentComplete As Single
     Dim strStatus As String
     Dim strTitle As String
@@ -312,11 +310,10 @@ Private Sub PrintStylesPC()
     strStatus = "* Getting started..."
     
     Dim objProgressPrint As ProgressBar
-    Set objProgressPrint = New ProgressBar
+    Set objProgressPrint = New ProgressBar  ' Triggers Initialize event, which uses Show methond
     objProgressPrint.Title = strTitle
-    objProgressPrint.Show
-    objProgressPrint.Increment sglPercentComplete, strStatus
-    Doze 50
+
+    Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
 
     
     ' ===== Copy and Paste into a new doc ===================
@@ -343,21 +340,20 @@ Private Sub PrintStylesPC()
     sglPercentComplete = 0.03
     strStatus = "* Creating dupe document to tag with style names..." & vbNewLine & strStatus
     
-    objProgressPrint.Increment sglPercentComplete, strStatus
-    Doze 50
+    Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
     
     ' Copy the text of the document into a new document, so we don't screw up the original
     ' Needs to have the BoundMS template attached before copying so the styles match
     ' the new document later, or it won't copy any styles
     Dim currentTemplate As String
-    Dim currentDoc As Document
-    Set currentDoc = ActiveDocument
+    Dim CurrentDoc As Document
+    Set CurrentDoc = ActiveDocument
     ' Record current template
-    currentTemplate = currentDoc.AttachedTemplate
+    currentTemplate = CurrentDoc.AttachedTemplate
     
     ' Attach BoundMS template to original doc, then copy contents
     Call AttachTemplateMacro.zz_AttachBoundMSTemplate
-    currentDoc.StoryRanges(wdMainTextStory).Copy
+    CurrentDoc.StoryRanges(wdMainTextStory).Copy
     
     Dim tempDoc As Document
     ' Create a new document
@@ -370,6 +366,7 @@ Private Sub PrintStylesPC()
     
     'If the template isn't EXACTLY the same (e.g., document was originally styled with an earlier version)
     'you'll still get the error that there are too many styles, so send 'n' to choose "No" from the alert
+    ' Not the best solution because if they error isn't thrown it still sends the key and "n" gets typed in doc
     SendKeys "n"
     tempDoc.Content.PasteSpecial DataType:=wdPasteHTML ' maintains styles
         
@@ -377,8 +374,7 @@ Private Sub PrintStylesPC()
     sglPercentComplete = 0.05
     strStatus = "* Adjusting margins to fit style names..." & vbNewLine & strStatus
 
-    objProgressPrint.Increment sglPercentComplete, strStatus
-    Doze 50
+    Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
     
     ' if possible, we want the total margin size to stay the same
     ' so that the paragraphs don't reflow
@@ -403,8 +399,7 @@ Private Sub PrintStylesPC()
     sglPercentComplete = 0.07
     strStatus = "* Setting format for style names..." & vbNewLine & strStatus
     
-    objProgressPrint.Increment sglPercentComplete, strStatus
-    Doze 50
+    Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
         
     ' But save settings first and then change back -- are these settings sticky?
     Dim currentSize As Long
@@ -427,7 +422,7 @@ Private Sub PrintStylesPC()
     Dim strStyle As String
     Dim lngTextBoxes As Long
     Dim activeParas As Long
-    Dim a As Long
+    Dim A As Long
     
     ' This is the template where the building block is saved
     strPath = Environ("PROGRAMDATA") & "\MacmillanStyleTemplate\MacmillanGT.dotm"
@@ -435,7 +430,7 @@ Private Sub PrintStylesPC()
         Set objTemplate = Templates(strPath)
     Else
         MsgBox "I can't find the Macmillan template, sorry."
-        GoTo Cleanup
+        GoTo FinishUp
     End If
     
     ' Access the building block through the type and category
@@ -449,19 +444,18 @@ Private Sub PrintStylesPC()
     lngTextBoxes = tempDoc.Shapes.Count
     activeParas = tempDoc.Paragraphs.Count
     
-    For a = 1 To activeParas
-        If a Mod 50 = 0 Then
-            sglPercentComplete = Round((((a / activeParas) * 0.85) + 0.1), 2)
-            strStatusLoop = "* Adding style names to paragraph " & a & " of " & activeParas & "..." & vbNewLine & strStatus
+    For A = 1 To activeParas
+        If A Mod 50 = 0 Then
+            sglPercentComplete = Round((((A / activeParas) * 0.85) + 0.1), 2)
+            strStatusLoop = "* Adding style names to paragraph " & A & " of " & activeParas & "..." & vbNewLine & strStatus
 
-            objProgressPrint.Increment sglPercentComplete, strStatusLoop
-            Doze 50
+            Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
             
             'SecondsElapsed = Round(Timer - StartTime, 2)
             'Debug.Print "Paragraph " & a & " in " & SecondsElapsed & " seconds"
         End If
     
-        tempDoc.Paragraphs(a).Range.Select
+        tempDoc.Paragraphs(A).Range.Select
         strStyle = Selection.Style
         
         ' Don't label Text Std, to save time
@@ -472,7 +466,7 @@ Private Sub PrintStylesPC()
             tempDoc.Shapes(lngBoxCount).TextFrame.TextRange.Text = strStyle
         End If
         
-    Next a
+    Next A
     
     strStatus = "* Adding style names to margin..." & vbNewLine & strStatus
 
@@ -480,8 +474,7 @@ Private Sub PrintStylesPC()
     sglPercentComplete = 0.97
     strStatus = strStatus & "* Printing document with style names in  margin..." & vbNewLine
     
-    objProgressPrint.Increment sglPercentComplete, strStatus
-    Doze 50
+    Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
     
     Dialogs(wdDialogFilePrint).Show
     
@@ -489,10 +482,9 @@ Private Sub PrintStylesPC()
     sglPercentComplete = 1
     strStatus = strStatus & "* Finishing up..." & vbNewLine
 
-    objProgressPrint.Increment sglPercentComplete, strStatus
-    Doze 50
+    Call UpdateBarAndWait(Bar:=objProgressPrint, Status:=strStatus, Percent:=sglPercentComplete)
     
-Cleanup:
+FinishUp:
         ' reset Normal style because I'm not sure if it's sticky or not
         With tempDoc.Styles("Normal")
             .Font.Size = currentSize
@@ -503,7 +495,7 @@ Cleanup:
         tempDoc.Close wdDoNotSaveChanges
     
     ' Return original document to original template
-    currentDoc.Activate
+    CurrentDoc.Activate
     Call AttachTemplateMacro.AttachMe(TemplateName:=currentTemplate)
     
     ' Reset settings to original
@@ -511,11 +503,9 @@ Cleanup:
         .DisplayAlerts = lngOpt
         .Options.PasteFormatBetweenStyledDocuments = lngPasteStyled
         .Options.PasteFormatBetweenDocuments = lngPasteFormat
-        .DisplayStatusBar = currentStatusBar
-        .ScreenUpdating = True
-        .ScreenRefresh
     End With
-
+    
+    Call Cleanup
     Unload objProgressPrint
 
 End Sub

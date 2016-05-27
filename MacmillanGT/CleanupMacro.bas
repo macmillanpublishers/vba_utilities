@@ -130,28 +130,24 @@ Sub MacmillanManuscriptCleanup()
     
     'Remember time when macro starts
     '  StartTime = Timer
-
-    '-----------run preliminary error checks------------
-    Dim exitOnError As Boolean
-    
-    exitOnError = zz_errorChecks()      ''Doc is unsaved, protected, or uses backtick character?
-    If exitOnError <> False Then
-    Exit Sub
-    End If
-    
-    Application.ScreenUpdating = False
     
     '------------check for endnotes and footnotes--------------------------
     Dim stStories() As Variant
-    Dim a As Long
-    
     stStories = StoryArray
     
-    '------------record status of current status bar and then turn on-------
-    Dim currentStatusBar As Boolean
-    currentStatusBar = Application.DisplayStatusBar
-    Application.DisplayStatusBar = True
+    ' ======= Run startup checks ========
+    ' True means a check failed (e.g., doc protection on)
+    If StartupSettings(StoriesUsed:=stStories) = True Then
+        Call Cleanup
+        Exit Sub
+    End If
     
+    ' Change to just check for backtick characters
+    If zz_errorChecks = True Then
+        Call Cleanup
+        Exit Sub
+    End If
+        
     '--------Progress Bar------------------------------
     'Percent complete and status for progress bar (PC) and status bar (Mac)
     'Requires ProgressBar custom UserForm and Class
@@ -174,55 +170,44 @@ Sub MacmillanManuscriptCleanup()
     funArray(9) = "* Having a snack..."
     funArray(10) = "* Initiating launch sequence..."
     
-    Dim x As Integer
+    Dim X As Integer
     
     'Rnd returns random number between (0,1], rest of expression is to return an integer (1,10)
     Randomize           'Sets seed for Rnd below to value of system timer
-    x = Int(UBound(funArray()) * Rnd()) + 1
+    X = Int(UBound(funArray()) * Rnd()) + 1
     
     'Debug.Print x
     
     strTitle = "Macmillan Manuscript Cleanup Macro"
     sglPercentComplete = 0.05
-    strStatus = funArray(x)
+    strStatus = funArray(X)
 
-    'All Progress Bar statements for PC only because won't run modeless on Mac
-    Dim TheOS As String
-    TheOS = System.OperatingSystem
+    Dim oProgressCleanup As ProgressBar
+    Set oProgressCleanup = New ProgressBar  ' Triggers Initialize event, which also triggers Show method on PC only
+
+    oProgressCleanup.Title = strTitle
     
-    If Not TheOS Like "*Mac*" Then
-        Dim oProgressCleanup As ProgressBar
-        Set oProgressCleanup = New ProgressBar
-    
-        oProgressCleanup.Title = strTitle
-        oProgressCleanup.Show
-    
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
-    
-    '--------save the current cursor location in a bookmark---------------------------
-    ActiveDocument.Bookmarks.Add Name:="OriginalInsertionPoint", Range:=Selection.Range
-    
-    '-----------Turn off track changes--------
-    Dim currentTracking As Boolean
-    currentTracking = ActiveDocument.TrackRevisions
-    ActiveDocument.TrackRevisions = False
+    ' This sub calls ProgressBar.Increment and waits for it to finish before returning here
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     '-----------Delete hidden text ------------------------------------------------
-    Dim s As Long
+    Dim S As Long
     
-    For s = 1 To UBound(stStories())
-        If HiddenTextSucks(StoryType:=(stStories(s))) = True Then
+    For S = 1 To UBound(stStories())
+        If HiddenTextSucks(StoryType:=(stStories(S))) = True Then
             ' Notify user maybe?
         End If
-    Next s
+    Next S
     
     Call zz_clearFind
+    
+    ' ---------- Clear formatting from paragraph marks, symbols ----------------------------
+    ' Per Westchester, can cause macro to break
+    
+    For S = 1 To UBound(stStories())
+        Call ClearPilcrowFormat(StoryType:=(stStories(S)))
+        Call CleanSomeSymbols(StoryTypes:=(stStories(S)))
+    Next S
     
     '-----------Find/Replace with Wildcards = False--------------------------------
     Call zz_clearFind                          'Clear find object
@@ -230,18 +215,11 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.2
     strStatus = "* Fixing quotes, unicode, section breaks..." & vbCr & strStatus
     
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
-    For s = 1 To UBound(stStories())
-        Call RmNonWildcardItems(StoryType:=(stStories(s)))   'has to be alone b/c Match Wildcards has to be disabled: Smart Quotes, Unicode (ellipse), section break
-    Next s
+    For S = 1 To UBound(stStories())
+        Call RmNonWildcardItems(StoryType:=(stStories(S)))   'has to be alone b/c Match Wildcards has to be disabled: Smart Quotes, Unicode (ellipse), section break
+    Next S
     
     Call zz_clearFind
 
@@ -249,55 +227,34 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.4
     strStatus = "* Preserving styled whitespace characters..." & vbCr & strStatus
     
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
-    For s = 1 To UBound(stStories())
-        Call PreserveStyledCharactersA(StoryType:=(stStories(s)))              ' EW added v. 3.2, tags styled page breaks, tabs
-    Next s
+    For S = 1 To UBound(stStories())
+        Call PreserveStyledCharactersA(StoryType:=(stStories(S)))              ' EW added v. 3.2, tags styled page breaks, tabs
+    Next S
     Call zz_clearFind
     
     '---------------Find/Replace for rest of the typographic errors----------------------
     sglPercentComplete = 0.6
     strStatus = "* Removing unstyled whitespace, fixing ellipses and dashes..." & vbCr & strStatus
     
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
-    For s = 1 To UBound(stStories())
-        Call RmWhiteSpaceB(StoryType:=(stStories(s)))    'v. 3.7 does NOT remove manual page breaks or multiple paragraph returns
-    Next s
+    For S = 1 To UBound(stStories())
+        Call RmWhiteSpaceB(StoryType:=(stStories(S)))    'v. 3.7 does NOT remove manual page breaks or multiple paragraph returns
+    Next S
     
     Call zz_clearFind
     
     '---------------Remove tags from "span preserve characters"-------------------------
-    sglPercentComplete = 0.8
+    sglPercentComplete = 0.86
     strStatus = "* Cleaning up styled whitespace..." & vbCr & strStatus
     
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
-    For s = 1 To UBound(stStories())
-        Call PreserveStyledCharactersB(StoryType:=(stStories(s)))    ' EW added v. 3.2, replaces character tags with actual character
-    Next s
+    For S = 1 To UBound(stStories())
+        Call PreserveStyledCharactersB(StoryType:=(stStories(S)))    ' EW added v. 3.2, replaces character tags with actual character
+    Next S
     
     Call zz_clearFind
     
@@ -305,64 +262,23 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.87
     strStatus = "* Standardizing underline format..." & vbCr & strStatus
     
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
-    For s = 1 To UBound(stStories())
-        Call FixUnderlines(StoryType:=(stStories(s)))
-    Next s
+    For S = 1 To UBound(stStories())
+        Call FixUnderlines(StoryType:=(stStories(S)))
+    Next S
     
     Call zz_clearFind
-    
-    '-------------Go back to original insertion point and delete bookmark-----------------
-    If ActiveDocument.Bookmarks.Exists("OriginalInsertionPoint") = True Then
-        Selection.GoTo what:=wdGoToBookmark, Name:="OriginalInsertionPoint"
-        ActiveDocument.Bookmarks("OriginalInsertionPoint").Delete
-    End If
-    
-    '--------------Remove other bookmarks------------------------------------------------
-    sglPercentComplete = 0.95
-    strStatus = "* Removing bookmarks..." & vbCr & strStatus
-    
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
-    
-    Call RemoveBookmarks                    'this is in both Cleanup macro and ApplyCharStyles macro
-    Call zz_clearFind
+
     
     '-----------------Restore original settings--------------------------------------
     sglPercentComplete = 1#
     strStatus = "* Finishing up..." & vbCr & strStatus
     
-    If Not TheOS Like "*Mac*" Then
-        oProgressCleanup.Increment sglPercentComplete, strStatus
-        Doze 50 'Wait 50 milliseconds for progress bar to update
-    Else
-        'Mac will just use status bar
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    End If
-    
-    ActiveDocument.TrackRevisions = currentTracking         'Return track changes to the original setting
-    Application.DisplayStatusBar = currentStatusBar
-    Application.ScreenUpdating = True
-    Application.ScreenRefresh
-    
-    If Not TheOS Like "*Mac*" Then
-        Unload oProgressCleanup
-    End If
+    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+
+    Call Cleanup
+    Unload oProgressCleanup
     
     MsgBox "Hurray, the Macmillan Cleanup macro has finished running! Your manuscript looks great!"                                 'v. 3.1 patch / request  v. 3.2 made a little more fun
     
@@ -375,22 +291,14 @@ Sub MacmillanManuscriptCleanup()
   
 End Sub
 
-Private Sub RemoveBookmarks()
-    
-    Dim bkm As Bookmark
-    
-    For Each bkm In ActiveDocument.Bookmarks
-        bkm.Delete
-    Next bkm
-    
-End Sub
+
 
 Private Sub RmNonWildcardItems(StoryType As WdStoryType)                                             'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var
     Set activeRng = ActiveDocument.StoryRanges(StoryType)
     
     Dim noWildTagArray(3) As String                                   ' number of items in array should be declared here
     Dim noWildReplaceArray(3) As String              ' number of items in array should be declared here
-    Dim c As Long
+    Dim C As Long
     Dim wrapToggle As String
     
     wrapToggle = "wdFindContinue"
@@ -405,14 +313,14 @@ Private Sub RmNonWildcardItems(StoryType As WdStoryType)                        
     noWildReplaceArray(2) = "'"
     noWildReplaceArray(3) = """"
     
-    For c = 1 To UBound(noWildTagArray())
-        If c = 3 Then wrapToggle = "wdFindStop"
+    For C = 1 To UBound(noWildTagArray())
+        If C = 3 Then wrapToggle = "wdFindStop"
         
         With activeRng.Find
             .ClearFormatting
             .Replacement.ClearFormatting
-            .Text = noWildTagArray(c)
-            .Replacement.Text = noWildReplaceArray(c)
+            .Text = noWildTagArray(C)
+            .Replacement.Text = noWildReplaceArray(C)
             .Wrap = wdFindContinue
             .Format = False
             .MatchCase = False
@@ -438,8 +346,8 @@ Private Sub PreserveStyledCharactersA(StoryType As WdStoryType)
     
     On Error GoTo ErrHandler
     
-        Dim keyStyle As Word.Style
-        Set keyStyle = ActiveDocument.Styles(preserveCharStyle)
+    Dim keyStyle As Word.Style
+    Set keyStyle = ActiveDocument.Styles(preserveCharStyle)
     
     preserveCharFindArray(1) = "^t" 'tabs
     preserveCharFindArray(2) = "  "  ' two spaces
@@ -487,7 +395,7 @@ Private Sub RmWhiteSpaceB(StoryType As WdStoryType)
 
     Dim wsFindArray(33) As String              'number of items in array should be declared here
     Dim wsReplaceArray(33) As String       'and here
-    Dim i As Long
+    Dim I As Long
 
     wsFindArray(1) = ".{4,}"             '4 or more consecutive periods, into proper 4 dot ellipse
     wsFindArray(2) = "..."                  '3 consecutive periods, into 3 dot ellipse
@@ -594,12 +502,12 @@ Private Sub RmWhiteSpaceB(StoryType As WdStoryType)
         wsReplaceArray(33) = ". . ." & Chr(146)
     #End If
 
-    For i = 1 To UBound(wsFindArray())
+    For I = 1 To UBound(wsFindArray())
         With activeRng.Find
             .ClearFormatting
             .Replacement.ClearFormatting
-            .Text = wsFindArray(i)
-            .Replacement.Text = wsReplaceArray(i)
+            .Text = wsFindArray(I)
+            .Replacement.Text = wsReplaceArray(I)
             .Wrap = wdFindContinue
             .Format = False
             .MatchCase = False
@@ -676,7 +584,7 @@ Private Sub FixUnderlines(StoryType As WdStoryType)
     Set activeRng = ActiveDocument.StoryRanges(StoryType)
     
     Dim strUnderlines(1 To 16) As WdUnderline
-    Dim a As Long
+    Dim A As Long
     
     strUnderlines(1) = wdUnderlineDash
     strUnderlines(2) = wdUnderlineDashHeavy
@@ -695,7 +603,7 @@ Private Sub FixUnderlines(StoryType As WdStoryType)
     strUnderlines(15) = wdUnderlineWavyHeavy
     strUnderlines(16) = wdUnderlineWords
 
-    For a = LBound(strUnderlines()) To UBound(strUnderlines())
+    For A = LBound(strUnderlines()) To UBound(strUnderlines())
             With ActiveDocument.Range.Find
                 .ClearFormatting
                 .Replacement.ClearFormatting
@@ -703,30 +611,22 @@ Private Sub FixUnderlines(StoryType As WdStoryType)
                 .Replacement.Text = ""
                 .Wrap = wdFindStop
                 .Format = True
-                .Font.Underline = strUnderlines(a)
+                .Font.Underline = strUnderlines(A)
                 .Replacement.Font.Underline = wdUnderlineSingle
                 .Execute Replace:=wdReplaceAll
             End With
-    Next a
+    Next A
 End Sub
 
 Function zz_errorChecks()
 
     zz_errorChecks = False
-    
-    ''-----------------Check if doc is saved/protected---------------
-    If CheckSave = True Then
-        zz_errorChecks = True
-        Exit Function
-    End If
-
 
     '-----test if backtick style tag already exists
     Set activeRng = ActiveDocument.Range
-    Application.ScreenUpdating = False
 
     Dim existingTagArray(3) As String   ' number of items in array should be declared here
-    Dim b As Long
+    Dim B As Long
     Dim foundBad As Boolean
     foundBad = False
 
@@ -734,10 +634,10 @@ Function zz_errorChecks()
     existingTagArray(2) = "`[A-Z]|"
     existingTagArray(3) = "|[A-Z]`"
 
-    For b = 1 To UBound(existingTagArray())
+    For B = 1 To UBound(existingTagArray())
         With activeRng.Find
             .ClearFormatting
-            .Text = existingTagArray(b)
+            .Text = existingTagArray(B)
             .Wrap = wdFindContinue
             .MatchWildcards = True
         End With
@@ -753,3 +653,110 @@ Function zz_errorChecks()
     End If
 
 End Function
+
+
+Private Sub NumRangeHyphens(StoriesInDoc As Variant)
+    ' convert hyphens in number ranges to en-dashes,
+    ' but doesn't change hyphens in URLs or phone numbers
+
+    ' tag URLs w/ macmillan style, so we can avoid later
+    Call StyleAllHyperlinks(StoriesInUse:=StoriesInDoc)
+    
+    Dim strFindStart As String
+    Dim strFindEnd As String
+    Dim strTag As String
+    Dim strFindWhat As String
+    Dim strReplaceWith As String
+    Dim strLinkStyle As String
+    Dim activeRange As Range
+    Dim kStory As Long
+    
+    ' Patterns to find and replace
+    ' exclude start-with-hyphen or end-with-hyphen to exclude phone numbers
+    ' SSN, and the like
+    strFindStart = "([!\-]<[0-9]@)"
+    strFindEnd = "([0-9]@>[!\-])"
+    strTag = "`|url|`"
+    
+    strFindWhat = strFindStart & "\-" & strFindEnd
+    strReplaceWith = "\1" & strTag & "\2"
+    ' Macmillan URL style name
+    strLinkStyle = "span hyperlink (url)"
+    
+'    For kStory = LBound(StoriesInDoc) To UBound(StoriesInDoc)
+'        Set activeRange = ActiveDocument.StoryRanges(StoriesInDoc(kStory))
+    Set activeRange = ActiveDocument.Range
+    
+    With activeRange.Find
+        ' Find each thing that is also a URL
+        ' and replace hyphen with tags
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = strFindWhat
+        .Replacement.Text = strReplaceWith
+        .Style = strLinkStyle
+        .MatchWildcards = True
+        .Wrap = wdFindStop
+        .Forward = True
+        .Format = True
+        .Execute Replace:=wdReplaceAll
+
+        ' Find the rest and replace with en-dash
+        strReplaceWith = "\1^=\2"
+        
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = strFindWhat
+        .Replacement.Text = strReplaceWith
+        .MatchWildcards = True
+        .Wrap = wdFindStop
+        .Forward = True
+        .Format = True
+        .Execute Replace:=wdReplaceAll
+        
+        ' Replace url tags w/ original hyphen
+        strFindWhat = strFindStart & strTag & strFindEnd
+        strReplaceWith = "\1-\2"
+        
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = strFindWhat
+        .Replacement.Text = strReplaceWith
+        .MatchWildcards = True
+        .Wrap = wdFindStop
+        .Forward = True
+        .Format = True
+        .Execute Replace:=wdReplaceAll
+    End With
+    
+End Sub
+
+
+Private Sub CleanSomeSymbols(StoryTypes As WdStoryType)
+' Remove formatting from some symbols
+    
+    Dim activeRange As Range
+    Set activeRange = ActiveDocument.StoryRanges(StoryTypes)
+    
+    Dim arrSymbols(1 To 3) As String
+    Dim X As Long
+    
+    arrSymbols(1) = "^0174"    ' (r) registered trademark symbol
+    arrSymbols(2) = "^0169"    ' (c) copyright symbol
+    arrSymbols(3) = "^0153"    ' TM trademark symbol
+    
+    ' Just removing superscript for right now
+    For X = LBound(arrSymbols) To UBound(arrSymbols)
+        
+        With activeRange.Find
+            .ClearFormatting
+            .Replacement.ClearFormatting
+            .Text = arrSymbols(X)
+            .Replacement.Text = "^&"
+            .Format = True
+            .Replacement.Font.Superscript = False
+            .MatchWildcards = True
+            .Execute Replace:=wdReplaceAll
+        End With
+    Next X
+End Sub

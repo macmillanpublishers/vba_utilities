@@ -39,6 +39,8 @@ Sub AttachMe(TemplateName As String)
         myFile = Environ("PROGRAMDATA") & "\MacmillanStyleTemplate\" & TemplateName
     #End If
         
+    ' Can't attach template to another template, so
+    If IsTemplate(ActiveDocument) = False Then
         'Check that file exists
         If IsItThere(myFile) = True Then
         
@@ -52,5 +54,18 @@ Sub AttachMe(TemplateName As String)
                     "Install the Macmillan Style Template and try again, or contact workflows@macmillan.com for assistance.", _
                     vbCritical, "Oh no!"
         End If
-        
-    End Sub
+    End If
+    
+End Sub
+
+Private Function IsTemplate(ByVal objDoc As Document) As Boolean
+  Select Case objDoc.SaveFormat
+    Case wdFormatTemplate, wdFormatDocument97, _
+         wdFormatXMLTemplate, wdFormatXMLTemplateMacroEnabled, _
+         wdFormatFlatXMLTemplate, wdFormatFlatXMLTemplateMacroEnabled
+      IsTemplate = True
+    Case Else
+      IsTemplate = False
+  End Select
+End Function
+

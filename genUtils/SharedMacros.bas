@@ -1,8 +1,9 @@
-Attribute VB_Name = "SharedMacros"
+Attribute VB_Name = "SharedMacros_"
 
 ' All should be declared as Public for use from other modules
 
 Option Explicit
+Private Const strModule As String = ".SharedMacros_."
 
 Public Enum GitBranch
     master = 1
@@ -10,137 +11,429 @@ Public Enum GitBranch
     develop = 3
 End Enum
 
-Public Enum TemplatesList
-    updaterTemplates = 1
-    toolsTemplates = 2
-    stylesTemplates = 3
-    installTemplates = 4
-    allTemplates = 5
+' *****************************************************************************
+'           ERROR HANDLING STUFF
+' *****************************************************************************
+' Technically class methods (which are listed farther down) but it's easier to
+' maintain close to the error number enum, which has to appear above other
+' procedures. May move to its own class one day.
+
+' ===== MacErrors =========================================================
+' Each error we raise anywhere in this class should be included here. Note that
+' error numbers 0 - 512 are reserved for system errors. Include property or
+' method name in enum just to be clear for debugging.
+
+Public Enum MacError
+    err_MacErrGeneral = 20000       ' Not sure if we'll need, but here it is.
+    err_GroupNameInvalid = 20001
+    err_GroupNameNotSet = 20002
+    err_SpecificFileInvalid = 20003
+    err_SpecificFileNotSet = 20004
+    err_DeleteThisDoc = 20005
+    err_TempDeleteFail = 20006
+    err_NoInternet = 20007
+    err_Http404 = 20008
+    err_BadHttpStatus = 20009
+    err_DownloadFail = 20010
+    err_LocalDeleteFail = 20011
+    err_LocalCopyFail = 20012
+    err_LocalReadOnly = 20013
+    err_TempReadOnly = 20014
+    err_TempMissing = 20015
+    err_FileNotThere = 20016
+    err_NotWordFormat = 20017
+    err_ConfigPathNull = 20018
+    err_RootDirInvalid = 20019
+    err_RootDirMissing = 20020
+    err_LogReadOnly = 20021
 End Enum
 
-Public Function GetTemplatesList(TemplatesYouWant As TemplatesList, Optional PathToRepo As String) As Variant
-    ' returns an array of paths to template files in their final installation locations
-    ' if you want to use "allTemplates" (i.e., for updating code in templates), must include PathToRepo
-    
-    Dim strStartupDir As String
-    Dim strStyleDir As String
-    Dim strMacDocs As String
-    Dim strStylesName As String
-    
-    strStylesName = "MacmillanStyleTemplate"
-    
-    strStartupDir = Application.StartupPath
-    
-    #If Mac Then
-        strMacDocs = MacScript("return (path to documents folder) as string")
-        strStyleDir = strMacDocs & strStylesName
-    #Else
-        strStyleDir = Environ("PROGRAMDATA") & Application.PathSeparator & strStylesName
-    #End If
-    
-    Dim strPathsToTemplates() As String
-    Dim K As Long
-    K = 0
-    
-    ' get the updater file for these requests
-    If TemplatesYouWant = updaterTemplates Or _
-        TemplatesYouWant = installTemplates Or _
-        TemplatesYouWant = allTemplates Then
-        K = K + 1
-        ReDim Preserve strPathsToTemplates(1 To K)
-        strPathsToTemplates(K) = strStartupDir & Application.PathSeparator & "GtUpdater.dotm"
-    End If
-    
-    ' get the tools file for these requests
-    If TemplatesYouWant = toolsTemplates Or _
-        TemplatesYouWant = installTemplates Or _
-        TemplatesYouWant = allTemplates Then
-        K = K + 1
-        ReDim Preserve strPathsToTemplates(1 To K)
-        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "MacmillanGT.dotm"
-    End If
-    
-    ' get the styles files for these requests
-    If TemplatesYouWant = stylesTemplates Or _
-        TemplatesYouWant = installTemplates Or _
-        TemplatesYouWant = allTemplates Then
-        K = K + 1
-        ReDim Preserve strPathsToTemplates(1 To K)
-        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "macmillan.dotm"
-        
-        K = K + 1
-        ReDim Preserve strPathsToTemplates(1 To K)
-        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "macmillan_NoColor.dotm"
+' ===== ErrorChecker ==========================================================
+' Send all errors here, to make tracking/maintaining error handling easier.
+' Be sure to add the error to the MacErrors enum.
 
-        K = K + 1
-        ReDim Preserve strPathsToTemplates(1 To K)
-        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "macmillan_CoverCopy.dotm"
+' DO NOT use any other of our functions in this function, because those need to
+' direct errors here and using them here as well could create an infinite loop.
+
+'
+' USE: ErrorChecker() returns False if error is handled; procedure can continue
+' Each member procedure in the class should have the following:
+'''
+' On Error GoTo MemberName[Let | Set | Get]Error
+'   <...code...>
+' MemberName[Let | Set | Get]Finish:
+'   <...any cleanup code...>
+'   On Error GoTo 0
+'   Exit [Property | Sub | Function]
+' MemberName[Let | Set | Get]Error:
+'    If ErrorChecker(Err) = False Then
+'        Resume
+'    Else
+'        Resume MemberName[Let | Set | Get]Finish
+'    End If
+' End [Property | Sub | Function]
+
+'
+
+
+Public Function ErrorChecker(ByRef objError As Object, Optional strValue As _
+    String) As Boolean
+    ' strValue - varies based on type of error passed. use for things like
+    '   file name, path, whatever is being checked that errored.
+
+    On Error GoTo ErrorCheckerError
+    Dim strErrMessage As String
+    Dim blnNotifyUser As Boolean
+    Dim strHelpContact As String
+    Dim strFileName As String
+
+    ' ----- Set defaults ------------------------------------------------------
+    ' Only need to change in Select statement below if want to set either to
+    ' False.
+    blnNotifyUser = True
+    ErrorChecker = True
+    ' Eventually get this email from the config.json file, once we have error
+    ' handling that can handle an error in the error handler. At the moment, if
+    ' any procedure in the call stack to get the email errors, we end up in a
+    ' loop until it crashes.
+    strHelpContact = vbNewLine & vbNewLine & "Email workflows@macmillan.com" _
+        & " if you need help. Be sure to attach the MACRO_ERROR.txt file that" _
+        & " was just produced."
+
+    ' ----- Check if FileName parameter was passed ----------------------------
+    If strValue = vbNullString Then
+        strValue = "UNKNOWN"
     End If
-    
-    ' also get the installer file
-    If TemplatesYouWant = allTemplates And PathToRepo <> vbNullString Then
-        K = K + 1
-        ReDim Preserve strPathsToTemplates(1 To K)
-        strPathsToTemplates(K) = PathToRepo & Application.PathSeparator & "MacmillanTemplateInstaller" _
-            & Application.PathSeparator & "MacmillanTemplateInstaller.docm"
-        
-        ' Could also add paths to open _BETA and _DEVELOP installer files?
+
+    ' ----- Check for errors --------------------------------------------------
+    ' Make sure we actually have an error, cuz you never know.
+    If objError.Number <> 0 Then
+
+    ' ----- Handle specific errors --------------------------------------------
+    ' Each case should be a MacError enum. Even if we aren't doing anything
+    ' to fix the error, still enter the following:
+    '   Err.Source "MacFile_.<MethodName>"
+    '   Err.Description = "Description of the error for the log."
+    '   strErrMessage = "Message for the user if we're notifying them."
+        Select Case objError.Number
+            Case Is < 513
+                ' Errors 0 to 512 are system errors
+                strErrMessage = "Something unexpected happened. Please click" _
+                    & " OK to exit." & vbNewLine & "Value: " & strValue
+            Case MacError.err_GroupNameInvalid
+                Err.Description = "Invalid value for GroupName property: " & _
+                    strValue
+                strErrMessage = "The value you've entered for the GroupName " _
+                    & "property, is not valid. Make sure you only use file " & _
+                    "groups that are in the config.json file."
+            Case MacError.err_GroupNameNotSet
+                Err.Description = "GroupName property has not been Let."
+                strErrMessage = "You can't Get the GroupName property before" _
+                    & " it has been Let. Try the MacFile_.AssignFile method " _
+                    & "to create a new object in this class."
+            Case MacError.err_SpecificFileInvalid
+                Err.Description = "Invalid value for SpecificFile property: " _
+                    & strValue
+                strErrMessage = "The you've entered an invalid value for the" _
+                    & " SpecificFile property. Make sure you only use " & _
+                    "specific file types that are in the config.json file."
+            Case MacError.err_SpecificFileNotSet
+                Err.Description = "SpecificFile property has not been Let."
+                strErrMessage = "You can't Get the SpecificFile property " & _
+                    "before it has been Let. Try the MacFile_.AssignFile " & _
+                    "method to create a new object in this class."
+            Case MacError.err_DeleteThisDoc
+                Err.Description = "Can't delete file that is currently " & _
+                    "executing code: " & strValue
+                strErrMessage = "The file you are trying to delete is " & _
+                    "currently executing macro code."
+            Case MacError.err_TempDeleteFail
+                Err.Description = "Failed to delete the previous file in the " _
+                    & "temp directory: " & strValue
+                strErrMessage = "We can't download the file; a temp file " & _
+                    "is still there."
+            Case MacError.err_NoInternet
+                Err.Description = "No network connection. Download aborted."
+                strErrMessage = "We weren't able to download the file " & _
+                    "because we can't connect to the internet. Check your " & _
+                    "network connection and try again."
+            Case MacError.err_Http404
+                Err.Description = "File HTTP status 404. Check if DownloadURL" _
+                    & " is correct, and file is posted: " & strValue
+                strErrMessage = "Could not download file from the internet."
+            Case MacError.err_BadHttpStatus
+                Err.Description = "File HTTP status: " & strValue & _
+                    ". Download aborted."
+                strErrMessage = "There is some problem with the file you are" _
+                    & " trying to download."
+                ' Need to get Source as passed in object first, so do this last
+            Case MacError.err_DownloadFail
+                Err.Description = "File download failed: " & strValue
+                strErrMessage = "Download failed."
+            Case MacError.err_LocalDeleteFail
+                ' SharedMacros_.KillAll() will notify user if file is open
+                Err.Description = "File in final install location could not " _
+                    & "be deleted. If it was because the file was open, the " _
+                    & "user was notified: " & strValue
+                blnNotifyUser = False
+            Case MacError.err_LocalCopyFail
+                Err.Description = "File not saved to final directory: " & _
+                    strValue
+                strErrMessage = "There was an error installing the " & _
+                "Macmillan template."
+            Case MacError.err_LocalReadOnly
+                Err.Description = "Final dir for file is read-only: " & _
+                    strValue
+                strErrMessage = "The folder you are trying to access is " & _
+                 "read-only."
+            Case MacError.err_TempReadOnly
+                Err.Description = "Temp dir is read-only: " & strValue
+                strErrMessage = "Your temp folder is read-only."
+            Case MacError.err_TempMissing
+                Err.Description = "Temp directory is missing: " & strValue
+                strErrMessage = "There is an error with your temp folder."
+            Case MacError.err_FileNotThere
+                Err.Description = "File does not exist: " & strValue
+                strErrMessage = "The file " & strValue & " does " _
+                    & "not exist."
+            Case MacError.err_NotWordFormat
+                Err.Description = "File extension is not a native Word " & _
+                    "document or template: " & strValue
+                strErrMessage = "This file does not appear to be a Word " & _
+                    "file: " & strValue
+            Case MacError.err_ConfigPathNull
+                Err.Description = "FullConfigPath custom doc property is not " _
+                    & "set in the document."
+                strErrMessage = "We can't find the config.json file because " _
+                    & "the local path is not in the template properties."
+            Case MacError.err_RootDirInvalid
+                Err.Description = "Value for root directory in config.json is" _
+                    & " not an option in the RootDir property: " & strValue
+                strErrMessage = "The folder where we save the Tools template" _
+                    & " doesn't exist."
+            Case MacError.err_LogReadOnly
+                Err.Description = "Log file is read only: " & strValue
+                strErrMessage = "There is a problem with the logs."
+            Case Else
+                Err.Description = "Undocumented error - " & _
+                    objError.Description
+                strErrMessage = "Not sure what's going on here."
+        End Select
+
+    Else
+        Err.Description = "Everything's A-OK. Why are you even reading this?"
+        blnNotifyUser = False
+        ErrorChecker = False
     End If
-    
-    ' DEBUGGING: check tha list!
-'    Dim H As Long
-'    For H = LBound(strPathsToTemplates) To (UBound(strPathsToTemplates))
-'        Debug.Print H & ": " & strPathsToTemplates(H)
-'    Next H
-    
-    
-    GetTemplatesList = strPathsToTemplates
+
+    ' ----- WRITE ERROR LOG ---------------------------------------------------
+    ' Output text file with error info, user could send via email.
+    ' Do not use WriteToLog function, because that sends errors here as well.
+    Dim strErrMsg As String
+    Dim LogFileNum As Long
+    Dim strTimeStamp As String
+    Dim strErrLog As Long
+    ' write error log to same location as current file
+    ' Format date so it can be part of file name. Only including date b/c users
+    ' will likely run things repeatedly before asking for help, and don't want
+    ' to generate a bunch of files.
+    strErrLog = ActiveDocument.Path & Application.PathSeparator & _
+        "MACRO_ERROR_" & Format(Date, "yyyy-mm-dd") & ".txt"
+    ' build error message, including timestamp
+    strErrMsg = Format(Time, "hh.mm.ss - ") & objError.Source & vbNewLine & _
+        objError.Number & ": " & objErr.Description & vbNewLine
+    LogFileNum = FreeFile ' next file number
+    Open strErrLog For Append As #LogFileNum ' creates the file if doesn't exist
+    Print #LogFileNum, strErrMsg ' write information to end of the text file
+    Close #LogFileNum ' close the file
+
+    If blnNotifyUser = True Then
+        strErrMessage = strErrMessage & vbNewLine & vbNewLine & strHelpContact
+        MsgBox Prompt:=strErrMessage, Buttons:=vbExclamation, Title:= _
+            "Macmillan Tools Error"
+    End If
+ErrorCheckerFinish:
+    objError.Clear
+    Exit Function
+
+ErrorCheckerError:
+    ' Important note: Recursive error checking is perhaps a bad idea -- if the
+    ' same error gets triggered, procedure will get called too many times and
+    ' cause an "out of stack space" error and also crash.
+    ErrorChecker = True
+End Function
+
+Public Function IsOldMac() As Boolean
+    ' Checks this is a Mac running Office 2011 or earlier. Good for things like
+    ' checking if we need to account for file paths > 3 char (which 2011 can't
+    ' handle but Mac 2016 can.
+    IsOldMac = False
+    #If Mac Then
+        If Application.Version < 16 Then
+            IsOldMac = True
+        End If
+    #End If
+End Function
+
+Public Function DocPropExists(objDoc As Document, PropName As String) As Boolean
+    ' Tests if a particular custom document property exists in the document. If
+    ' it's already a Document object we already know that it exists and is open
+    ' so we don't need to test for those here. Should be tested somewhere in
+    ' calling procedure though.
+    DocPropExists = False
+
+    Dim A As Long
+    Dim docProps As DocumentProperties
+    docProps = objDoc.CustomDocumentProperties
+
+    If docProps.Count > 0 Then
+        For A = 1 To docProps.Count
+            If dopProps.Name = PropName Then
+                DocPropExists = True
+                Exit Function
+            End If
+        Next A
+    Else
+        DocPropExists = False
+    End If
+End Function
+
+Public Function IsOpen(DocPath As String) As Boolean
+    ' Tests if the Word document is currently open.
+    On Error GoTo IsOpenError
+    Dim objDoc As Document
+    IsOpen = False
+    If IsItThere(DocPath) = True Then
+        If IsWordFormat(DocPath) = True Then
+            If Documents.Count > 0 Then
+                For Each objDoc In Documents
+                    If objDoc.fullPath = DocPath Then
+                        IsOpen = True
+                        Exit Function
+                    End If
+                Next objDoc
+            End If
+        Else
+            Err.Raise MacError.err_NotWordFormat
+        End If
+    Else
+        Err.Raise MacError.err_FileNotThere
+    End If
+IsOpenFinish:
+    On Error GoTo 0
+    Exit Function
+
+IsOpenError:
+    Err.Source = Err.Source & strModule & "IsOpen"
+    If ErrorChecker(Err, DocPath) = False Then
+        Resume
+    Else
+        IsOpen = False
+        Resume IsOpenFinish
+    End If
+End Function
+
+Public Function IsWordFormat(PathToFile As String) As Boolean
+    ' Checks extension to see if file is a Word document or template. Notably,
+    ' does not test if it's a file type that Word CAN open (e.g., .html), just
+    ' if it's a native Word file type.
+
+    ' Ignores final character for newer file types, just checks for .dot / .doc
+    Dim strExt As String
+    strExt = Left(Right(PathToFile, InStr(StrReverse(PathToFile), ".")), 4)
+    If strExt = ".dot" Or strExt = ".doc" Then
+        IsWordFormat = True
+    Else
+        IsWordFormat = False
+    End If
     
 End Function
 
+Public Function IsLocked(FilePath As String) As Boolean
+    ' Tests if any file is locked by some kind of process.
+    On Error GoTo IsLockedError
+    IsLocked = False
+    If IsItThere(FilePath) = False Then
+        Err.Raise MacError.err_FileNotThere
+    Else
+        Dim FileNum As Long
+        FileNum = FreeFile()
+        ' If the file is already in use, next line will raise an error:
+        ' "70: Permission denied" (file is open, Word doc is loaded as add-in)
+        ' "75: Path/File access error" (File is read-only, etc.)
+        Open FilePath For Binary Access Read Write Lock Read Write As FileNum
+        Close FileNum
+    End If
+IsLockedFinish:
+    On Error GoTo 0
+    Exit Function
+    
+IsLockedError:
+    Err.Source = Err.Source & strModule & "IsLocked"
+    If Err.Number = 70 Or Err.Number = 75 Then
+        IsLocked = True
+        Resume IsLockedFinish
+    Else
+        If ErrorChecker(Err, FilePath) = False Then
+            Resume
+        Else
+            Resume IsLockedFinish
+        End If
+    End If
+End Function
+
 Public Function IsItThere(Path As String) As Boolean
-    ' Check if file or directory exists on PC or Mac
-    ' Dir() doesn't work on Mac if file is longer than 32 char
+    ' Check if file or directory exists on PC or Mac.
+    ' Dir() doesn't work on Mac 2011 if file is longer than 32 char
     'Debug.Print Path
     
     'Remove trailing path separator from dir if it's there
     If Right(Path, 1) = Application.PathSeparator Then
         Path = Left(Path, Len(Path) - 1)
     End If
-    
-    #If Mac Then
+
+    If IsOldMac = True Then
         Dim strScript As String
         strScript = "tell application " & Chr(34) & "System Events" & Chr(34) & _
             "to return exists disk item (" & Chr(34) & Path & Chr(34) _
             & " as string)"
         IsItThere = SharedMacros_.ShellAndWaitMac(strScript)
-    #Else
-        Dim CheckDir As String
-        CheckDir = Dir(Path, vbDirectory)
+    Else
+        Dim strCheckDir As String
+        strCheckDir = Dir(Path, vbDirectory)
         
-        If CheckDir = vbNullString Then
+        If strCheckDir = vbNullString Then
             IsItThere = False
         Else
             IsItThere = True
         End If
-    #End If
+    End If
 End Function
 
 
 Public Function KillAll(Path As String) As Boolean
     ' Deletes file (or folder?) on PC or Mac. Mac can't use Kill() if file name
     ' is longer than 32 char. Returns true if successful.
+    On Error GoTo KillAllError
     If IsItThere(Path) = True Then
+        ' Can't delete file if it's installed as an add-in
+        If IsInstalledAddIn(Path) = True Then
+            AddIns(Path).Installed = False
+        End If
+        ' Mac 2011 can't handle file paths > 32 char
         #If Mac Then
-            Dim strCommand As String
-            strCommand = MacScript("return quoted form of posix path of " & Path)
-            Debug.Print "Path var: " & strCommand
-            strCommand = "rm " & strCommand
-            Debug.Print "Command: " & strCommand
-            SharedMacros_.ShellAndWaitMac (strCommand)
+            If Application.Version < 16 Then
+                Dim strCommand As String
+                strCommand = MacScript("return quoted form of posix path of " & Path)
+                strCommand = "rm " & strCommand
+                SharedMacros_.ShellAndWaitMac (strCommand)
+            Else
+                Kill (Path)
+            End If
         #Else
             Kill (Path)
         #End If
+
         ' Make sure it worked
         If IsItThere(Path) = False Then
             KillAll = True
@@ -150,291 +443,103 @@ Public Function KillAll(Path As String) As Boolean
     Else
         KillAll = True
     End If
-End Function
-Public Function DownloadFromConfluence(FinalDir As String, LogFile As String, FileName As String, _
-    Optional DownloadSource As GitBranch = master) As Boolean
-'FinalDir is directory w/o file name
-
-    Dim logString As String
-    Dim strMacTmpDir As String
-    Dim strTmpPath As String
-    Dim strBashTmp As String
-    Dim strFinalPath As String
+KillAllFinish:
+    On Error GoTo 0
+    Exit Function
+    
+KillAllError:
     Dim strErrMsg As String
-    Dim myURL As String
-    
-    strFinalPath = FinalDir & Application.PathSeparator & FileName
-    
-    'Get URL to download from
-    If DownloadSource = develop Then
-        'actual page to update files is https://confluence.macmillan.com/display/PBL/Word+template+downloads+-+staging
-        myURL = "https://confluence.macmillan.com/download/attachments/35001370/" & FileName
-    ElseIf DownloadSource = master Then
-        'actual page to update files is https://confluence.macmillan.com/display/PBL/Word+template+downloads+-+production
-        myURL = "https://confluence.macmillan.com/download/attachments/9044274/" & FileName
-    ElseIf DownloadSource = releases Then
-        myURL = "https://confluence.macmillan.com/download/attachments/40571207/" & FileName
-    End If
-    
-    'Get temp dir based on OS, then download file.
-    #If Mac Then
-        'set tmp dir
-        strMacTmpDir = MacScript("path to temporary items as string")
-        strTmpPath = strMacTmpDir & FileName
-        'Debug.Print strTmpPath
-        strBashTmp = Replace(Right(strTmpPath, Len(strTmpPath) - (InStr(strTmpPath, ":") - 1)), ":", "/")
-        'Debug.Print strBashTmp
-        
-        'check for network
-        If ShellAndWaitMac("ping -o google.com &> /dev/null ; echo $?") <> 0 Then   'can't connect to internet
-            logString = Now & " -- Tried update; unable to connect to network."
-            LogInformation LogFile, logString
-            strErrMsg = "There was an error trying to download the Macmillan template." & vbNewLine & vbNewLine & _
-                        "Please check your internet connection or contact workflows@macmillan.com for help."
-            MsgBox strErrMsg, vbCritical, "Error 1: Connection error (" & FileName & ")"
-            DownloadFromConfluence = False
-            Exit Function
-        Else 'internet is working, download file
-            'Make sure file is there
-            Dim httpStatus As Long
-            httpStatus = ShellAndWaitMac("curl -s -o /dev/null -w '%{http_code}' " & myURL)
-            
-            If httpStatus = 200 Then                    ' File is there
-                'Now delete file if already there, then download new file
-                ShellAndWaitMac ("rm -f " & strBashTmp & " ; curl -o " & strBashTmp & " " & myURL)
-            ElseIf httpStatus = 404 Then            ' 404 = page not found
-                logString = Now & " -- 404 File not found. Cannot download file."
-                LogInformation LogFile, logString
-                strErrMsg = "It looks like that file isn't available for download." & vbNewLine & vbNewLine & _
-                    "Please contact workflows@macmillan.com for help."
-                MsgBox strErrMsg, vbCritical, "Error 7: File not found (" & FileName & ")"
-                DownloadFromConfluence = False
-                Exit Function
-            Else
-                logString = Now & " -- Http status is " & httpStatus & ". Cannot download file."
-                LogInformation LogFile, logString
-                strErrMsg = "There was an error trying to download the Macmillan templates." & vbNewLine & vbNewLine & _
-                    "Please check your internet connection or contact workflows@macmillan.com for help."
-                MsgBox strErrMsg, vbCritical, "Error 2: Http status " & httpStatus & " (" & FileName & ")"
-                DownloadFromConfluence = False
-                Exit Function
-            End If
-
-        End If
-    #Else
-        'set tmp dir
-        strTmpPath = Environ("TEMP") & Application.PathSeparator & FileName 'Environ gives temp dir for Mac too? NOPE
-        
-        'Check if file is already in tmp dir, delete if yes
-        If IsItThere(strTmpPath) = True Then
-            Kill strTmpPath
-        End If
-        
-        'try to download the file from Public Confluence page
-        Dim WinHttpReq As Object
-        Dim oStream As Object
-        
-        'Attempt to download file
-        On Error Resume Next
-            Set WinHttpReq = CreateObject("MSXML2.XMLHTTP.3.0")
-            WinHttpReq.Open "GET", myURL, False
-            WinHttpReq.Send
-    
-                ' Exit sub if error in connecting to website
-                If Err.Number <> 0 Then 'HTTP request is not OK
-                    'Debug.Print WinHttpReq.Status
-                    logString = Now & " -- could not connect to Confluence site: Error " & Err.Number
-                    LogInformation LogFile, logString
-                    strErrMsg = "There was an error trying to download the Macmillan template." & vbNewLine & vbNewLine & _
-                        "Please check your internet connection or contact workflows@macmillan.com for help."
-                    MsgBox strErrMsg, vbCritical, "Error 1: Connection error (" & FileName & ")"
-                    DownloadFromConfluence = False
-                    On Error GoTo 0
-                    Exit Function
-                End If
-        On Error GoTo 0
-        
-        'Debug.Print "Http status for " & FileName & ": " & WinHttpReq.Status
-        If WinHttpReq.Status = 200 Then  ' 200 = HTTP request is OK
-        
-            'if connection OK, download file to temp dir
-            myURL = WinHttpReq.ResponseBody
-            Set oStream = CreateObject("ADODB.Stream")
-            oStream.Open
-            oStream.Type = 1
-            oStream.Write WinHttpReq.ResponseBody
-            oStream.SaveToFile strTmpPath, 2 ' 1 = no overwrite, 2 = overwrite
-            oStream.Close
-            Set oStream = Nothing
-            Set WinHttpReq = Nothing
-        ElseIf WinHttpReq.Status = 404 Then ' 404 = file not found
-            logString = Now & " -- 404 File not found. Cannot download file."
-            LogInformation LogFile, logString
-            strErrMsg = "It looks like that file isn't available for download." & vbNewLine & vbNewLine & _
-                "Please contact workflows@macmillan.com for help."
-            MsgBox strErrMsg, vbCritical, "Error 7: File not found (" & FileName & ")"
-            DownloadFromConfluence = False
-            Exit Function
-        Else
-            logString = Now & " -- Http status is " & WinHttpReq.Status & ". Cannot download file."
-            LogInformation LogFile, logString
-            strErrMsg = "There was an error trying to download the Macmillan templates." & vbNewLine & vbNewLine & _
-                "Please check your internet connection or contact workflows@macmillan.com for help."
-            MsgBox strErrMsg, vbCritical, "Error 2: Http status " & WinHttpReq.Status & " (" & FileName & ")"
-            DownloadFromConfluence = False
-            Exit Function
-        End If
-    #End If
-        
-    'Error if download was not successful
-    If IsItThere(strTmpPath) = False Then
-        logString = Now & " -- " & FileName & " file download to Temp was not successful."
-        LogInformation LogFile, logString
-        strErrMsg = "There was an error downloading the Macmillan template." & vbNewLine & _
-            "Please contact workflows@macmillan.com for assitance."
-        MsgBox strErrMsg, vbCritical, "Error 3: Download failed (" & FileName & ")"
-        DownloadFromConfluence = False
-        On Error GoTo 0
-        Exit Function
-    Else
-        logString = Now & " -- " & FileName & " file download to Temp was successful."
-        LogInformation LogFile, logString
-    End If
-
-
-    
-    'If file exists already, log it and delete it
-    If IsItThere(strFinalPath) = True Then
-
-        logString = Now & " -- Previous version file in final directory."
-        LogInformation LogFile, logString
-        
-        ' get file extension
-        Dim strExt As String
-        strExt = Right(strFinalPath, InStrRev(StrReverse(strFinalPath), "."))
-        
-        ' can't delete template if it's installed as an add-in
-        If InStr(strExt, "dot") > 0 Then
-            On Error Resume Next        'Error = add-in not available, don't need to uninstall
-                AddIns(strFinalPath).Installed = False
-            On Error GoTo 0
-        End If
-  
-        ' Test if dir is read only
-        If IsReadOnly(FinalDir) = True Then ' Dir is read only
-            logString = Now & " -- old " & FileName & " file is read only, can't delete/replace. " _
-                & "Alerting user."
-            LogInformation LogFile, logString
-            strErrMsg = "The installer doesn't have permission. Please conatct workflows" & _
-                "@macmillan.com for help."
-            MsgBox strErrMsg, vbCritical, "Error 8: Permission denied (" & FileName & ")"
-            DownloadFromConfluence = False
-            On Error GoTo 0
-            Exit Function
-        Else
-            On Error Resume Next
-                Kill strFinalPath
-                
-                If Err.Number = 70 Then         'File is open and can't be replaced
-                    logString = Now & " -- old " & FileName & " file is open, can't delete/replace. Alerting user."
-                    LogInformation LogFile, logString
-                    strErrMsg = "Please close all other Word documents and try again."
-                    MsgBox strErrMsg, vbCritical, "Error 4: Previous version removal failed (" & FileName & ")"
-                    DownloadFromConfluence = False
-                    On Error GoTo 0
-                    Exit Function
-                End If
-            On Error GoTo 0
-        End If
-    Else
-        logString = Now & " -- No previous version file in final directory."
-        LogInformation LogFile, logString
-    End If
-        
-    'If delete was successful, move downloaded file to final directory
-    If IsItThere(strFinalPath) = False Then
-        logString = Now & " -- Final directory clear of " & FileName & " file."
-        LogInformation LogFile, logString
-        
-        ' move template to final directory
-        Name strTmpPath As strFinalPath
-        
-        'Mac won't load macros from a template downloaded from the internet to Startup.
-        'Need to send these commands for it to work, see Confluence
-        ' Do NOT use open/save as option, this removes customUI which creates Mac Tools toolbar later
-        #If Mac Then
-            If InStr(1, FileName, ".dotm") Then
-            Dim strCommand As String
-            strCommand = "do shell script " & Chr(34) & "xattr -wx com.apple.FinderInfo \" & Chr(34) & _
-                "57 58 54 4D 4D 53 57 44 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\" & _
-                Chr(34) & Chr(32) & Chr(34) & " & quoted form of POSIX path of " & Chr(34) & strFinalPath & Chr(34)
-                'Debug.Print strCommand
-                MacScript (strCommand)
-            End If
-        #End If
-    
-    Else
-        logString = Now & " -- old " & FileName & " file not cleared from Final directory."
-        LogInformation LogFile, logString
-        strErrMsg = "There was an error installing the Macmillan template." & vbNewLine & _
-            "Please close all other Word documents and try again, or contact workflows@macmillan.com."
-        MsgBox strErrMsg, vbCritical, "Error 5: Previous version uninstall failed (" & FileName & ")"
-        DownloadFromConfluence = False
-        On Error GoTo 0
-        Exit Function
-    End If
-    
-    'If move was successful, yay! Else, :(
-    If IsItThere(strFinalPath) = True Then
-        logString = Now & " -- " & FileName & " file successfully saved to final directory."
-        LogInformation LogFile, logString
-    Else
-        logString = Now & " -- " & FileName & " file not saved to final directory."
-        LogInformation LogFile, logString
-        strErrMsg = "There was an error installing the Macmillan template." & vbNewLine & vbNewLine & _
-            "Please cotact workflows@macmillan.com for assistance."
-        MsgBox strErrMsg, vbCritical, "Error 6: Installation failed (" & FileName & ")"
-        DownloadFromConfluence = False
-        On Error GoTo 0
-        Exit Function
-    End If
-    
-    'Cleanup: Get rid of temp file if downloaded correctly
-    If IsItThere(strTmpPath) = True Then
-        Kill strTmpPath
-    End If
-    
-    ' Disable Startup add-ins so they don't launch right away and mess of the code that's running
-    If InStr(1, LCase(strFinalPath), LCase("startup"), vbTextCompare) > 0 Then         'LCase because "startup" was staying in all caps for some reason, UCase wasn't working
-        On Error Resume Next                                        'Error = add-in not available, don't need to uninstall
-            AddIns(strFinalPath).Installed = False
-        On Error GoTo 0
-    End If
-    
-    DownloadFromConfluence = True
-
+    Select Case Err.Number
+        Case 70     ' File is open
+            strErrMsg = "Please close all other Word documents and try again."
+            MsgBox strErrMsg, vbCritical, "Macmillan Tools Error"
+            KillAll = False
+            Resume KillAllFinish
+        Case Else
+            strErrMsg = "Unexpected error. Please contact " & _
+                Organization_.HelpEmail & " for assistance." & vbNewLine & _
+                vbNewLine & "Error deleting " & Path & vbNewLine & _
+                Err.Number & ": " & Err.Description
+    End Select
+    MsgBox strErrMsg, vbCritical, "Macmillan Tools Error"
+    KillAll = False
+    Resume KillAllFinish
 End Function
- 
-Public Function ShellAndWaitMac(cmd As String) As String
 
+Public Function IsInstalledAddIn(FileName As String) As Boolean
+    ' Check if the file is currently loaded as an AddIn. Because we can't delete
+    ' it if it is loaded (though we can delete it if it's just referenced but
+    ' not loaded).
+    Dim objAddIn As AddIn
+    For Each objAddIn In AddIns
+        ' Check if in collection first; throws error if try to check .Installed
+        ' but it's not even referenced.
+        If objAddIn.Name = FileName Then
+            If objAddIn.Installed = True Then
+                IsInstalledAddIn = True
+            Else
+                IsInstalledAddIn = False
+            End If
+            Exit For
+        End If
+    Next objAddIn
+End Function
+
+' ===== WriteToLog ============================================================
+' Writes line to log for the file. LogMessage only needs text, timestamp will
+' be added in this method.
+
+Public Sub WriteToLog(LogMessage As String, Optional LogFilePath As String)
+    On Error GoTo WriteToLogError
+    Dim strLogFile As String
+    Dim strLogMessage As String
+    Dim FileNum As Integer
+
+    ' If no specific path was passed, write to generic log file
+    If LogFilePath = vbNullString Then
+        strLogFile = Paths_.LogsDir & Application.PathSeparator & _
+            "manuscript-tools.log"
+    Else
+        strLogFile = LogFilePath
+    End If
+
+    If IsItThere(strLogFile) = True Then
+        If IsReadOnly(strLogFile) = True Then
+            Err.Raise MacError.err_LogReadOnly
+        End If
+    End If
+
+    ' prepend current date and time to message
+    strLogMessage = Now & " -- " & LogMessage
+    FileNum = FreeFile ' next file number
+    Open strLogFile For Append As #FileNum ' creates the file if doesn't exist
+    Print #FileNum, strLogMessage ' write information to end of the text file
+    Close #FileNum ' close the file
+WriteToLogFinish:
+    On Error GoTo 0
+    Exit Sub
+
+WriteToLogError:
+    Err.Source = Err.Source & strModule & "WriteToLog"
+    If SharedMacros_.ErrorChecker(Err, strLogFile) = False Then
+        Resume
+    Else
+        Resume WriteToLogFinish
+    End If
+End Sub
+
+Public Function ShellAndWaitMac(cmd As String) As String
     Dim result As String
     Dim scriptCmd As String ' Macscript command
-    
-    scriptCmd = "do shell script " & Chr(34) & cmd & Chr(34) & Chr(34)
-    result = MacScript(scriptCmd) ' result contains stdout, should you care
-    'Debug.Print result
-    ShellAndWaitMac = result
-
+    #If Mac Then
+        scriptCmd = "do shell script " & Chr(34) & cmd & Chr(34) & Chr(34)
+        result = MacScript(scriptCmd) ' result contains stdout, should you care
+        'Debug.Print result
+        ShellAndWaitMac = result
+    #End If
 End Function
 
-Public Sub LogInformation(LogFile As String, LogMessage As String)
 
-Dim FileNum As Integer
-    FileNum = FreeFile ' next file number
-    Open LogFile For Append As #FileNum ' creates the file if it doesn't exist
-    Print #FileNum, LogMessage ' write information at the end of the text file
-    Close #FileNum ' close the file
-End Sub
 
 Public Sub OverwriteTextFile(TextFile As String, NewText As String)
 ' TextFile should be full path
@@ -450,43 +555,7 @@ Public Sub OverwriteTextFile(TextFile As String, NewText As String)
 
 End Sub
 
-Public Function CreateLogFileInfo(ByRef FileName As String) As Variant
-' Creates the style dir, log dir, and log file name variables for use in other subs.
-' File name should not contain periods other than before file type
 
-    Dim strLogFile As String
-    Dim strMacDocs As String
-    Dim strStyle As String
-    Dim strLogFolder As String
-    Dim strLogPath As String
-    
-    'Create logfile name
-    strLogFile = Left(FileName, InStrRev(FileName, ".") - 1)
-    strLogFile = strLogFile & "_updates.log"
-    
-    'Create directory names based on OS
-    #If Mac Then
-        strMacDocs = MacScript("return (path to documents folder) as string")
-        strStyle = strMacDocs & "MacmillanStyleTemplate"
-        strLogFolder = strStyle & Application.PathSeparator & "log"
-        strLogPath = strLogFolder & Application.PathSeparator & strLogFile
-    #Else
-        strStyle = Environ("ProgramData") & "\MacmillanStyleTemplate"
-        strLogFolder = strStyle & Application.PathSeparator & "log"
-        strLogPath = strLogFolder & Application.PathSeparator & strLogFile
-    #End If
-    'Debug.Print strLogPath
-
-    Dim arrFinalDirs() As Variant
-    ReDim arrFinalDirs(1 To 3)
-    
-    arrFinalDirs(1) = strStyle
-    arrFinalDirs(2) = strLogFolder
-    arrFinalDirs(3) = strLogPath
-    
-    CreateLogFileInfo = arrFinalDirs
-
-End Function
 
 Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String) As Boolean
 'LogPath is *full* path to log file, including file name. Created by CreateLogFileInfo sub, to be called before this one.
@@ -525,19 +594,6 @@ Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String
     
 End Function
 
-'Public Function NotesExist(StoryType As WdStoryType) As Boolean
-'    On Error GoTo ErrHandler
-'    Dim myRange As Range
-'    Set myRange = ActiveDocument.StoryRanges(StoryType)
-'    'If can set as myRange, then exists
-'    NotesExist = True
-'    On Error GoTo 0
-'    Exit Function
-'ErrHandler:
-'    If Err.Number = 5941 Then   '"Member of the collection does not exist"
-'        NotesExist = False
-'    End If
-'End Function
 
 Public Sub zz_clearFind()
 
@@ -1262,17 +1318,21 @@ Sub CleanUp()
 End Sub
 
 Function IsReadOnly(Path As String) As Boolean
-    ' Tests if the file or directory is read-only
+    ' Tests if the file or directory is read-only -- does NOT test if file exists,
+    ' because sometimes you'll need to do that before this anyway to do something
+    ' different.
     
-    #If Mac Then
+    ' Mac 2011 can't deal with file paths > 32 char
+    If IsOldMac() = True Then
         Dim strScript As String
         Dim blnWritable As Boolean
         
         strScript = _
             "set p to POSIX path of " & Chr(34) & Path & Chr(34) & Chr(13) & _
             "try" & Chr(13) & _
-            vbTab & "do shell script " & Chr(34) & "test -w \" & Chr(34) & "$(dirname " & Chr(34) & _
-                " & quoted form of p & " & Chr(34) & ")\" & Chr(34) & Chr(34) & Chr(13) & _
+            vbTab & "do shell script " & Chr(34) & "test -w \" & Chr(34) & _
+            "$(dirname " & Chr(34) & " & quoted form of p & " & Chr(34) & _
+            ")\" & Chr(34) & Chr(34) & Chr(13) & _
             vbTab & "return true" & Chr(13) & _
             "on error" & Chr(13) & _
             vbTab & "return false" & Chr(13) & _
@@ -1285,14 +1345,24 @@ Function IsReadOnly(Path As String) As Boolean
         Else
             IsReadOnly = True
         End If
-    #Else
+    Else
         If (GetAttr(Path) And vbReadOnly) <> 0 Then
             IsReadOnly = True
         Else
             IsReadOnly = False
         End If
-    #End If
-    
+    End If
+
+IsReadOnlyFinish:
+    Exit Function
+
+IsReadOnlyError:
+    Err.Source = Err.Source & strModule & "IsReadOnly"
+    If SharedMacros_.ErrorChecker(Err) = False Then
+        Resume
+    Else
+        Resume IsReadOnly
+    End If
 End Function
 
 

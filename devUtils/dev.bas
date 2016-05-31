@@ -2,9 +2,6 @@ Attribute VB_Name = "dev"
 Option Explicit
 Option Base 1
 
-' ====== ADD PATH TO LOCAL GIT REPO HERE ========================
-' DON'T include trailing slash
-Private Const strRepoPath = "C:\Users\erica.warren\Word-template"
 
 ' by Erica Warren - erica.warren@macmillan.com
 ' Good advice from here: http://www.cpearson.com/excel/vbe.aspx
@@ -52,54 +49,56 @@ Sub ExportAllModules()
     Dim strDependencies As String
     Dim strDepFiles As String
     Dim strEachFile As String
-    
-    ' This is where all shared modules go
-    strSharedModules = strRepoPath & Application.PathSeparator & "SharedModules"
-    strDependencies = strRepoPath & Application.PathSeparator & "dependencies"
-    
-    ' Modules that need to be imported into templates but that we do not want
-    ' to track belong in word-template/dependencies. We don't want to export
-    ' these, so let's get then into a string to compare against later
-    
-    ' Dir() w/ arguments returns first file name that matches
-    strEachFile = Dir(strDependencies & Application.PathSeparator & "*.*", vbNormal)
-'    Debug.Print strEachFile
-    Do While Len(strEachFile) > 0
-        strDepFiles = strDepFiles & strEachFile & vbNewLine
-'        Debug.Print strDepFiles
-        ' Dir() again w/o arguments returns the NEXT file that matches orig arguments
-        ' if nothing else matches, returns empty string
-        strEachFile = Dir
-    Loop
-    
+    Dim strRepoPath As String
     
     For Each oDoc In Documents
+        ' get FULL path to this template in its repo
+        strRepoPath = getRepoPath(oDoc)
+
+        ' Don't export dependencies modules
+        If oDoc.Name = "genUtils.dotm" Then
+            ' Modules that need to be imported into templates but that we do
+            ' not want to track belong in word-template/dependencies. We don't
+            ' want to export these, so let's get then into a string check
+            strDependencies = strRepoPath & Application.PathSeparator & _
+                "dependencies"
+            
+            ' Dir() w/ arguments returns first file name that matches
+            strEachFile = Dir(strDependencies & Application.PathSeparator & "*" _
+                & Application.Path & "*.*", vbNormal)
+        '    Debug.Print strEachFile
+            Do While Len(strEachFile) > 0
+                strDepFiles = strDepFiles & strEachFile & vbNewLine
+        '        Debug.Print strDepFiles
+                ' Dir() again w/o arguments returns the NEXT file that matches orig arguments
+                ' if nothing else matches, returns empty string
+                strEachFile = Dir
+            Loop
+        Else
+            strDepFiles = vbNullString
+        End If
+
         ' Separate the name and the extension of the document
-        strExtension = Right(oDoc.Name, Len(oDoc.Name) - (InStrRev(oDoc.Name, ".") - 1))
-        strDirName = Left(oDoc.Name, InStrRev(oDoc.Name, ".") - 1)
-        'Debug.Print "File name is " & oDoc.Name
-        'Debug.Print "Extension is " & strExtension
-        'Debug.Print "Directory is " & strDirName
+        strExtension = Right(oDoc.Name, Len(oDoc.Name) - _
+            (InStrRev(oDoc.Name, ".") - 1))
+'        strDirName = Left(oDoc.Name, InStrRev(oDoc.Name, ".") - 1)
         
         ' We just want to work with .dotm and .docm (others can't have macros)
         If strExtension = ".dotm" Or strExtension = ".docm" Then
             ' Make sure we're referencing the correct project
             Set oProject = oDoc.VBProject
         
-            strTemplateModules = strRepoPath & Application.PathSeparator & strDirName
+            strTemplateModules = strRepoPath & Application.PathSeparator
             
             ' Cycle through each module
             For Each oModule In oProject.VBComponents
                 ' Skip modules in dependencies directory
                 If InStr(strDepFiles, oModule.Name) = 0 Then
-                    ' Don't export forms, they are always wonky. Will have to manage manually
+                    ' Don't export forms, they are always wonky. Will have to
+                    ' manage manually
                     If oModule.Type <> vbext_ct_MSForm Then
-                        ' Select save location based on module name
-                        If oModule.Name Like "*_" Then
-                            Call ExportVBComponent(VBComp:=oModule, FolderName:=strSharedModules)
-                        Else
-                            Call ExportVBComponent(VBComp:=oModule, FolderName:=strTemplateModules)
-                        End If
+                        Call ExportVBComponent(VBComp:=oModule, _
+                            FolderName:=strTemplateModules)
                     End If
                 End If
             Next
@@ -107,7 +106,8 @@ Sub ExportAllModules()
             ' And also save the template file in the repo if it's not open from there
             ' CopyTemplateToRepo closes and re-opens the doc, so don't use it for THIS doc
             If oDoc.Name <> ThisDocument.Name Then
-                CopyTemplateToRepo TemplateDoc:=oDoc, OpenAfter:=False
+                CopyTemplateToRepo TemplateDoc:=oDoc, LocalRepo:=strRepoPath, _
+                    OpenAfter:=False
             Else
                 'Debug.Print ThisDocument.Name
                 oDoc.Save
@@ -605,3 +605,42 @@ Private Function LocalPathToRepoPath(LocalPath As String, Optional VersionFile A
         Application.PathSeparator & strFileWithExt
     
 End Function
+
+' ===== getRepoPath ===========================================================
+' returns the directory of the git repo for this template file. Saved in a
+' custom doc property. If property doesn't exist or is wrong, it will prompt you
+' to add the correct path. Obviously will cause some issues if other people are
+' updating and pushing the files, but we'll cross that bridge when it happens.
+
+Private Function getRepoPath(objDoc As Document) As String
+    Dim strRepo As String
+    On Error GoTo repoError
+    strRepo = objDoc.CustomDocumentProperties("repo")
+    
+    If SharedMacros.IsItThere(strRepo) = False Then
+        Err.Raise 5
+    End If
+    getRepoPath = strRepo
+    Exit Function
+repoError:
+    If Err.Number = 5 Then      ' "Invalid procedure call or argument" si.e. prop doesn't exist
+        strRepo = InputBox("Enter the full path to the repo for " & objDoc.Name)
+        If strRepo <> vbNullString Then
+            ' trailing separator if includedd
+            If Right(strRepo, 1) = Application.PathSeparator Then
+                strRepo = Left(strRepo, Len(strRepo) - 1)
+            End If
+            ' set do prop for next time
+            objDoc.CustomDocumentProperties.Add Name:="repo", LinkToContent:=False, _
+                Value:=strRepo, Type:=msoPropertyTypeString
+            Resume Next
+        Else
+            MsgBox "That's not a full path :("
+            Exit Function
+        End If
+    Else
+        MsgBox Err.Number & ": " & Err.Description
+        Exit Function
+    End If
+End Function
+

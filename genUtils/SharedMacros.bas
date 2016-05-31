@@ -1,9 +1,9 @@
-Attribute VB_Name = "SharedMacros_"
+Attribute VB_Name = "SharedMacros"
 
 ' All should be declared as Public for use from other modules
 
 Option Explicit
-Private Const strModule As String = ".SharedMacros_."
+Private Const strModule As String = "genUtils.SharedMacro."
 
 Public Enum GitBranch
     master = 1
@@ -171,7 +171,7 @@ Public Function ErrorChecker(ByRef objError As Object, Optional strValue As _
                 Err.Description = "File download failed: " & strValue
                 strErrMessage = "Download failed."
             Case MacError.err_LocalDeleteFail
-                ' SharedMacros_.KillAll() will notify user if file is open
+                ' genUtils.SharedMacros.KillAll() will notify user if file is open
                 Err.Description = "File in final install location could not " _
                     & "be deleted. If it was because the file was open, the " _
                     & "user was notified: " & strValue
@@ -397,7 +397,7 @@ Public Function IsItThere(Path As String) As Boolean
         strScript = "tell application " & Chr(34) & "System Events" & Chr(34) & _
             "to return exists disk item (" & Chr(34) & Path & Chr(34) _
             & " as string)"
-        IsItThere = SharedMacros_.ShellAndWaitMac(strScript)
+        IsItThere = genUtils.SharedMacros.ShellAndWaitMac(strScript)
     Else
         Dim strCheckDir As String
         strCheckDir = Dir(Path, vbDirectory)
@@ -426,7 +426,7 @@ Public Function KillAll(Path As String) As Boolean
                 Dim strCommand As String
                 strCommand = MacScript("return quoted form of posix path of " & Path)
                 strCommand = "rm " & strCommand
-                SharedMacros_.ShellAndWaitMac (strCommand)
+                genUtils.SharedMacros.ShellAndWaitMac (strCommand)
             Else
                 Kill (Path)
             End If
@@ -521,7 +521,7 @@ WriteToLogFinish:
 
 WriteToLogError:
     Err.Source = Err.Source & strModule & "WriteToLog"
-    If SharedMacros_.ErrorChecker(Err, strLogFile) = False Then
+    If genUtils.SharedMacros.ErrorChecker(Err, strLogFile) = False Then
         Resume
     Else
         Resume WriteToLogFinish
@@ -1358,7 +1358,7 @@ IsReadOnlyFinish:
 
 IsReadOnlyError:
     Err.Source = Err.Source & strModule & "IsReadOnly"
-    If SharedMacros_.ErrorChecker(Err) = False Then
+    If genUtils.SharedMacros.ErrorChecker(Err) = False Then
         Resume
     Else
         Resume IsReadOnly

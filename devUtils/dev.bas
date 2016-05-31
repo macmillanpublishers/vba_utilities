@@ -52,8 +52,9 @@ Sub ExportAllModules()
     Dim strRepoPath As String
     
     For Each oDoc In Documents
+        Debug.Print oDoc.Name
         ' get FULL path to this template in its repo
-        strRepoPath = getRepoPath(oDoc)
+        strRepoPath = GetRepoPath(oDoc)
 
         ' Don't export dependencies modules
         If oDoc.Name = "genUtils.dotm" Then
@@ -64,12 +65,14 @@ Sub ExportAllModules()
                 "dependencies"
             
             ' Dir() w/ arguments returns first file name that matches
-            strEachFile = Dir(strDependencies & Application.PathSeparator & "*" _
-                & Application.Path & "*.*", vbNormal)
+            ' !!!! When switch to submodules, will need to change this to
+            ' search subdirectories.
+            strEachFile = Dir(strDependencies & Application.PathSeparator & _
+                 "*.*", vbNormal)
         '    Debug.Print strEachFile
             Do While Len(strEachFile) > 0
                 strDepFiles = strDepFiles & strEachFile & vbNewLine
-        '        Debug.Print strDepFiles
+                Debug.Print strDepFiles
                 ' Dir() again w/o arguments returns the NEXT file that matches orig arguments
                 ' if nothing else matches, returns empty string
                 strEachFile = Dir
@@ -107,7 +110,7 @@ Sub ExportAllModules()
             ' CopyTemplateToRepo closes and re-opens the doc, so don't use it for THIS doc
             If oDoc.Name <> ThisDocument.Name Then
                 CopyTemplateToRepo TemplateDoc:=oDoc, LocalRepo:=strRepoPath, _
-                    OpenAfter:=False
+                    OpenAfter:=True
             Else
                 'Debug.Print ThisDocument.Name
                 oDoc.Save
@@ -330,13 +333,10 @@ Sub ImportAllModules()
 
     Next oDocument
     
-    
 End Sub
 
 
 Sub DeleteAllVBACode(objTemplate As Document)
-    ' Again copied from http://www.cpearson.com/excel/vbe.aspx
-    ' Though made it take an argument
     Dim VBProj As VBIDE.VBProject
     Dim VBComp As VBIDE.VBComponent
     Dim CodeMod As VBIDE.CodeModule
@@ -356,45 +356,14 @@ Sub DeleteAllVBACode(objTemplate As Document)
 End Sub
 
 
-Sub InsertShapes()
-    ' Inserts pictures for use in creating Mac toolbar in MacmillanGT.dotm
-    ' But this way we can name them
-    
-    Dim strPath As String
-    Dim strFileName As String
-    Dim shpToolbar As Shape
-    Dim lngStart As Long
-    Dim lngNumChar As Long
-    Dim strShapeName As String
-    Dim shpNewPicture As Shape
-    
-    strPath = "C:\Users\erica.warren\Dropbox (Macmillan Publishers)\Icons\16px gray\"
-    strFileName = Dir$(strPath & "*.*")
-    
-    Do While strFileName <> ""
-        ' Get shape name
-        lngStart = InStr(strFileName, "---") + 3
-        lngNumChar = InStr(strFileName, ".") - lngStart
-        strShapeName = Mid(strFileName, lngStart, lngNumChar)
-        
-'        Debug.Print strShapeName
-        
-        ' Insert picture
-        Set shpNewPicture = ActiveDocument.Shapes.AddPicture(FileName:=strPath & strFileName)
-        shpNewPicture.Name = strShapeName
-        
-        strFileName = Dir$
-    Loop
-    
-End Sub
-
-
-Sub CopyTemplateToRepo(TemplateDoc As Document, Optional OpenAfter As Boolean = True)
+Sub CopyTemplateToRepo(TemplateDoc As Document, LocalRepo As String, _
+    Optional OpenAfter As Boolean = True)
 ' copies the current template file to the local git repo
     
     ' Don't copy if it's already open from the repo
     ' Wait that won't work because no templates are in the root of the repo
-    
+    Dim strRepoPath As String
+    strRepoPath = GetRepoPath(TemplateDoc)
     If strRepoPath <> TemplateDoc.Path Then
         
         Dim strCurrentTemplatePath As String
@@ -402,44 +371,53 @@ Sub CopyTemplateToRepo(TemplateDoc As Document, Optional OpenAfter As Boolean = 
         
         ' Current file full path, to use for FileCopy later
         strCurrentTemplatePath = TemplateDoc.FullName
-        'Debug.Print strCurrentTemplatePath
+        Debug.Print strCurrentTemplatePath
         
         ' location in repo
-        strDestinationFilePath = LocalPathToRepoPath(LocalPath:=strCurrentTemplatePath, VersionFile:=False)
+        strDestinationFilePath = strRepoPath & Application.PathSeparator & _
+            TemplateDoc.Name
         'Debug.Print strDestinationFilePath
         
-        ' Also not installed as an add-in
-        If InStr(TemplateDoc.Name, "MacmillanGT") <> 0 Or InStr(TemplateDoc.Name, "GtUpdater") <> 0 Then
-            On Error Resume Next
-            AddIns(strCurrentTemplatePath).Installed = False
-            On Error GoTo 0
+        ' Check if the file is there already
+        Dim blnInstalled As Boolean
+        blnInstalled = False
+        If genUtils.IsInstalledAddIn(TemplateDoc.Name) = True Then
+            blnInstalled = True
+            AddIns(TemplateDoc.Name).Installed = False
         End If
 
         ' Template needs to be closed for FileCopy to work
-        ' ALSO: changing doc properties does NOT count as a "change", so Word sees the file as unchanged
-        ' and doesn't actually save, and also doesn't throw an error
-        ' so we set Saved = False before saving to get it working right.
-        TemplateDoc.Saved = False
-        TemplateDoc.Close SaveChanges:=wdSaveChanges
-        Set TemplateDoc = Nothing
-        
-        ' copy copy copy copy
-        If strCurrentTemplatePath <> strDestinationFilePath Then
-            FileCopy Source:=strCurrentTemplatePath, Destination:=strDestinationFilePath
-        End If
-
-        ' Reinstall add-in if it's a global template
-        If InStr(strCurrentTemplatePath, "MacmillanGT") <> 0 Or InStr(strCurrentTemplatePath, "GtUpdater") <> 0 Then
-            WordBasic.DisableAutoMacros     ' Not sure this really works tho
-            AddIns(strCurrentTemplatePath).Installed = True
-        End If
-        
-        ' And then open the document again if you wanna.
-        ' Though note that AutoExec and Document_Open subs will run when you do!
-        If OpenAfter = True Then
-            Documents.Open FileName:=strCurrentTemplatePath, _
-                        ReadOnly:=False, _
-                        Revert:=False
+        ' ALSO: changing doc properties does NOT count as a "change", so Word
+        ' sees the file as unchanged and doesn't actually save, and also
+        ' doesn't throw an error so we set Saved = False before saving to get
+        ' it working right.
+        If TemplateDoc.Name <> ThisDocument.Name Then
+            TemplateDoc.Saved = False
+            TemplateDoc.Close SaveChanges:=wdSaveChanges
+            Set TemplateDoc = Nothing
+            
+'            Debug.Print strDestinationFilePath
+            
+            ' copy copy copy copy
+            If strCurrentTemplatePath <> strDestinationFilePath Then
+                VBA.FileCopy Source:=strCurrentTemplatePath, _
+                    Destination:=strDestinationFilePath
+            End If
+    
+            ' Reinstall add-in if it's a global template
+            If blnInstalled = True Then
+                WordBasic.DisableAutoMacros     ' Not sure this really works tho
+                AddIns(strCurrentTemplatePath).Installed = True
+            End If
+            
+            ' And then open the document again if you wanna.
+            ' Though note that AutoExec and Document_Open subs will run when
+            ' you do!
+            If OpenAfter = True Then
+                Documents.Open FileName:=strCurrentTemplatePath, _
+                            ReadOnly:=False, _
+                            Revert:=False
+            End If
         End If
     End If
     
@@ -573,54 +551,21 @@ Sub CheckChangeVersion()
 End Sub
 
 
-Private Function LocalPathToRepoPath(LocalPath As String, Optional VersionFile As Boolean = False) As String
-' takes full path to local/installed template file and converts to a path to that file in git repo
-' or optionally the version file for that template
-' DEPENDENCIES: requires strRepoPath constant at top of this module
-'               files are saved in subdir that matches file name
-'               if multiple files in subdir, add to file name after underscore
-
-    Dim strFileWithExt As String
-    Dim strSeparator As String
-    Dim strSubDirectory As String
-    
-    ' Extract file name from full path
-    strFileWithExt = Right(LocalPath, (Len(LocalPath) - InStrRev(LocalPath, Application.PathSeparator)))
-    
-    ' Extract sub-directory name from file name--i.e., just text before optional underscore
-    strSeparator = "_"
-    If InStr(strFileWithExt, strSeparator) = 0 Then
-        strSeparator = "."
-    End If
-    
-    strSubDirectory = Left(strFileWithExt, InStrRev(strFileWithExt, strSeparator) - 1)
-    
-    ' Change extension if we're getting a version file
-    If VersionFile = True Then
-        strFileWithExt = Left(strFileWithExt, InStrRev(strFileWithExt, ".")) & "txt"
-    End If
-    
-    ' Build path to file in repo
-    LocalPathToRepoPath = strRepoPath & Application.PathSeparator & strSubDirectory & _
-        Application.PathSeparator & strFileWithExt
-    
-End Function
-
-' ===== getRepoPath ===========================================================
+' ===== GetRepoPath ===========================================================
 ' returns the directory of the git repo for this template file. Saved in a
 ' custom doc property. If property doesn't exist or is wrong, it will prompt you
 ' to add the correct path. Obviously will cause some issues if other people are
 ' updating and pushing the files, but we'll cross that bridge when it happens.
 
-Private Function getRepoPath(objDoc As Document) As String
+Private Function GetRepoPath(objDoc As Document) As String
     Dim strRepo As String
     On Error GoTo repoError
     strRepo = objDoc.CustomDocumentProperties("repo")
     
-    If SharedMacros.IsItThere(strRepo) = False Then
+    If genUtils.SharedMacros.IsItThere(strRepo) = False Then
         Err.Raise 5
     End If
-    getRepoPath = strRepo
+    GetRepoPath = strRepo
     Exit Function
 repoError:
     If Err.Number = 5 Then      ' "Invalid procedure call or argument" si.e. prop doesn't exist

@@ -43,7 +43,7 @@ Private Sub MakeReport(torDOTcom As Boolean)
     ' ======= Run startup checks ========
     ' True means a check failed (e.g., doc protection on)
     If StartupSettings(StoriesUsed:=arrStories) = True Then
-        Call Cleanup
+        Call CleanUp
         Exit Sub
     End If
     
@@ -263,7 +263,7 @@ Private Sub MakeReport(torDOTcom As Boolean)
     
     Call UpdateBarAndWait(Bar:=oProgressBkmkr, Status:=strStatus, Percent:=sglPercentComplete)
     
-    Call Cleanup
+    Call CleanUp
     
     Unload oProgressBkmkr
     

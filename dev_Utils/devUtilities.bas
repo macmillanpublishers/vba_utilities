@@ -1,4 +1,4 @@
-Attribute VB_Name = "Utilities"
+Attribute VB_Name = "devUtilities"
 Option Explicit
 Option Base 1
 
@@ -546,38 +546,3 @@ Private Function LocalPathToRepoPath(LocalPath As String, Optional VersionFile A
         Application.PathSeparator & strFileWithExt
     
 End Function
-
-
-Sub testing()
-    ' Debug.Print has a memory limit, this prints to a text file on desktop
-    ' right now prints stuff about fields, but leaving here so we can use
-    ' for other things later
-    Dim strStories() As Variant
-    Dim A As Long
-    Dim objField As Field
-    Dim fnum As Long
-    Dim strOutputFile As String
-    
-    strStories = StoryArray
-    
-    strOutputFile = Environ("USERPROFILE") & "\Desktop\fields5.txt"
-
-    fnum = FreeFile()
-    Open strOutputFile For Append As fnum
-
-    For A = LBound(strStories) To UBound(strStories)
-        Print #fnum, "======== STORY " & strStories(A) & " =============="
-        For Each objField In ActiveDocument.StoryRanges(strStories(A)).Fields
-            Print #fnum, "--------" & vbNewLine & "FIELD " & objField.Index
-            Print #fnum, "Code: " & objField.Code
-            Print #fnum, "Creator: " & objField.Creator
-            Print #fnum, "Kind: " & objField.Kind
-            Print #fnum, "Locked: " & objField.Locked
-            Print #fnum, "Type: " & objField.Type
-        Next objField
-    Next
-    
-    Close #fnum
-        
-        
-End Sub

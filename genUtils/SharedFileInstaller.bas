@@ -401,5 +401,11 @@ Private Function ImportVariable(strFile As String) As String
  
 End Function
 
-
+Sub TryWebRequest()
+    Dim testFile As New MacFile_
+    testFile.AssignFile strGroupName:="testFiles", strSpecificFileType:="tester"
+    Debug.Print testFile.FullLocalPath
+    Set testFile = Nothing
+    Paths_.ClearPaths
+End Sub
 

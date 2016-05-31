@@ -98,10 +98,9 @@ Public Function GetTemplatesList(TemplatesYouWant As TemplatesList, Optional Pat
     
 End Function
 
-
-Public Function IsItThere(Path)
-' Check if file or directory exists on PC or Mac
-    
+Public Function IsItThere(Path As String) As Boolean
+    ' Check if file or directory exists on PC or Mac
+    ' Dir() doesn't work on Mac if file is longer than 32 char
     'Debug.Print Path
     
     'Remove trailing path separator from dir if it's there
@@ -109,29 +108,49 @@ Public Function IsItThere(Path)
         Path = Left(Path, Len(Path) - 1)
     End If
     
-    Dim CheckDir As String
-    On Error GoTo ErrHandler            ' Because Dir(Path) throws an error on Mac if not existant
+    #If Mac Then
+        Dim strScript As String
+        strScript = "tell application " & Chr(34) & "System Events" & Chr(34) & _
+            "to return exists disk item (" & Chr(34) & Path & Chr(34) _
+            & " as string)"
+        IsItThere = SharedMacros_.ShellAndWaitMac(strScript)
+    #Else
+        Dim CheckDir As String
+        CheckDir = Dir(Path, vbDirectory)
         
-    CheckDir = Dir(Path, vbDirectory)
-    
-    If CheckDir = vbNullString Then
-        IsItThere = False
-    Else
-        IsItThere = True
-    End If
-    
-    On Error GoTo 0
-    
-Exit Function
-
-ErrHandler:
-    If Err.Number = 68 Then     ' "Device unavailable"
-        IsItThere = False
-    Else
-        Debug.Print "IsItThere Error " & Err.Number & ": " & Err.Description
-    End If
+        If CheckDir = vbNullString Then
+            IsItThere = False
+        Else
+            IsItThere = True
+        End If
+    #End If
 End Function
 
+
+Public Function KillAll(Path As String) As Boolean
+    ' Deletes file (or folder?) on PC or Mac. Mac can't use Kill() if file name
+    ' is longer than 32 char. Returns true if successful.
+    If IsItThere(Path) = True Then
+        #If Mac Then
+            Dim strCommand As String
+            strCommand = MacScript("return quoted form of posix path of " & Path)
+            Debug.Print "Path var: " & strCommand
+            strCommand = "rm " & strCommand
+            Debug.Print "Command: " & strCommand
+            SharedMacros_.ShellAndWaitMac (strCommand)
+        #Else
+            Kill (Path)
+        #End If
+        ' Make sure it worked
+        If IsItThere(Path) = False Then
+            KillAll = True
+        Else
+            KillAll = False
+        End If
+    Else
+        KillAll = True
+    End If
+End Function
 Public Function DownloadFromConfluence(FinalDir As String, LogFile As String, FileName As String, _
     Optional DownloadSource As GitBranch = master) As Boolean
 'FinalDir is directory w/o file name
@@ -239,11 +258,11 @@ Public Function DownloadFromConfluence(FinalDir As String, LogFile As String, Fi
         If WinHttpReq.Status = 200 Then  ' 200 = HTTP request is OK
         
             'if connection OK, download file to temp dir
-            myURL = WinHttpReq.responseBody
+            myURL = WinHttpReq.ResponseBody
             Set oStream = CreateObject("ADODB.Stream")
             oStream.Open
             oStream.Type = 1
-            oStream.Write WinHttpReq.responseBody
+            oStream.Write WinHttpReq.ResponseBody
             oStream.SaveToFile strTmpPath, 2 ' 1 = no overwrite, 2 = overwrite
             oStream.Close
             Set oStream = Nothing
@@ -401,7 +420,7 @@ Public Function ShellAndWaitMac(cmd As String) As String
     Dim result As String
     Dim scriptCmd As String ' Macscript command
     
-    scriptCmd = "do shell script """ & cmd & """"
+    scriptCmd = "do shell script " & Chr(34) & cmd & Chr(34) & Chr(34)
     result = MacScript(scriptCmd) ' result contains stdout, should you care
     'Debug.Print result
     ShellAndWaitMac = result
@@ -1189,7 +1208,7 @@ End Sub
 
 
 
-Sub Cleanup()
+Sub CleanUp()
     ' resets everything from StartupSettings sub.
     Dim cleanupDoc As Document
     Set cleanupDoc = ActiveDocument

@@ -43,51 +43,55 @@ Sub ExportAllModules()
     Dim strExtension As String
     Dim oProject As VBIDE.VBProject
     Dim oModule As VBIDE.VBComponent
-    Dim strSharedModules As String
-    Dim strDirName As String
     Dim strTemplateModules As String
     Dim strDependencies As String
     Dim strDepFiles As String
     Dim strEachFile As String
     Dim strRepoPath As String
+    Dim openTemplates As Collection
+    Set openTemplates = New Collection
     
     For Each oDoc In Documents
         Debug.Print oDoc.Name
-        ' get FULL path to this template in its repo
-        strRepoPath = GetRepoPath(oDoc)
-
-        ' Don't export dependencies modules
-        If oDoc.Name = "genUtils.dotm" Then
-            ' Modules that need to be imported into templates but that we do
-            ' not want to track belong in word-template/dependencies. We don't
-            ' want to export these, so let's get then into a string check
-            strDependencies = strRepoPath & Application.PathSeparator & _
-                "dependencies"
-            
-            ' Dir() w/ arguments returns first file name that matches
-            ' !!!! When switch to submodules, will need to change this to
-            ' search subdirectories.
-            strEachFile = Dir(strDependencies & Application.PathSeparator & _
-                 "*.*", vbNormal)
-        '    Debug.Print strEachFile
-            Do While Len(strEachFile) > 0
-                strDepFiles = strDepFiles & strEachFile & vbNewLine
-                Debug.Print strDepFiles
-                ' Dir() again w/o arguments returns the NEXT file that matches orig arguments
-                ' if nothing else matches, returns empty string
-                strEachFile = Dir
-            Loop
-        Else
-            strDepFiles = vbNullString
-        End If
-
         ' Separate the name and the extension of the document
         strExtension = Right(oDoc.Name, Len(oDoc.Name) - _
             (InStrRev(oDoc.Name, ".") - 1))
-'        strDirName = Left(oDoc.Name, InStrRev(oDoc.Name, ".") - 1)
         
         ' We just want to work with .dotm and .docm (others can't have macros)
         If strExtension = ".dotm" Or strExtension = ".docm" Then
+            ' later need to close > copy > open these files, but if we loop
+            ' thru Documents collection, "open" will add file back try again.
+            ' So create Collection to loop once:
+            openTemplates.Add oDoc
+            
+            ' get FULL path to this template in its repo
+            strRepoPath = GetRepoPath(oDoc)
+    
+            If oDoc.Name = "genUtils.dotm" Then
+            ' Modules that need to be imported into templates but that we do
+            ' not want to track. We don't want to export these, so let's get
+            ' then into a string check against later.
+                
+                strDependencies = strRepoPath & Application.PathSeparator & _
+                    "dependencies"
+                Debug.Print strDependencies
+                ' Dir() w/ arguments returns first file name that matches
+                ' !!!! When switch to submodules, will need to change this to
+                ' search subdirectories.
+                strEachFile = Dir(strDependencies & Application.PathSeparator & _
+                     "*.*", vbNormal)
+                Do While Len(strEachFile) > 0
+                    Debug.Print strEachFile
+                    strDepFiles = strDepFiles & strEachFile & vbNewLine
+'                    Debug.Print strDepFiles
+                    ' Dir() again w/o arguments returns the NEXT file that matches orig arguments
+                    ' if nothing else matches, returns empty string
+                    strEachFile = Dir
+                Loop
+            Else
+                strDepFiles = vbNullString
+            End If
+
             ' Make sure we're referencing the correct project
             Set oProject = oDoc.VBProject
         
@@ -105,19 +109,30 @@ Sub ExportAllModules()
                     End If
                 End If
             Next
-            
-            ' And also save the template file in the repo if it's not open from there
-            ' CopyTemplateToRepo closes and re-opens the doc, so don't use it for THIS doc
-            If oDoc.Name <> ThisDocument.Name Then
-                CopyTemplateToRepo TemplateDoc:=oDoc, LocalRepo:=strRepoPath, _
-                    OpenAfter:=True
-            Else
-                'Debug.Print ThisDocument.Name
-                oDoc.Save
-            End If
-            
         End If
     Next oDoc
+    
+    ' Have to do this in a separate loop if we're opening the files after,
+    ' otherwise the newly opened file is added back to the Documents
+    ' collection and it keeps looping through them.
+'    Dim A As Long
+    Dim aDoc As Document
+    If openTemplates.Count > 0 Then
+'        For A = 1 To openTemplates.Count
+'            Set aDoc = openTemplates.Item(A)
+        For Each aDoc In openTemplates
+            ' And also save the template file in the repo if it's not open from there
+            ' CopyTemplateToRepo closes and re-opens the doc, so don't use it for THIS doc
+            If aDoc.Name <> ThisDocument.Name Then
+                CopyTemplateToRepo TemplateDoc:=aDoc, OpenAfter:=True
+            Else
+                'Debug.Print ThisDocument.Name
+                 aDoc.Save
+            End If
+        Next aDoc
+    End If
+
+
 End Sub
 
 
@@ -356,54 +371,53 @@ Sub DeleteAllVBACode(objTemplate As Document)
 End Sub
 
 
-Sub CopyTemplateToRepo(TemplateDoc As Document, LocalRepo As String, _
-    Optional OpenAfter As Boolean = True)
+Sub CopyTemplateToRepo(TemplateDoc As Document, Optional OpenAfter As _
+    Boolean = True)
 ' copies the current template file to the local git repo
-    
-    ' Don't copy if it's already open from the repo
-    ' Wait that won't work because no templates are in the root of the repo
+
     Dim strRepoPath As String
     strRepoPath = GetRepoPath(TemplateDoc)
     If strRepoPath <> TemplateDoc.Path Then
-        
-        Dim strCurrentTemplatePath As String
-        Dim strDestinationFilePath As String
-        
-        ' Current file full path, to use for FileCopy later
-        strCurrentTemplatePath = TemplateDoc.FullName
-        Debug.Print strCurrentTemplatePath
-        
-        ' location in repo
-        strDestinationFilePath = strRepoPath & Application.PathSeparator & _
-            TemplateDoc.Name
-        'Debug.Print strDestinationFilePath
-        
-        ' Check if the file is there already
-        Dim blnInstalled As Boolean
-        blnInstalled = False
-        If genUtils.IsInstalledAddIn(TemplateDoc.Name) = True Then
-            blnInstalled = True
-            AddIns(TemplateDoc.Name).Installed = False
-        End If
-
-        ' Template needs to be closed for FileCopy to work
-        ' ALSO: changing doc properties does NOT count as a "change", so Word
-        ' sees the file as unchanged and doesn't actually save, and also
-        ' doesn't throw an error so we set Saved = False before saving to get
-        ' it working right.
         If TemplateDoc.Name <> ThisDocument.Name Then
+            Dim strCurrentTemplatePath As String
+            Dim strDestinationFilePath As String
+            
+            ' Current file full path, to use for FileCopy later
+            strCurrentTemplatePath = TemplateDoc.FullName
+            Debug.Print strCurrentTemplatePath
+            
+            ' location in repo
+            strDestinationFilePath = strRepoPath & Application.PathSeparator & _
+                TemplateDoc.Name
+            Debug.Print strDestinationFilePath
+            
+            ' Check if the file is there already
+            Dim blnInstalled As Boolean
+            blnInstalled = False
+            If genUtils.IsInstalledAddIn(TemplateDoc.Name) = True Then
+                blnInstalled = True
+                AddIns(TemplateDoc.Name).Installed = False
+            End If
+    
+            ' Template needs to be closed for FileCopy to work
+            ' ALSO: changing doc properties does NOT count as a "change", so Word
+            ' sees the file as unchanged and doesn't actually save, and also
+            ' doesn't throw an error so we set Saved = False before saving to get
+            ' it working right.
             TemplateDoc.Saved = False
             TemplateDoc.Close SaveChanges:=wdSaveChanges
             Set TemplateDoc = Nothing
-            
-'            Debug.Print strDestinationFilePath
-            
+
             ' copy copy copy copy
+            ' but NOT if it's genUtils -- this current file right here has a
+            ' reference to it, so we can never copy it ever haha!
+            On Error GoTo StupidError
             If strCurrentTemplatePath <> strDestinationFilePath Then
                 VBA.FileCopy Source:=strCurrentTemplatePath, _
                     Destination:=strDestinationFilePath
             End If
-    
+            On Error GoTo 0
+
             ' Reinstall add-in if it's a global template
             If blnInstalled = True Then
                 WordBasic.DisableAutoMacros     ' Not sure this really works tho
@@ -420,7 +434,11 @@ Sub CopyTemplateToRepo(TemplateDoc As Document, LocalRepo As String, _
             End If
         End If
     End If
-    
+    Exit Sub
+StupidError:
+    If Err.Number = 70 And InStr(strCurrentTemplatePath, "genUtils.dotm") > 0 Then
+        Resume Next
+    End If
 End Sub
 
 Sub CheckChangeVersion()

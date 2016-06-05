@@ -580,7 +580,7 @@ Private Function GetRepoPath(objDoc As Document) As String
     On Error GoTo repoError
     strRepo = objDoc.CustomDocumentProperties("repo")
     
-    If genUtils.SharedMacros.IsItThere(strRepo) = False Then
+    If genUtils.GeneralHelpers.IsItThere(strRepo) = False Then
         Err.Raise 5
     End If
     GetRepoPath = strRepo

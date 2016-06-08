@@ -433,6 +433,32 @@ Public Function IsItThere(Path As String) As Boolean
     End If
 End Function
 
+' ===== ParentDirExists =======================================================
+' If `FilePath` is the full path to a file (that may or may not exist), then
+' this checks that the directory the file is in exists. Good for checking paths
+' to files before you create them.
+
+Public Function ParentDirExists(FilePath As String) As Boolean
+  Dim strDir As String
+  Dim strFile As String
+  Dim lngSep As Long
+  ParentDirExists = False
+  ' Separate directory from file name
+  lngSep = InStrRev(origPath, Application.PathSeparator)
+  
+  If lngSep > 0 Then
+    strDir = VBA.Left(origPath, lngSep - 1)  ' NO trailing separator
+    strFile = VBA.Right(origPath, Len(origPath) - lngSep)
+'    Debug.Print strDir & " | " & strFile
+
+    ' Verify file name string is in fact plausibly a file name
+    If InStr(strFile, ".") > 0 Then
+      ' NOW we can check if the directory exists:
+      ParentDirExists = IsItThere(strDir)
+      Exit Function
+    End If
+  End If
+End Function
 
 Public Function KillAll(Path As String) As Boolean
     ' Deletes file (or folder?) on PC or Mac. Mac can't use Kill() if file name
@@ -581,12 +607,12 @@ Public Sub AppendTextFile(TextFile As String, Contents As String)
     
     Dim FileNum As Integer
     
-    If IsItThere(TextFile) = True Then
+'    If IsItThere(TextFile) = True Then
         FileNum = FreeFile ' next file number
         Open TextFile For Append As #FileNum
-        Print #FileNum, Content
+        Print #FileNum, Contents
         Close #FileNum ' close the file
-    End If
+'    End If
   
 End Sub
 

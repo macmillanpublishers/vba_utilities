@@ -46,6 +46,7 @@ Public Enum MacError
     err_RootDirInvalid = 20019
     err_RootDirMissing = 20020
     err_LogReadOnly = 20021
+    err_DirectoryMissing = 20022
 End Enum
 
 ' ===== ErrorChecker ==========================================================
@@ -219,6 +220,9 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     Case MacError.err_LogReadOnly
         strErrDescription = "Log file is read only: " & strValue
         strErrMessage = "There is a problem with the logs."
+    Case MacError.err_DirectoryMissing
+      strErrDescription = "The directory " & strValue & " is missing."
+      strErrMessage = strErrDescription
     Case Else
         strErrDescription = "Undocumented error - " & _
             strErrDescription
@@ -444,11 +448,11 @@ Public Function ParentDirExists(FilePath As String) As Boolean
   Dim lngSep As Long
   ParentDirExists = False
   ' Separate directory from file name
-  lngSep = InStrRev(origPath, Application.PathSeparator)
+  lngSep = InStrRev(FilePath, Application.PathSeparator)
   
   If lngSep > 0 Then
-    strDir = VBA.Left(origPath, lngSep - 1)  ' NO trailing separator
-    strFile = VBA.Right(origPath, Len(origPath) - lngSep)
+    strDir = VBA.Left(FilePath, lngSep - 1)  ' NO trailing separator
+    strFile = VBA.Right(FilePath, Len(FilePath) - lngSep)
 '    Debug.Print strDir & " | " & strFile
 
     ' Verify file name string is in fact plausibly a file name
@@ -589,31 +593,53 @@ End Function
 
 Public Sub OverwriteTextFile(TextFile As String, NewText As String)
 ' TextFile should be full path
-    
-    Dim FileNum As Integer
-    
-    If IsItThere(TextFile) = True Then
-        FileNum = FreeFile ' next file number
-        Open TextFile For Output Access Write As #FileNum
-        Print #FileNum, NewText ' overwrite information in the text of the file
-        Close #FileNum ' close the file
-    End If
-
+  On Error GoTo OverwriteTextFileError
+  Dim FileNum As Integer
+  ' Will create file if not exist, but parent dir must exist
+  If ParentDirExists(TextFile) = True Then
+    FileNum = FreeFile ' next file number
+    Open TextFile For Output Access Write As #FileNum
+    Print #FileNum, NewText ' overwrite information in the text of the file
+    Close #FileNum ' close the file
+  Else
+    ' directory is invalid
+    Err.Raise MacError.err_DirectoryMissing
+  End If
+  Exit Sub
+  
+OverwriteTextFileError:
+  Err.Source = strModule & "OverwriteTextFile"
+  If ErrorChecker(Err, TextFile) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 
 Public Sub AppendTextFile(TextFile As String, Contents As String)
 ' TextFile should be full path
-    
-    Dim FileNum As Integer
-    
-'    If IsItThere(TextFile) = True Then
-        FileNum = FreeFile ' next file number
-        Open TextFile For Append As #FileNum
-        Print #FileNum, Contents
-        Close #FileNum ' close the file
-'    End If
+  On Error GoTo AppendTextFileError
+  Dim FileNum As Integer
+' Will create file if not exist, but parent dir must exist
+  If ParentDirExists(TextFile) = True Then
+    FileNum = FreeFile ' next file number
+    Open TextFile For Append As #FileNum
+    Print #FileNum, Contents
+    Close #FileNum ' close the file
+  Else
+    ' directory is invalid
+    Err.Raise MacError.err_DirectoryMissing
+  End If
+  Exit Sub
   
+AppendTextFileError:
+  Err.Source = strModule & "AppendTextFile"
+  If ErrorChecker(Err, TextFile) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String) As Boolean

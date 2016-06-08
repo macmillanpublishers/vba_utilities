@@ -23,9 +23,9 @@ Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   
   Set dictFull = New Dictionary
   dictFull.Add "unstyled", 0    ' for now, just a count. can add more data later
-  
-  Set dictStyled = NewDictionary
-  
+
+  Set dictStyled = New Dictionary
+
   Dim lngParaCt As Long   ' total paragraphs in main story
   Dim rngPara As Range    ' current paragraph as a range
   Dim lngPageNum As Long
@@ -83,7 +83,7 @@ End Function
 ' =============================================================================
 ' #############################################################################
 
-Private Function GoodBadStyles(Tor As Boolean, ProgressBar As ProgressBar, _
+'Private Function GoodBadStyles(Tor As Boolean, ProgressBar As ProgressBar, _
 'Status As String, ProgTitle As String, Stories() As Variant) As Variant
 '    'Creates a list of Macmillan styles in use
 '    'And a separate list of non-Macmillan styles in use

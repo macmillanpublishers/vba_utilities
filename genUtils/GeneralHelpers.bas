@@ -251,7 +251,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     strFileName & "_" & Format(Date, "yyyy-mm-dd") & ".txt"
   ' build error message, including timestamp
   strErrMsg = Format(Time, "hh:mm:ss - ") & strErrSource & vbNewLine & _
-      strErrNumber & ": " & strErrDescription & vbNewLine
+      lngErrNumber & ": " & strErrDescription & vbNewLine
   LogFileNum = FreeFile ' next file number
   Open strErrLog For Append As #LogFileNum ' creates the file if doesn't exist
   Print #LogFileNum, strErrMsg ' write information to end of the text file
@@ -576,6 +576,19 @@ Public Sub OverwriteTextFile(TextFile As String, NewText As String)
 End Sub
 
 
+Public Sub AppendTextFile(TextFile As String, Contents As String)
+' TextFile should be full path
+    
+    Dim FileNum As Integer
+    
+    If IsItThere(TextFile) = True Then
+        FileNum = FreeFile ' next file number
+        Open TextFile For Append As #FileNum
+        Print #FileNum, Content
+        Close #FileNum ' close the file
+    End If
+  
+End Sub
 
 Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String) As Boolean
 'LogPath is *full* path to log file, including file name. Created by CreateLogFileInfo sub, to be called before this one.

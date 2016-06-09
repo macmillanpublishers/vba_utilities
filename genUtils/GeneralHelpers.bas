@@ -91,7 +91,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
   strErrDescription = objError.Description  ' For system errors
   strErrSource = objError.Source
   
-  On Error GoTo ErrorCheckerError
+'  On Error GoTo ErrorCheckerError
 
   Dim strErrMessage As String
   Dim blnNotifyUser As Boolean
@@ -249,10 +249,11 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
   ' Format date so it can be part of file name. Only including date b/c users
   ' will likely run things repeatedly before asking for help, and don't want
   ' to generate a bunch of files if include time as well.
-  strFileName = Replace(Right(ActiveDocument.Name, InStrRev(ActiveDocument. _
-    Name, ".") - 1), " ", "")
+  strFileName = Replace(Right(ActiveDocument.Name, InStr(StrReverse(ActiveDocument. _
+    Name), ".") - 1), " ", "")
   strErrLog = ActiveDocument.Path & Application.PathSeparator & "ALERT_" & _
     strFileName & "_" & Format(Date, "yyyy-mm-dd") & ".txt"
+    Debug.Print strErrLog
   ' build error message, including timestamp
   strErrMsg = Format(Time, "hh:mm:ss - ") & strErrSource & vbNewLine & _
       lngErrNumber & ": " & strErrDescription & vbNewLine
@@ -336,7 +337,7 @@ Public Function IsOpen(DocPath As String) As Boolean
         If IsWordFormat(DocPath) = True Then
             If Documents.Count > 0 Then
                 For Each objDoc In Documents
-                    If objDoc.fullPath = DocPath Then
+                    If objDoc.FullName = DocPath Then
                         IsOpen = True
                         Exit Function
                     End If
@@ -1126,7 +1127,7 @@ Sub CloseOpenDocs()
     Dim strSaveWarning As String
     Dim objDocument As Document
     Dim B As Long
-    Dim doc As Document
+    Dim Doc As Document
     
     strInstallerName = ThisDocument.Name
 
@@ -1138,15 +1139,15 @@ Sub CloseOpenDocs()
           ActiveDocument.Close
           Exit Sub
       Else
-        For Each doc In Documents
+        For Each Doc In Documents
             'Debug.Print doc.Name
           'But don't close THIS document
-          If doc.Name <> strInstallerName Then
+          If Doc.Name <> strInstallerName Then
               'separate step to trigger Save As prompt for previously unsaved docs
-              doc.Save
-              doc.Close
+              Doc.Save
+              Doc.Close
           End If
-        Next doc
+        Next Doc
       End If
     End If
     

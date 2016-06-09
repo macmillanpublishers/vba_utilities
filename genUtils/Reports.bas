@@ -8,18 +8,77 @@ Attribute VB_Name = "Reports"
 ' 2. Requires genUtils be referenced from calling project.
 
 
+' =============================================================================
+'     DECLARATIONS
+' =============================================================================
+
 Option Explicit
 Option Base 1
 Private Const strReports As String = "genUtils.Reports."
+Private dictStyles As genUtils.Dictionary
 
 
-Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
+' ===== StyleCheck ============================================================
+' Call this from origin project. Performs variety of style checks, returns
+' dictionary containing results of various tests or whatever. Use private
+' global variable to store the `StyleDictionary` object to access by later
+' procedures.
+
+Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
+  On Error GoTo StyleCheckError
+  Dim dictReturn As genUtils.Dictionary
+  ' "pass" refers to are enough paragraphs styled, NOT did the function fail
+  Dim blnPass As Boolean
+  Dim lngUnstyledCount As Long
+  Dim lngUniqueStyles As Long
+  Dim sglPercentStyled As Single
+
+  ' create dictionary of style information
+  ' declared as private global variable above, to acces later.
+  Set dictStyles = genUtils.Reports.StyleDictionary(Doc)
+  
+  ' retrieve our values
+  lngUnstyledCount = dictStyles("unstyled")
+  lngUniqueStyles = dictStyles("styled").Count
+  sglPercentStyled = dictStyles("percentStyled")
+  
+  If sglPercentStyled >= 0.5 Then
+    blnPass = True
+  Else
+    blnPass = False
+  End If
+  
+' Add test results to return dictionary
+  Set dictReturn = New genUtils.Dictionary
+  With dictReturn
+    .Add "pass", blnPass
+    .Add "unstyledCount", lngUnstyledCount
+    .Add "uniqueStyles", lngUniqueStyles
+    .Add "percentStyled", sglPercentStyled
+  End With
+
+  Set StyleCheck = dictReturn
+  
+  Exit Function
+
+StyleCheckError:
+  Err.Source = strReports & "StyleCheck"
+  If ErrorChecker(Err, Doc.FullName) = False Then
+    Resume
+  Else
+    Debug.Print "(" & Err.Source & ") " & Err.Number & ": " & Err.Description
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function
+
+Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   Boolean = True) As Dictionary
+  On Error GoTo StyleDictionaryError
   ' At some point will also have to loop through active stories (EN. FN)
 
-  Dim dictFull As Dictionary  ' the full dictionary object we'll return
-  Dim dictStyled As Dictionary  ' subdictionary to hold all styled info
-  Dim dictInfo As Dictionary   ' sub-sub dict for indiv. style info
+  Dim dictFull As genUtils.Dictionary  ' the full dictionary object we'll return
+  Dim dictStyled As genUtils.Dictionary  ' subdictionary to hold all styled info
+  Dim dictInfo As genUtils.Dictionary   ' sub-sub dict for indiv. style info
   
   Set dictFull = New Dictionary
   dictFull.Add "unstyled", 0    ' for now, just a count. can add more data later
@@ -33,23 +92,35 @@ Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   Dim A As Long
   
   lngParaCt = CountDoc.Paragraphs.Count
+
   
   ' Loop through all paragraphs in document from END to START so we end up with
   ' FIRST page, and if we need to delete paras we don't mess up the count order
-  For A = lngParaCt To 1
+  For A = lngParaCt To 1 Step -1
+    If A = 4000 Then
+      Debug.Print "A = " & A
+      Exit For
+    End If
+    
+    If A Mod 200 = 0 Then
+      Debug.Print "Paragraph " & A
+    End If
+
   ' Get style name, page number
     strStyle = CountDoc.Paragraphs(A).Style
-    Set rngPara = CountDoc.Paragraphs(A)
+'    Debug.Print strStyle
+    Set rngPara = CountDoc.Paragraphs(A).Range
     lngPageNum = rngPara.Information(wdActiveEndAdjustedPageNumber)
+'    Debug.Print lngPageNum
     
   ' If style name = Macmillan style
     If Right(strStyle, 1) = ")" Then
     ' If style does not exist in dict yet
       If Not dictStyled.Exists(strStyle) Then
       ' create sub-dictionary
-        Set dictInfo = New Dictionary
+        Set dictInfo = New genUtils.Dictionary
         dictInfo.Add "count", 0
-        dictInfo.Add "page"
+        dictInfo.Add "page", 0
         dictStyled.Add strStyle, dictInfo
       End If
     ' Increase style count and update page number
@@ -70,8 +141,18 @@ Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
 
   ' add styled dictionary to full dictionary and return
   dictFull.Add "styled", dictStyled
-  StyleDictionary = dictFull
+  dictFull.Add "percentStyled", VBA.Round(dictFull("unstyled") / lngParaCt, 4)
+  Set StyleDictionary = dictFull
 
+  Exit Function
+
+StyleDictionaryError:
+  Err.Source = strReports & "StyleDictionary"
+  If ErrorChecker(Err, CountDoc.FullName) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 

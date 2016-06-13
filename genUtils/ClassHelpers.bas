@@ -61,8 +61,7 @@ Public Function ReadJson(JsonPath As String) As genUtils.Dictionary
   If dictJson Is Nothing Then
     Debug.Print "ReadJson fail"
   Else
-    Debug.Print dictJson.Count
-    Debug.Print dictJson.Item("test2")
+    Debug.Print "dictJson count: " & dictJson.Count
   End If
   
   Set ReadJson = dictJson

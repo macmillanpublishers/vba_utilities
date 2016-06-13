@@ -42,6 +42,10 @@ Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
   lngUniqueStyles = dictStyles("styled").Count
   sglPercentStyled = dictStyles("percentStyled")
   
+  Debug.Print "UnstyledCount: " & lngUnstyledCount
+  Debug.Print "UniqueStyles: " & lngUniqueStyles
+  Debug.Print "PercentStyled: " & sglPercentStyled
+  
   If sglPercentStyled >= 0.5 Then
     blnPass = True
   Else
@@ -57,6 +61,12 @@ Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
     .Add "percentStyled", sglPercentStyled
   End With
 
+  Dim key1 As Variant
+  Debug.Print "dictReturn values:"
+  For Each key1 In dictReturn.Keys
+    Debug.Print key1 & ": " & dictReturn.Item(key1)
+  Next
+  
   Set StyleCheck = dictReturn
   
   Exit Function
@@ -97,6 +107,7 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   ' Loop through all paragraphs in document from END to START so we end up with
   ' FIRST page, and if we need to delete paras we don't mess up the count order
   For A = lngParaCt To 1 Step -1
+    ' To break infinite loops. Should probably increase break point before deploy
     If A = 4000 Then
       Debug.Print "A = " & A
       Exit For
@@ -138,11 +149,35 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
       End If
     End If
   Next A
+  
+  ' Are enough paragraphs styled?
+  Dim lngPercent As Single
+  lngPercent = dictFull("unstyled") / lngParaCt
+  Debug.Print "StyleDictionary - percent styled: " & lngPercent
+  lngPercent = 1 - VBA.Round(lngPercent, 3)
+  Debug.Print "rounded: " & lngPercent
+  
 
   ' add styled dictionary to full dictionary and return
   dictFull.Add "styled", dictStyled
-  dictFull.Add "percentStyled", VBA.Round(dictFull("unstyled") / lngParaCt, 4)
+  dictFull.Add "percentStyled", lngPercent
   Set StyleDictionary = dictFull
+  
+  Debug.Print "Items in dictFull: " & dictFull.Count
+  Debug.Print "UnstyledCount: " & dictFull("unstyled")
+  Debug.Print "UniqueStyles: " & dictFull("styled").Count
+  Debug.Print "PercentStyled: " & dictFull("percentStyled")
+  
+  Dim finalKey As Variant
+  Dim key2 As Variant
+
+'  For Each finalKey In dictFull.Keys
+'    Debug.Print vbTab & finalKey & ": " & dictFull.Item(finalKey)
+'  Next
+  Debug.Print "Styles:"
+  For Each key2 In dictFull.Item("styled").Keys
+    Debug.Print vbTab & key2
+  Next key2
 
   Exit Function
 

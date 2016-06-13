@@ -4,6 +4,8 @@ Attribute VB_Name = "GeneralHelpers"
 
 Option Explicit
 Private Const strModule As String = "genUtils.GeneralHelpers."
+Private lngErrorCount As Long
+
 
 Public Enum GitBranch
     master = 1
@@ -77,7 +79,12 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     String) As Boolean
     ' strValue - varies based on type of error passed. use for things like _
     ' file name, path, whatever is being checked by that errored.
-  
+  lngErrorCount = lngErrorCount + 1
+  If lngErrorCount > 5 Then
+    Debug.Print "ERROR LOOP STOPPED"
+    End
+  End If
+
   Debug.Print "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
     & objError.Description
   

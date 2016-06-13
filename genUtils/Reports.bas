@@ -42,10 +42,7 @@ Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
   lngUniqueStyles = dictStyles("styled").Count
   sglPercentStyled = dictStyles("percentStyled")
   
-  Debug.Print "UnstyledCount: " & lngUnstyledCount
-  Debug.Print "UniqueStyles: " & lngUniqueStyles
-  Debug.Print "PercentStyled: " & sglPercentStyled
-  
+  ' Threshold for "styled" is 50% of paragraphs have styles
   If sglPercentStyled >= 0.5 Then
     blnPass = True
   Else
@@ -60,12 +57,6 @@ Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
     .Add "uniqueStyles", lngUniqueStyles
     .Add "percentStyled", sglPercentStyled
   End With
-
-  Dim key1 As Variant
-  Debug.Print "dictReturn values:"
-  For Each key1 In dictReturn.Keys
-    Debug.Print key1 & ": " & dictReturn.Item(key1)
-  Next
   
   Set StyleCheck = dictReturn
   
@@ -99,6 +90,7 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   Dim rngPara As Range    ' current paragraph as a range
   Dim lngPageNum As Long
   Dim strStyle As String
+  Dim strBodyStyle As String: strBodyStyle = "Text - Standard (tx)"
   Dim A As Long
   
   lngParaCt = CountDoc.Paragraphs.Count
@@ -113,9 +105,9 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
       Exit For
     End If
     
-    If A Mod 200 = 0 Then
-      Debug.Print "Paragraph " & A
-    End If
+'    If A Mod 200 = 0 Then
+'      Debug.Print "Paragraph " & A
+'    End If
 
   ' Get style name, page number
     strStyle = CountDoc.Paragraphs(A).Style
@@ -144,8 +136,10 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
       dictFull.Item("unstyled") = dictFull.Item("unstyled") + 1
       
     ' Change style, if requested
+    ' To do: use logic to tag TX1, COTX1
+    '        store style name externally
       If FixUnstyled = True Then
-        
+        CountDoc.Paragraphs(A).Style = strBodyStyle
       End If
     End If
   Next A
@@ -153,36 +147,27 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   ' Are enough paragraphs styled?
   Dim lngPercent As Single
   lngPercent = dictFull("unstyled") / lngParaCt
-  Debug.Print "StyleDictionary - percent styled: " & lngPercent
   lngPercent = 1 - VBA.Round(lngPercent, 3)
-  Debug.Print "rounded: " & lngPercent
   
-
   ' add styled dictionary to full dictionary and return
   dictFull.Add "styled", dictStyled
   dictFull.Add "percentStyled", lngPercent
   Set StyleDictionary = dictFull
-  
-  Debug.Print "Items in dictFull: " & dictFull.Count
-  Debug.Print "UnstyledCount: " & dictFull("unstyled")
-  Debug.Print "UniqueStyles: " & dictFull("styled").Count
-  Debug.Print "PercentStyled: " & dictFull("percentStyled")
-  
-  Dim finalKey As Variant
-  Dim key2 As Variant
-
-'  For Each finalKey In dictFull.Keys
-'    Debug.Print vbTab & finalKey & ": " & dictFull.Item(finalKey)
-'  Next
-  Debug.Print "Styles:"
-  For Each key2 In dictFull.Item("styled").Keys
-    Debug.Print vbTab & key2
-  Next key2
 
   Exit Function
 
 StyleDictionaryError:
   Err.Source = strReports & "StyleDictionary"
+  '5834 means item does not exist
+  '5941 means style not present in collection
+  If Err.Number = 5834 Or Err.Number = 5941 Then
+      'If style is not present, add style
+      Dim myStyle As Style
+      Set myStyle = ActiveDocument.Styles.Add(Name:=strBodyStyle, _
+      Type:=wdStyleTypeParagraph)
+      Resume
+  End If
+
   If ErrorChecker(Err, CountDoc.FullName) = False Then
     Resume
   Else

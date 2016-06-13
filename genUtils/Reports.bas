@@ -16,6 +16,10 @@ Option Explicit
 Option Base 1
 Private Const strReports As String = "genUtils.Reports."
 Private dictStyles As genUtils.Dictionary
+' assign to actual document we're working on
+' to do: probably better managed via a class
+Public activeDoc As Document
+
 
 
 ' ===== StyleCheck ============================================================
@@ -33,9 +37,11 @@ Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
   Dim lngUniqueStyles As Long
   Dim sglPercentStyled As Single
 
+  ' Create reference for our document to use in rest of the procedures.
+  Set activeDoc = Doc
   ' create dictionary of style information
   ' declared as private global variable above, to acces later.
-  Set dictStyles = genUtils.Reports.StyleDictionary(Doc)
+  Set dictStyles = genUtils.Reports.StyleDictionary()
   
   ' retrieve our values
   lngUnstyledCount = dictStyles("unstyled")
@@ -72,8 +78,9 @@ StyleCheckError:
   End If
 End Function
 
-Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
-  Boolean = True) As Dictionary
+Private Function StyleDictionary(Optional FixUnstyled As Boolean = True) As _
+  genUtils.Dictionary
+
   On Error GoTo StyleDictionaryError
   ' At some point will also have to loop through active stories (EN. FN)
 
@@ -93,7 +100,7 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
   Dim strBodyStyle As String: strBodyStyle = "Text - Standard (tx)"
   Dim A As Long
   
-  lngParaCt = CountDoc.Paragraphs.Count
+  lngParaCt = activeDoc.Paragraphs.Count
 
   
   ' Loop through all paragraphs in document from END to START so we end up with
@@ -110,9 +117,9 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
 '    End If
 
   ' Get style name, page number
-    strStyle = CountDoc.Paragraphs(A).Style
+    strStyle = activeDoc.Paragraphs(A).Style
 '    Debug.Print strStyle
-    Set rngPara = CountDoc.Paragraphs(A).Range
+    Set rngPara = activeDoc.Paragraphs(A).Range
     lngPageNum = rngPara.Information(wdActiveEndAdjustedPageNumber)
 '    Debug.Print lngPageNum
     
@@ -139,7 +146,7 @@ Private Function StyleDictionary(CountDoc As Document, Optional FixUnstyled As _
     ' To do: use logic to tag TX1, COTX1
     '        store style name externally
       If FixUnstyled = True Then
-        CountDoc.Paragraphs(A).Style = strBodyStyle
+        activeDoc.Paragraphs(A).Style = strBodyStyle
       End If
     End If
   Next A
@@ -168,13 +175,20 @@ StyleDictionaryError:
       Resume
   End If
 
-  If ErrorChecker(Err, CountDoc.FullName) = False Then
+  If ErrorChecker(Err, activeDoc.FullName) = False Then
     Resume
   Else
     Call genUtils.GeneralHelpers.GlobalCleanup
   End If
 End Function
 
+
+' ===== IsbnCheck =============================================================
+' Call this to run ISBN checks.
+
+Public Function IsbnCheck() As genUtils.Dictionary
+
+End Function
 
 ' #############################################################################
 ' =============================================================================
@@ -1557,70 +1571,70 @@ End Function
 '
 'End Function
 '
-'Private Sub ISBNcleanup()
-''removes "span ISBN (isbn)" style from all but the actual ISBN numerals
-'
-'    'check if that style exists, if not then exit sub
-'    On Error GoTo ErrHandler:
-'        Dim keyStyle As Word.Style
-'        Set keyStyle = ActiveDocument.Styles("span ISBN (isbn)")
-'
-'    Dim strISBNtextArray()
-'    ReDim strISBNtextArray(1 To 3)
-'
-'    strISBNtextArray(1) = "-[!0-9]"     'any hyphen followed by any non-digit character
-'    strISBNtextArray(2) = "[!0-9]-"     'any hyphen preceded by any non-digit character
-'    strISBNtextArray(3) = "[!-0-9]"     'any character other than a hyphen or digit
-'
-'    ' re: above--need to search for hyphens first, because if you lead with what is now 3, you
-'    ' remove the style from any characters around hyphens, so if you search for a hyphen next to
-'    ' a character later, it won't return anything because the whole string needs to have the
-'    ' style applied for it to be found.
-'
-'    Dim G As Long
-'    For G = LBound(strISBNtextArray()) To UBound(strISBNtextArray())
-'
-'        'Move selection to start of document
-'        Selection.HomeKey Unit:=wdStory
-'
-'        With Selection.Find
-'            .ClearFormatting
-'            .Text = strISBNtextArray(G)
-'            .Replacement.ClearFormatting
-'            .Replacement.Text = ""
-'            .Forward = True
-'            .Wrap = wdFindStop
-'            .Format = True
-'            .Style = "span ISBN (isbn)"                     'find this style
-'            .Replacement.Style = "Default Paragraph Font"   'replace with this style
-'            .MatchCase = False
-'            .MatchWholeWord = False
-'            .MatchWildcards = True
-'            .MatchSoundsLike = False
-'            .MatchAllWordForms = False
-'        End With
-'
-'        Selection.Find.Execute Replace:=wdReplaceAll
-'
-'    Next G
-'
-'Exit Sub
-'
-'ErrHandler:
-'  'Style doesn't exist in document
-'    If Err.Number = 5941 Or Err.Number = 5834 Then
-'      Exit Sub
-'    Else
-'      Err.Source = strReports & "ISBNcleanup"
-'      If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
-'        Resume
-'      Else
-'        Call genUtils.GeneralHelpers.GlobalCleanup
-'      End If
-'    End If
-'
-'End Sub
-'
+Private Sub ISBNcleanup()
+'removes "span ISBN (isbn)" style from all but the actual ISBN numerals
+
+    'check if that style exists, if not then exit sub
+    On Error GoTo ErrHandler:
+        Dim keyStyle As Word.Style
+        Set keyStyle = ActiveDocument.Styles("span ISBN (isbn)")
+
+    Dim strISBNtextArray()
+    ReDim strISBNtextArray(1 To 3)
+
+    strISBNtextArray(1) = "-[!0-9]"     'any hyphen followed by any non-digit character
+    strISBNtextArray(2) = "[!0-9]-"     'any hyphen preceded by any non-digit character
+    strISBNtextArray(3) = "[!-0-9]"     'any character other than a hyphen or digit
+
+    ' re: above--need to search for hyphens first, because if you lead with what is now 3, you
+    ' remove the style from any characters around hyphens, so if you search for a hyphen next to
+    ' a character later, it won't return anything because the whole string needs to have the
+    ' style applied for it to be found.
+
+    Dim G As Long
+    For G = LBound(strISBNtextArray()) To UBound(strISBNtextArray())
+
+        'Move selection to start of document
+        Selection.HomeKey Unit:=wdStory
+
+        With Selection.Find
+            .ClearFormatting
+            .Text = strISBNtextArray(G)
+            .Replacement.ClearFormatting
+            .Replacement.Text = ""
+            .Forward = True
+            .Wrap = wdFindStop
+            .Format = True
+            .Style = "span ISBN (isbn)"                     'find this style
+            .Replacement.Style = "Default Paragraph Font"   'replace with this style
+            .MatchCase = False
+            .MatchWholeWord = False
+            .MatchWildcards = True
+            .MatchSoundsLike = False
+            .MatchAllWordForms = False
+        End With
+
+        Selection.Find.Execute Replace:=wdReplaceAll
+
+    Next G
+
+Exit Sub
+
+ErrHandler:
+  'Style doesn't exist in document
+    If Err.Number = 5941 Or Err.Number = 5834 Then
+      Exit Sub
+    Else
+      Err.Source = strReports & "ISBNcleanup"
+      If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
+        Resume
+      Else
+        Call genUtils.GeneralHelpers.GlobalCleanup
+      End If
+    End If
+
+End Sub
+
 'Private Function BookTypeCheck()
 '    ' Validates the book types listed following the ISBN on the copyright page.
 '    Dim intCount As Integer

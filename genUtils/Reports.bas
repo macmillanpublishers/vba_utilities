@@ -187,9 +187,121 @@ End Function
 ' Call this to run ISBN checks.
 
 Public Function IsbnCheck() As genUtils.Dictionary
+  On Error GoTo IsbnCheckError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  
+  Dim strIsbnStyle As String
+  strIsbnStyle = "span isbn (ISBN)"
+  
+' If no styled ISBN exists...
+  Dim blnStyledIsbn As Boolean
+  blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
+  dictReturn.Add "styledIsbn", blnStyledIsbn
+  If blnStyledIsbn = False Then
+  
+  ' Search for unstyled ISBN (returns tagged with bookmarks)
+    Dim blnUnstyled
+    blnUnstyled = UnstyledIsbn
+    dictReturn.Add "unstyledIsbn", blnUnstyled
 
+  ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
+    If blnUnstyled = False Then
+  ' If not found,
+      ' Read book info
+        ' Add Isbn
+    End If
+    
+  ' convert bookmarks to styles
+    Dim bkName As Bookmark
+    dictReturn.Add "taggedUnstyledIsbn", False
+    For Each bkName In activeDoc.Bookmarks
+      If Left(bkName.Name, 4) = "ISBN" Then
+        bkName.Select
+        Selection.Style = strIsbnStyle
+        ' Report that we made a change
+        dictReturn.Item("taggedUnstyled") = True
+        bkName.Delete
+      End If
+    Next
+  End If
+
+' Cleanup what ISBN tag is covering
+  Call genUtils.Reports.ISBNcleanup
+  
+' Read tagged isbns
+  Dim isbnArray() As String   ' Even though they ARE numbers, keep as string
+  isbnArray = genUtils.GeneralHelpers.GetText(strIsbnStyle, True)
+  
+' Add to return dictionary
+  dictReturn.Item("list") = isbnArray
+  
+  Set IsbnCheck = dictReturn
+
+  Exit Function
+  
+IsbnCheckError:
+  Err.Source = strReports & "IsbnCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
 End Function
 
+' ===== UnstyledIsbn ==========================================================
+' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
+' tags as bookmarks.
+
+Private Function UnstyledIsbn() As Boolean
+  On Error GoTo UnstyledIsbnError
+  'Move selection to start of document
+  UnstyledIsbn = False
+  activeDoc.Range.Select
+  Dim lngCounter As Long
+  Dim strSearchPattern As String
+  ' ISBN rules:
+  ' * First 3 digits: 978 or 979
+  ' * 4th digit: 0 or 1 (for English language)
+  ' * next section: publisher/imprint, 2 to 7 digits
+  ' * next section: book, 1 to 6 digits (these two total 8 digits)
+  ' * last section: single check digit
+  ' sections may or may not be separated by a hyphen, but note that you can't use
+  ' {0,1} to search for "zero or one" occurrences of something.
+  ' the below is OK for now. Try more specific if needed later.
+  strSearchPattern = "97[89][0-9\-]{10,14}"
+  
+  Selection.HomeKey Unit:=wdStory
+  With Selection.Find
+    .ClearFormatting
+    .Text = strSearchPattern
+    .Forward = True
+    .Wrap = wdFindStop
+    .Format = False
+    .MatchWholeWord = False
+    .MatchCase = True
+    .MatchWildcards = True
+    .MatchSoundsLike = False
+  End With
+
+  Do While Selection.Find.Execute = True And lngCounter < 100
+    lngCounter = lngCounter + 1
+    UnstyledIsbn = True
+    If activeDoc.Bookmarks.Exists("ISBN" & lngCounter) = True Then
+      activeDoc.Bookmarks.Item("ISBN" & lngCounter).Delete
+    End If
+    activeDoc.Bookmarks.Add "ISBN" & lngCounter, Selection
+  Loop
+  
+  Exit Function
+UnstyledIsbnError:
+  Err.Source = strReports & "UnstyledIsbn"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
 ' #############################################################################
 ' =============================================================================
 '

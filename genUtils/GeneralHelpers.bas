@@ -597,7 +597,44 @@ Public Function ShellAndWaitMac(cmd As String) As String
     #End If
 End Function
 
+Public Function IsStyleInUse(StyleName As String) As Boolean
+  On Error GoTo IsStyleInUseError
+  If activeDoc Is Nothing Then
+    Set activeDoc = ActiveDocument
+  End If
+  
+'  ' If we need to do a Selection.Find use
+'  Selection.HomeKey Unit:=wdStory
+  Call genUtils.zz_clearFind
+  With activeDoc.Range.Find
+    .Text = ""
+    .Replacement.Text = ""
+    .Forward = True
+    .Wrap = wdFindStop
+    .Format = True
+    .Style = ActiveDocument.Styles(StyleName)
+    .MatchCase = False
+    .MatchWholeWord = False
+    .MatchWildcards = False
+    .MatchSoundsLike = False
+    .MatchAllWordForms = False
+  End With
+  
+  If activeDoc.Find.Execute = True Then
+    IsStyleInUse = True
+  Else
+    IsStyleInUse = False
+  End If
 
+  Exit Function
+IsStyleInUseError:
+  Err.Source = strModule & "IsStyleInUse"
+  If ErrorChecker(Err, StyleName) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
 
 Public Sub OverwriteTextFile(TextFile As String, NewText As String)
 ' TextFile should be full path
@@ -979,67 +1016,109 @@ Sub CreateTextFile(strText As String, suffix As String)
     End If
 End Sub
 
-Function GetText(styleName As String) As String
-    Dim fString As String
-    Dim fCount As Integer
-    
-    Application.ScreenUpdating = False
-    
-    fCount = 0
-    
-    'Move selection to start of document
-    Selection.HomeKey Unit:=wdStory
-    
-    On Error GoTo ErrHandler
-    
-        Selection.Find.ClearFormatting
-        With Selection.Find
-            .Text = ""
-            .Replacement.Text = ""
-            .Forward = True
-            .Wrap = wdFindStop
-            .Format = True
-            .Style = ActiveDocument.Styles(styleName)
-            .MatchCase = False
-            .MatchWholeWord = False
-            .MatchWildcards = False
-            .MatchSoundsLike = False
-            .MatchAllWordForms = False
-        End With
-    
-    Do While Selection.Find.Execute = True And fCount < 100            'fCount < 100 so we don't get an infinite loop
-        fCount = fCount + 1
-        
-        'If paragraph return exists in selection, don't select last character (the last paragraph retunr)
-        If InStr(Selection.Text, Chr(13)) > 0 Then
-            Selection.MoveEnd Unit:=wdCharacter, Count:=-1
-        End If
-        
-        'Assign selected text to variable
-        fString = fString & Selection.Text & vbNewLine
-        
-        'If the next character is a paragraph return, add that to the selection
-        'Otherwise the next Find will just select the same text with the paragraph return
-        If InStr(styleName, "span") = 0 Then        'Don't select terminal para mark if char style, sends into an infinite loop
-            Selection.MoveEndWhile Cset:=Chr(13), Count:=1
-        End If
-    Loop
-        
-    If fCount = 0 Then
-        GetText = ""
-    Else
-        GetText = fString
-    End If
-    
-    Application.ScreenUpdating = True
-    
-    Exit Function
-    
+Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
+  As String
+  If activeDoc Is Nothing Then
+    Set activeDoc = ActiveDocument
+  End If
+  
+  Dim fCount As Integer
+  Dim styleArray() As String
+
+  fCount = 0
+  
+  'Move selection to start of document
+  Selection.HomeKey Unit:=wdStory
+  
+  On Error GoTo ErrHandler
+  
+      Selection.Find.ClearFormatting
+      With Selection.Find
+          .Text = ""
+          .Replacement.Text = ""
+          .Forward = True
+          .Wrap = wdFindStop
+          .Format = True
+          .Style = ActiveDocument.Styles(StyleName)
+          .MatchCase = False
+          .MatchWholeWord = False
+          .MatchWildcards = False
+          .MatchSoundsLike = False
+          .MatchAllWordForms = False
+      End With
+  
+  Do While Selection.Find.Execute = True And fCount < 100            'fCount < 100 so we don't get an infinite loop
+      fCount = fCount + 1
+      
+      'If paragraph return exists in selection, don't select last character (the last paragraph retunr)
+      If InStr(Selection.Text, Chr(13)) > 0 Then
+          Selection.MoveEnd Unit:=wdCharacter, Count:=-1
+      End If
+      
+      'Assign selected text to variable
+      ReDim Preserve styleArray(1 To fCount)
+      styleArray(fCount) = Selection.Text
+      
+      'If the next character is a paragraph return, add that to the selection
+      'Otherwise the next Find will just select the same text with the paragraph return
+      If InStr(StyleName, "span") = 0 Then        'Don't select terminal para mark if char style, sends into an infinite loop
+          Selection.MoveEndWhile Cset:=Chr(13), Count:=1
+      End If
+  Loop
+      
+  If fCount = 0 Then
+      ReDim Preserve styleArray(1 To 1)
+      styleArray(1) = ""
+  End If
+  
+  If ReturnArray = False Then
+    GetText = genUtils.GeneralHelpers.Reduce(styleArray)
+  Else
+    GetText = styleArray
+  End If
+  Exit Function
+  
 ErrHandler:
-    If Err.Number = 5941 Or Err.Number = 5834 Then   ' The style is not present in the document
-        GetText = ""
+  Err.Source = strModule & "GetText"
+  If Err.Number = 5941 Or Err.Number = 5834 Then   ' The style is not present in the document
+      GetText = ""
+  Else
+    If ErrorChecker(Err) = False Then
+      Resume
+    Else
+      Call genUtils.GlobalCleanup
     End If
-        
+  End If
+  
+End Function
+
+' ===== Reduce ================================================================
+' Iterates through item passed to it (currently only an Array, but in future
+' add support for Dictionary or Collection) and returns a string of all of the
+' elements. Add handling in future to return other summaries (add all numbers?)
+Public Function Reduce(StartGroup As Variant) As Variant
+  On Error GoTo ReduceError
+  If VBA.IsArray(StartGroup) = True Then
+    Dim strReturn As String
+    Dim A As Long
+    
+    For A = LBound(StartGroup) To UBound(StartGroup)
+      strReturn = strReturn & StartGroup(A) & vbNewLine
+    Next A
+    
+  Else
+    ' Error if not passed an array.
+  End If
+  Reduce = strReturn
+
+  Exit Function
+ReduceError:
+  Err.Source = strModule & "Reduce)"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeaderCol As Boolean) As Variant

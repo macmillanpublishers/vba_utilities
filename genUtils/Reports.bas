@@ -232,9 +232,14 @@ Public Function IsbnCheck() As genUtils.Dictionary
 ' Read tagged isbns
   Dim isbnArray() As String   ' Even though they ARE numbers, keep as string
   isbnArray = genUtils.GeneralHelpers.GetText(strIsbnStyle, True)
-  
-' Add to return dictionary
-  dictReturn.Item("list") = isbnArray
+
+' Add that this completed successfully?
+  If genUtils.GeneralHelpers.IsArrayEmpty(isbnArray) = True Then
+    dictReturn.Add "pass", True
+    dictReturn.Add "list", isbnArray
+  Else
+    dictReturn.Add "pass", False
+  End If
   
   Set IsbnCheck = dictReturn
 
@@ -300,6 +305,22 @@ UnstyledIsbnError:
     Resume
   Else
     Call genUtils.GlobalCleanup
+  End If
+End Function
+
+' ===== SectionCheck ==========================================================
+' Tags book sections, adds to dictionary as ranges. Also fixes breaks.
+
+Public Function SectionCheck() As genUtils.Dictionary
+  On Error GoTo SectionCheckError
+  
+  Exit Function
+SectionCheckError:
+  Err.Source = strReports & "SectionCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
   End If
 End Function
 ' #############################################################################

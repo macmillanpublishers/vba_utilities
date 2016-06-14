@@ -14,13 +14,63 @@ Attribute VB_Name = "Reports"
 
 Option Explicit
 Option Base 1
+
 Private Const strReports As String = "genUtils.Reports."
-Private dictStyles As genUtils.Dictionary
+
 ' assign to actual document we're working on
 ' to do: probably better managed via a class
 Public activeDoc As Document
+' store info from `book_info.json` file
+Private dictBookInfo As genUtils.Dictionary
+' store initial paragraph loop info
+Private dictStyles As genUtils.Dictionary
 
 
+' ===== ReportsStartup ========================================================
+' Set some global vars, check some things. Probably should be a class Initialize
+' eventually.
+
+Public Function ReportsStartup(DocPath As String) As genUtils.Dictionary
+  On Error GoTo ReportsStartupError
+' The .ps1 that calls this macro also opens the file, so should already be
+' part of the Documents collection, but we'll check anyway.
+  If genUtils.GeneralHelpers.IsOpen(DocPath) = False Then
+    Documents.Open (DocPath)
+  End If
+
+' Set object variable (global scope, so other procedures can use)
+  Set activeDoc = Documents(DocPath)
+  
+' Check for `book_info.json` file, read into global dictionary variable
+  Dim strInfoPath As String
+  If GeneralHelpers.IsItThere(strInfoPath) = True Then
+    strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
+    Set dictBookInfo = genUtils.ClassHelpers.ReadJson(strInfoPath)
+  Else
+    Err.Raise MacError.err_FileNotThere
+  End If
+
+' Report success of initialize
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New genUtils.Dictionary
+  
+  If dictBookInfo Is Nothing Then
+    dictReturn.Add "pass", False
+  Else
+    dictReturn.Add "pass", True
+  End If
+  
+  Set ReportsStartup = dictReturn
+  
+  Exit Function
+ReportsStartupError:
+  Err.Source = strReports & "ReportsStartup"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
 
 ' ===== StyleCheck ============================================================
 ' Call this from origin project. Performs variety of style checks, returns
@@ -28,7 +78,7 @@ Public activeDoc As Document
 ' global variable to store the `StyleDictionary` object to access by later
 ' procedures.
 
-Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
+Public Function StyleCheck() As genUtils.Dictionary
   On Error GoTo StyleCheckError
   Dim dictReturn As genUtils.Dictionary
   ' "pass" refers to are enough paragraphs styled, NOT did the function fail
@@ -37,8 +87,10 @@ Public Function StyleCheck(Doc As Document) As genUtils.Dictionary
   Dim lngUniqueStyles As Long
   Dim sglPercentStyled As Single
 
-  ' Create reference for our document to use in rest of the procedures.
-  Set activeDoc = Doc
+  If activeDoc Is Nothing Then
+    Set activeDoc = ActiveDocument
+  End If
+
   ' create dictionary of style information
   ' declared as private global variable above, to acces later.
   Set dictStyles = genUtils.Reports.StyleDictionary()

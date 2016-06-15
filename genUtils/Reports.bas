@@ -198,8 +198,14 @@ Public Function IsbnCheck() As genUtils.Dictionary
   If blnStyledIsbn = False Then
   
   ' Search for unstyled ISBN (returns tagged with bookmarks)
-    Dim blnUnstyled
-    blnUnstyled = UnstyledIsbn
+    Dim blnUnstyled As Boolean
+    Dim arrISBN() As String
+    arrISBN = IsbnSearch
+    If genUtils.IsArrayEmpty(arrISBN) = True Then
+      blnUnstyled = False
+    Else
+      blnUnstyled = True
+    End If
     dictReturn.Add "unstyledIsbn", blnUnstyled
 
   ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
@@ -255,13 +261,24 @@ End Function
 
 ' ===== UnstyledIsbn ==========================================================
 ' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
-' tags as bookmarks and returns array.
+' tags as bookmarks and returns array. Optional FilePath is for passing doc path
+' from powershell.
 
-Private Function UnstyledIsbn() As Variant
-'  On Error GoTo UnstyledIsbnError
+Public Function IsbnSearch(Optional FilePath As String) As Variant
+'  On Error GoTo IsbnSearchError
   Dim lngCounter As Long
   Dim strSearchPattern As String
   Dim returnArray() As String
+
+  ' Make sure our document is open and active
+  ' If not passing file path, will ref. activeDoc global var
+  If FilePath = vbNullString Then
+    If genUtils.IsOpen(FilePath) = False Then
+      Documents.Open (FilePath)
+    End If
+    Set activeDoc = Documents(FilePath)
+  End If
+
   ' ISBN rules:
   ' * First 3 digits: 978 or 979
   ' * 4th digit: 0 or 1 (for English language)
@@ -272,6 +289,7 @@ Private Function UnstyledIsbn() As Variant
   ' {0,1} to search for "zero or one" occurrences of something.
   ' the below is OK for now. Try more specific if needed later.
   strSearchPattern = "97[89][0-9\-]{10,14}"
+  
   ' lngCounter both to prevent infinite loop and also for array index
   ' which we want to start at 0 because may pass back to powershell
   lngCounter = -1
@@ -300,14 +318,16 @@ Private Function UnstyledIsbn() As Variant
     End If
     ' Add bookmark for later procedures to pick up
     activeDoc.Bookmarks.Add "ISBN" & lngCounter, Selection
+    
+    ' Also add to array to return to calling procedure
     ReDim Preserve returnArray(0 To lngCounter)
     returnArray(lngCounter) = Selection.Text
   Loop
   
-  UnstyledIsbn = returnArray
+  IsbnSearch = returnArray
   Exit Function
 
-'UnstyledIsbnError:
+'IsbnSearchError:
 '  Err.Source = strReports & "UnstyledIsbn"
 '  If ErrorChecker(Err) = False Then
 '    Resume

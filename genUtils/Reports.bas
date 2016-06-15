@@ -21,7 +21,8 @@ Private Const strReports As String = "genUtils.Reports."
 Private dictBookInfo As genUtils.Dictionary
 ' store initial paragraph loop info
 Private dictStyles As genUtils.Dictionary
-
+' store acceptable heading styles
+Private dictHeadings As genUtils.Dictionary
 
 Private Enum BookInfo
   bk_Title = 1
@@ -251,17 +252,16 @@ IsbnCheckError:
   End If
 End Function
 
+
 ' ===== UnstyledIsbn ==========================================================
 ' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
-' tags as bookmarks.
+' tags as bookmarks and returns array.
 
-Private Function UnstyledIsbn() As Boolean
-  On Error GoTo UnstyledIsbnError
-  'Move selection to start of document
-  UnstyledIsbn = False
-  activeDoc.Range.Select
+Private Function UnstyledIsbn() As Variant
+'  On Error GoTo UnstyledIsbnError
   Dim lngCounter As Long
   Dim strSearchPattern As String
+  Dim returnArray() As String
   ' ISBN rules:
   ' * First 3 digits: 978 or 979
   ' * 4th digit: 0 or 1 (for English language)
@@ -272,8 +272,13 @@ Private Function UnstyledIsbn() As Boolean
   ' {0,1} to search for "zero or one" occurrences of something.
   ' the below is OK for now. Try more specific if needed later.
   strSearchPattern = "97[89][0-9\-]{10,14}"
+  ' lngCounter both to prevent infinite loop and also for array index
+  ' which we want to start at 0 because may pass back to powershell
+  lngCounter = -1
   
+  ' Start search at beginning of doc
   Selection.HomeKey Unit:=wdStory
+  
   With Selection.Find
     .ClearFormatting
     .Text = strSearchPattern
@@ -288,21 +293,27 @@ Private Function UnstyledIsbn() As Boolean
 
   Do While Selection.Find.Execute = True And lngCounter < 100
     lngCounter = lngCounter + 1
-    UnstyledIsbn = True
+
+    ' Delete if it already exists
     If activeDoc.Bookmarks.Exists("ISBN" & lngCounter) = True Then
       activeDoc.Bookmarks.Item("ISBN" & lngCounter).Delete
     End If
+    ' Add bookmark for later procedures to pick up
     activeDoc.Bookmarks.Add "ISBN" & lngCounter, Selection
+    ReDim Preserve returnArray(0 To lngCounter)
+    returnArray(lngCounter) = Selection.Text
   Loop
   
+  UnstyledIsbn = returnArray
   Exit Function
-UnstyledIsbnError:
-  Err.Source = strReports & "UnstyledIsbn"
-  If ErrorChecker(Err) = False Then
-    Resume
-  Else
-    Call genUtils.GlobalCleanup
-  End If
+
+'UnstyledIsbnError:
+'  Err.Source = strReports & "UnstyledIsbn"
+'  If ErrorChecker(Err) = False Then
+'    Resume
+'  Else
+'    Call genUtils.GlobalCleanup
+'  End If
 End Function
 
 
@@ -440,7 +451,9 @@ End Function
 
 Public Function SectionCheck() As genUtils.Dictionary
   On Error GoTo SectionCheckError
+  ' Create array of paragrpah indices of page breaks
   
+  ' Create array of section ranges based on those page breaks
   Exit Function
 SectionCheckError:
   Err.Source = strReports & "SectionCheck"
@@ -448,6 +461,47 @@ SectionCheckError:
     Resume
   Else
     Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function
+
+
+' ===== IsHeading =============================================================
+' Is this paragraph style a Macmillan heading style? Eventually store style
+' names externally.
+
+Private Function IsHeading(ParaInd As Long) As Boolean
+  On Error GoTo IsHeadingError
+  If dictHeadings Is Nothing Then
+    Set dictHeadings = New Dictionary
+    With dictHeadings
+      .Add "Front Sales Quote Head (fsqh)"
+      .Add "FM Head (fmh)"
+      .Add "FM Title (fmt)"
+      .Add "Fm Head ALT (afmh)"
+      .Add "Chap Title (ct)"
+      .Add "Chap Number (cn)"
+      .Add "Chap Title Nonprinting (ctnp)"
+      .Add "Part Title (pt)"
+      .Add "Part Number (pn)"
+      .Add "BM Head (bmh)"
+      .Add "BM Title (bmt)"
+      .Add "BM Head ALT (abmh)"
+      .Add "Appendix Head (aph)"
+      .Add "About Author Text Head (atah)"
+      .Add "Series Page Heading (sh)"
+      .Add "Ad Card Main Head (acmh)"
+      .Add "Recipe Head (rh)"
+      .Add "Sub-Recipe Head (srh)"
+      .Add "Recipe Var Head (rvh)"
+    End With
+  End If
+  Exit Function
+IsHeadingError:
+  Err.Source = strReports & "IsHeading"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Cell genUtils.GlobalCleanup
   End If
 End Function
 ' #############################################################################

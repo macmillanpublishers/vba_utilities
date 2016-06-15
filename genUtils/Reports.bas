@@ -414,8 +414,10 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   If blnTitle = False Then
     dictReturn.Item("authorNameAdded") = AddBookInfo(bk_Authors)
   End If
-  
-  If blnTitle = True And blnAuthor = True Then
+
+' Did it all work?
+  If genUtils.IsStyleInUse(strTitle) = True And _
+    genUtils.IsStyleInUse(strAuthor) = True Then
     dictReturn.Item("pass") = True
   End If
   

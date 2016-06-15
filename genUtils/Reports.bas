@@ -17,13 +17,17 @@ Option Base 1
 
 Private Const strReports As String = "genUtils.Reports."
 
-' assign to actual document we're working on
-' to do: probably better managed via a class
-Public activeDoc As Document
 ' store info from `book_info.json` file
 Private dictBookInfo As genUtils.Dictionary
 ' store initial paragraph loop info
 Private dictStyles As genUtils.Dictionary
+
+
+Private Enum BookInfo
+  bk_Title = 1
+  bk_Authors = 2
+  bk_ISBN = 3
+End Enum
 
 
 ' ===== ReportsStartup ========================================================
@@ -82,9 +86,6 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   genUtils.Dictionary
 
   On Error GoTo StyleDictionaryError
-  If activeDoc Is Nothing Then
-    Set activeDoc = ActiveDocument
-  End If
   
 ' At some point will also have to loop through active stories (EN. FN)
 ' Also `dictStyles` must be declared as global var.
@@ -212,9 +213,11 @@ Public Function IsbnCheck() As genUtils.Dictionary
 
   ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
     If blnUnstyled = False Then
-  ' If not found,
-      ' Read book info
-        ' Add Isbn
+    ' If not found: Read book info
+      Dim strAddIsbn As String
+      strAddIsbn = dictBookInfo("ISBN")
+    ' Add Isbn
+      
     End If
     
   ' convert bookmarks to styles
@@ -314,21 +317,116 @@ UnstyledIsbnError:
 End Function
 
 
+' ===== AddBookInfo ===========================================================
+' Add info from `book_info.json` to manuscript. Assume already know that it's
+' not present. BookInfo is Private Enum.
+
+Private Function AddBookInfo(InfoType As BookInfo) As Boolean
+  On Error GoTo AddBookInfoError
+  Dim strInfoKey As String
+  Dim strInfoStyle As String
+  Dim strInfoSection As String
+  Dim strNewText As String
+  
+  ' Assign info key and ultimate paragraph style
+  Select Case InfoType
+    Case BookInfo.bk_Title
+      strInfoKey = "title"
+      strInfoStyle = "Titlepage Book Title (tit)"
+    Case BookInfo.bk_Authors
+      strInfoKey = "author"
+      strInfoStyle = "Titlepage Author Name (au)"
+    Case BookInfo.bk_ISBN
+      strInfoKey = "isbn"
+      strInfoStyle = "Copyright page single space (crtx)"
+  End Select
+  
+' Get info string
+  If dictBookInfo.Exists(strInfoKey) = True Then
+    strNewText = dictBookInfo.Item(strInfoKey) & vbNewLine
+  Else
+    AddBookInfo = False
+    Exit Function
+  End If
+  
+' Find where this should go
+  strInfoSection = Left(strInfoStyle, InStr(strInfoStyle, " ") - 1)
+  
+' Does section exist at all? Check in-use style dictionary for any style
+  Dim key1 As Variant
+  Dim lngCurrentStart As Long
+  Dim lngStartPara As Long: lngStartPara = 1  ' Default if not found
+  For Each key1 In dictStyles
+    If InStr(key1, strInfoSection) > 0 Then
+      lngCurrentStart = dictStyles(key1).Item("startPara")
+      ' Should return LAST paragraph with that section's style.
+      If lngCurrentStart > lngStartPara Then
+        lngStartPara = lngCurrentStart
+      End If
+    End If
+  Next key1
+  
+  ' Add text just before paragraph id'd above
+  ' Once entered, new para takes index of lngStartPara.
+  Dim rngNew As Range
+  Set rngNew = activeDoc.Paragraphs(lngStartPara).Range
+  rngNew.InsertBefore = strNewText
+  rngNew.Style = strInfoStyle
+  
+  ' ISBN also needs character style
+  If InfoType = bk_ISBN Then
+    rngNew.Style = "span ISBN (isbn))"
+  End If
+  
+  Exit Function
+AddBookInfoError:
+  Err.Source = strReports & "AddBookInfo"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
+
+
+
 ' ===== TitlepageCheck ========================================================
 ' Test that titlepage exists, Book Title exists, Author Name exists
 
 Public Function TitlepageCheck() As genUtils.Dictionary
   On Error GoTo TitlepageCheckError
+' set up return info
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New genUtils.Dictionary
+  With dictReturn
+    .Add "pass", False
+    .Add "titlepageExists", False
+    .Add "bookTitleExists", False
+    .Add "authorNameExists", False
+  End With
+
+' Style name variables
   Dim strSection As String: strSection = "Titlepage"
   Dim strBookTitle As String: strBookTitle = "Titlepage Book Title (tit)"
   Dim strAuthorName As String: strAuthorName = "Titlepage Author Name (au)"
   
+' Error checks
+  If dictStyles Is Nothing Then
+    Set dictStyles = StyleCheck
+  End If
+  
 ' Do ANY titlepage styles exist?
   Dim key1 As Variant
   For Each key1 In dictStyles
+    If InStr(key1, strSection) > 0 Then
+      dictReturn.Item("titlepageExists") = True
+      Exit For
+    End If
+  Next key1
   
+' Does Book Title exist?
+  If dictReturn.Item("titlepageExists") = True Then
+    
   
   Exit Function
 TitlepageCheckError:

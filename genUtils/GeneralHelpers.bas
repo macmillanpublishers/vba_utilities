@@ -10,6 +10,10 @@ Private Const strModule As String = "genUtils.GeneralHelpers."
 Private lngErrorCount As Long
 
 
+' assign to actual document we're working on
+' to do: probably better managed via a class
+Public activeDoc As Document
+
 ' *****************************************************************************
 '           ERROR HANDLING STUFF
 ' *****************************************************************************
@@ -114,6 +118,15 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
   '   strErrDescription = "Description of the error for the log."
   '   strErrMessage = "Message for the user if we're notifying them."
   Select Case lngErrNumber
+    ' List all built-in errors we want to trap for before general sys error line
+    Case 91 ' Object variable or With block variable not set.
+      ' May be caused if `activeDoc` global var is not set
+      If activeDoc Is Nothing Then
+        Set activeDoc = ActiveDocument
+        ErrorChecker = False
+        Exit Function
+      End If
+      
     Case Is < 513
       ' Errors 0 to 512 are system errors
       strErrMessage = "Something unexpected happened. Please click OK to exit." _

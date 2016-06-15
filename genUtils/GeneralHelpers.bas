@@ -118,6 +118,19 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
   '   strErrDescription = "Description of the error for the log."
   '   strErrMessage = "Message for the user if we're notifying them."
   Select Case lngErrNumber
+  
+    Case 5941  ' Style not present in collection
+      'If style is not present, add style
+      Dim myStyle As Style
+      Dim styleType As WdStyleType
+      If InStr(strValue, "span") > 0 Then
+        styleType = wdStyleTypeCharacter
+      Else
+        styleType = wdStyleTypeParagraphOnly
+      End If
+      Set myStyle = activeDoc.Styles.Add(strValue, styleType)
+      ErrorChecker = False
+      Exit Function
     ' List all built-in errors we want to trap for before general sys error line
     Case 91 ' Object variable or With block variable not set.
       ' May be caused if `activeDoc` global var is not set

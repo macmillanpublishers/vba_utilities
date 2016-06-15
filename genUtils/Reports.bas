@@ -171,17 +171,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 
 StyleDictionaryError:
   Err.Source = strReports & "StyleDictionary"
-  '5834 means item does not exist
-  '5941 means style not present in collection
-  If Err.Number = 5834 Or Err.Number = 5941 Then
-      'If style is not present, add style
-      Dim myStyle As Style
-      Set myStyle = ActiveDocument.Styles.Add(Name:=strBodyStyle, _
-      Type:=wdStyleTypeParagraph)
-      Resume
-  End If
-
-  If ErrorChecker(Err, activeDoc.FullName) = False Then
+  If ErrorChecker(Err, strBodyStyle) = False Then
     Resume
   Else
     Call genUtils.GeneralHelpers.GlobalCleanup
@@ -213,11 +203,10 @@ Public Function IsbnCheck() As genUtils.Dictionary
 
   ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
     If blnUnstyled = False Then
-    ' If not found: Read book info
-      Dim strAddIsbn As String
-      strAddIsbn = dictBookInfo("ISBN")
-    ' Add Isbn
-      
+    ' If not found: Add Isbn
+      Dim blnAddIsbn As Boolean
+      blnAddIsbn = AddBookInfo(bk_ISBN)
+      dictReturn.Add "isbnAdded", blnAddIsbn
     End If
     
   ' convert bookmarks to styles
@@ -375,13 +364,14 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   
   ' ISBN also needs character style
   If InfoType = bk_ISBN Then
-    rngNew.Style = "span ISBN (isbn))"
+    strInfoStyle = "span ISBN (isbn)"
+    rngNew.Style = strInfoStyle
   End If
   
   Exit Function
 AddBookInfoError:
   Err.Source = strReports & "AddBookInfo"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strInfoStyle) = False Then
     Resume
   Else
     Call genUtils.GlobalCleanup

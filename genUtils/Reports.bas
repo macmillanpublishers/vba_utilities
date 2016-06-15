@@ -414,6 +414,11 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   If blnTitle = False Then
     dictReturn.Item("authorNameAdded") = AddBookInfo(bk_Authors)
   End If
+  
+  If blnTitle = True And blnAuthor = True Then
+    dictReturn.Item("pass") = True
+  End If
+  
   Set TitlepageCheck = dictReturn
   
   Exit Function

@@ -390,35 +390,34 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   Set dictReturn = New genUtils.Dictionary
   With dictReturn
     .Add "pass", False
-    .Add "titlepageExists", False
     .Add "bookTitleExists", False
     .Add "authorNameExists", False
   End With
+  
+' Some style names (eventually store externally?)
+  Dim strTitle As String: strTitle = "Titlepage Book Title (tit)"
+  Dim strAuthor As String: strAuthor = "Titlepage Author Name (au)"
 
-' Style name variables
-  Dim strSection As String: strSection = "Titlepage"
-  Dim strBookTitle As String: strBookTitle = "Titlepage Book Title (tit)"
-  Dim strAuthorName As String: strAuthorName = "Titlepage Author Name (au)"
-  
-' Error checks
-  If dictStyles Is Nothing Then
-    Set dictStyles = StyleCheck
-  End If
-  
-' Do ANY titlepage styles exist?
-  Dim key1 As Variant
-  For Each key1 In dictStyles
-    If InStr(key1, strSection) > 0 Then
-      dictReturn.Item("titlepageExists") = True
-      Exit For
-    End If
-  Next key1
-  
+  Dim blnTitle As Boolean
+  Dim blnAuthor As Boolean
+
 ' Does Book Title exist?
-  If dictReturn.Item("titlepageExists") = True Then
-    
+  blnTitle = dictStyles.Exists(strBookTitle)
+  dictReturn.Item("bookTitleExists") = blnTitle
+  If blnTitle = False Then
+    dictReturn.Item("bookTitleAdded") = AddBookInfo(bk_Title)
+  End If
+
+' Does Author Name exist?
+  blnTitle = dictStyles.Exists(strAuthorName)
+  dictReturn.Item("authorNameExists") = blnTitle
+  If blnTitle = False Then
+    dictReturn.Item("authorNameAdded") = AddBookInfo(bk_Authors)
+  End If
+  Set TitlepageCheck = dictReturn
   
   Exit Function
+  
 TitlepageCheckError:
   Err.Source strReports & "TitlepageCheck"
   If ErrorChecker(Err) = False Then

@@ -272,13 +272,13 @@ Public Function IsbnSearch(Optional FilePath As String) As Variant
 
   ' Make sure our document is open and active
   ' If not passing file path, will ref. activeDoc global var
-  If FilePath = vbNullString Then
+  If FilePath <> vbNullString Then
     If genUtils.IsOpen(FilePath) = False Then
       Documents.Open (FilePath)
     End If
     Set activeDoc = Documents(FilePath)
   End If
-
+  activeDoc.Range.Select
   ' ISBN rules:
   ' * First 3 digits: 978 or 979
   ' * 4th digit: 0 or 1 (for English language)

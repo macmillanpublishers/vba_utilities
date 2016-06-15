@@ -1053,7 +1053,7 @@ Sub CreateTextFile(strText As String, suffix As String)
     End If
 End Sub
 
-Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
+Function GetText(StyleName As String, Optional returnArray As Boolean = False) _
   As String
   If activeDoc Is Nothing Then
     Set activeDoc = ActiveDocument
@@ -1108,7 +1108,7 @@ Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
       styleArray(1) = ""
   End If
   
-  If ReturnArray = False Then
+  If returnArray = False Then
     GetText = genUtils.GeneralHelpers.Reduce(styleArray)
   Else
     GetText = styleArray

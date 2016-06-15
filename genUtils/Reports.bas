@@ -75,91 +75,38 @@ End Function
 ' ===== StyleCheck ============================================================
 ' Call this from origin project. Performs variety of style checks, returns
 ' dictionary containing results of various tests or whatever. Use private
-' global variable to store the `StyleDictionary` object to access by later
+' global variable to store the `dictStyles` object to access by later
 ' procedures.
 
-Public Function StyleCheck() As genUtils.Dictionary
-  On Error GoTo StyleCheckError
-  Dim dictReturn As genUtils.Dictionary
-  ' "pass" refers to are enough paragraphs styled, NOT did the function fail
-  Dim blnPass As Boolean
-  Dim lngUnstyledCount As Long
-  Dim lngUniqueStyles As Long
-  Dim sglPercentStyled As Single
-
-  If activeDoc Is Nothing Then
-    Set activeDoc = ActiveDocument
-  End If
-
-  ' create dictionary of style information
-  ' declared as private global variable above, to acces later.
-  Set dictStyles = genUtils.Reports.StyleDictionary()
-  
-  ' retrieve our values
-  lngUnstyledCount = dictStyles("unstyled")
-  lngUniqueStyles = dictStyles("styled").Count
-  sglPercentStyled = dictStyles("percentStyled")
-  
-  ' Threshold for "styled" is 50% of paragraphs have styles
-  If sglPercentStyled >= 0.5 Then
-    blnPass = True
-  Else
-    blnPass = False
-  End If
-  
-' Add test results to return dictionary
-  Set dictReturn = New genUtils.Dictionary
-  With dictReturn
-    .Add "pass", blnPass
-    .Add "unstyledCount", lngUnstyledCount
-    .Add "uniqueStyles", lngUniqueStyles
-    .Add "percentStyled", sglPercentStyled
-  End With
-  
-  Set StyleCheck = dictReturn
-  
-  Exit Function
-
-StyleCheckError:
-  Err.Source = strReports & "StyleCheck"
-  If ErrorChecker(Err, Doc.FullName) = False Then
-    Resume
-  Else
-    Debug.Print "(" & Err.Source & ") " & Err.Number & ": " & Err.Description
-    Call genUtils.GeneralHelpers.GlobalCleanup
-  End If
-End Function
-
-Private Function StyleDictionary(Optional FixUnstyled As Boolean = True) As _
+Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   genUtils.Dictionary
 
   On Error GoTo StyleDictionaryError
-  ' At some point will also have to loop through active stories (EN. FN)
-
-  Dim dictFull As genUtils.Dictionary  ' the full dictionary object we'll return
-  Dim dictStyled As genUtils.Dictionary  ' subdictionary to hold all styled info
+  If activeDoc Is Nothing Then
+    Set activeDoc = ActiveDocument
+  End If
+  
+' At some point will also have to loop through active stories (EN. FN)
+' Also `dictStyles` must be declared as global var.
+  Set dictStyles = New genUtils.Dictionary
+  Dim dictReturn As genUtils.Dictionary  ' the full dictionary object we'll return
   Dim dictInfo As genUtils.Dictionary   ' sub-sub dict for indiv. style info
   
-  Set dictFull = New Dictionary
-  dictFull.Add "unstyled", 0    ' for now, just a count. can add more data later
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
+  dictReturn.Add "unstyledCount", 0    ' for now, just a count. can add more data later
 
-  Set dictStyled = New Dictionary
-
-  Dim lngParaCt As Long   ' total paragraphs in main story
-  Dim rngPara As Range    ' current paragraph as a range
-  Dim lngPageNum As Long
+  Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
   Dim strStyle As String
   Dim strBodyStyle As String: strBodyStyle = "Text - Standard (tx)"
   Dim A As Long
   
-  lngParaCt = activeDoc.Paragraphs.Count
-
-  
-  ' Loop through all paragraphs in document from END to START so we end up with
-  ' FIRST page, and if we need to delete paras we don't mess up the count order
+' Loop through all paragraphs in document from END to START so we end up with
+' FIRST page, and if we need to delete paras we don't mess up the count order
   For A = lngParaCt To 1 Step -1
-    ' To break infinite loops. Should probably increase break point before deploy
-    If A = 4000 Then
+  ' To break infinite loops.
+  ' To do: increase? Add actual Err.Raise
+    If A = 10000 Then
       Debug.Print "A = " & A
       Exit For
     End If
@@ -168,31 +115,28 @@ Private Function StyleDictionary(Optional FixUnstyled As Boolean = True) As _
 '      Debug.Print "Paragraph " & A
 '    End If
 
-  ' Get style name, page number
+  ' Get style name
     strStyle = activeDoc.Paragraphs(A).Style
-'    Debug.Print strStyle
-    Set rngPara = activeDoc.Paragraphs(A).Range
-    lngPageNum = rngPara.Information(wdActiveEndAdjustedPageNumber)
-'    Debug.Print lngPageNum
     
-  ' If style name = Macmillan style
+  ' If style name = Macmillan style...
     If Right(strStyle, 1) = ")" Then
-    ' If style does not exist in dict yet
-      If Not dictStyled.Exists(strStyle) Then
-      ' create sub-dictionary
+    ' If style does not exist in dict yet...
+      If Not dictStyles.Exists(strStyle) Then
+      ' ...create sub-dictionary
         Set dictInfo = New genUtils.Dictionary
         dictInfo.Add "count", 0
-        dictInfo.Add "page", 0
-        dictStyled.Add strStyle, dictInfo
+        dictInfo.Add "startPara", 0
+        dictStyles.Add strStyle, dictInfo
+        Set dictInfo = Nothing
       End If
-    ' Increase style count and update page number
+    ' Increase style count and update start paragraph index
     ' .Item() method overwrites value for that key
-      dictStyled(strStyle).Item("count") = dictStyled(strStyle)("count") + 1
-      dictStyled(strStyle).Item("page") = lngPageNum
+      dictStyles(strStyle).Item("count") = dictStyles(strStyle)("count") + 1
+      dictStyles(strStyle).Item("startPara") = A
   ' Else (not Macmillan style)
     Else
     ' Increase unstyled count
-      dictFull.Item("unstyled") = dictFull.Item("unstyled") + 1
+      dictReturn.Item("unstyledCount") = dictReturn.Item("unstyledCount") + 1
       
     ' Change style, if requested
     ' To do: use logic to tag TX1, COTX1
@@ -203,16 +147,25 @@ Private Function StyleDictionary(Optional FixUnstyled As Boolean = True) As _
     End If
   Next A
   
-  ' Are enough paragraphs styled?
+  ' What percentage are styled?
   Dim lngPercent As Single
-  lngPercent = dictFull("unstyled") / lngParaCt
+  Dim blnPass As Boolean
+  lngPercent = dictReturn("unstyledCount") / lngParaCt
   lngPercent = 1 - VBA.Round(lngPercent, 3)
-  
-  ' add styled dictionary to full dictionary and return
-  dictFull.Add "styled", dictStyled
-  dictFull.Add "percentStyled", lngPercent
-  Set StyleDictionary = dictFull
 
+' Threshold for "styled" is 50% of paragraphs have styles
+  If lngPercent >= 0.5 Then
+    blnPass = True
+  Else
+    blnPass = False
+  End If
+  
+' update values in test dictionary
+  dictReturn.Item("pass") = blnPass
+  dictReturn.Item("uniqueStyles") = dictStyles.Count
+  dictReturn.Item("percentStyled") = lngPercent
+  
+  Set StyleDictionary = dictReturn
   Exit Function
 
 StyleDictionaryError:
@@ -359,6 +312,34 @@ UnstyledIsbnError:
     Call genUtils.GlobalCleanup
   End If
 End Function
+
+
+' ===== TitlepageCheck ========================================================
+' Test that titlepage exists, Book Title exists, Author Name exists
+
+Public Function TitlepageCheck() As genUtils.Dictionary
+  On Error GoTo TitlepageCheckError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New genUtils.Dictionary
+  Dim strSection As String: strSection = "Titlepage"
+  Dim strBookTitle As String: strBookTitle = "Titlepage Book Title (tit)"
+  Dim strAuthorName As String: strAuthorName = "Titlepage Author Name (au)"
+  
+' Do ANY titlepage styles exist?
+  Dim key1 As Variant
+  For Each key1 In dictStyles
+  
+  
+  Exit Function
+TitlepageCheckError:
+  Err.Source strReports & "TitlepageCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function
+
 
 ' ===== SectionCheck ==========================================================
 ' Tags book sections, adds to dictionary as ranges. Also fixes breaks.

@@ -2,16 +2,13 @@ Attribute VB_Name = "GeneralHelpers"
 
 ' All should be declared as Public for use from other modules
 
+' *****************************************************************************
+'           DECLARATIONS
+' *****************************************************************************
 Option Explicit
 Private Const strModule As String = "genUtils.GeneralHelpers."
 Private lngErrorCount As Long
 
-
-Public Enum GitBranch
-    master = 1
-    releases = 2
-    develop = 3
-End Enum
 
 ' *****************************************************************************
 '           ERROR HANDLING STUFF
@@ -49,6 +46,7 @@ Public Enum MacError
     err_RootDirMissing = 20020
     err_LogReadOnly = 20021
     err_DirectoryMissing = 20022
+    err_ParaIndexInvalid = 20023
 End Enum
 
 ' ===== ErrorChecker ==========================================================
@@ -57,27 +55,12 @@ End Enum
 
 ' DO NOT use any other of our functions in this function, because those need to
 ' direct errors here and using them here as well could create an infinite loop.
-
 '
 ' USE: ErrorChecker() returns False if error is handled; procedure can continue
-' Each member procedure in the class should have the following:
-'''
-' On Error GoTo MemberName[Let | Set | Get]Error
-'   <...code...>
-' MemberName[Let | Set | Get]Finish:
-'   <...any cleanup code...>
-'   Exit [Property | Sub | Function]
-' MemberName[Let | Set | Get]Error:
-'    If ErrorChecker(Err) = False Then
-'        Resume
-'    Else
-'        Call genUtils.GeneralHelpers.GlobalCleanup
-'    End If
-' End [Property | Sub | Function]
 
 Public Function ErrorChecker(objError As Object, Optional strValue As _
     String) As Boolean
-    ' strValue - varies based on type of error passed. use for things like _
+    ' strValue - varies based on type of error passed. use for things like
     ' file name, path, whatever is being checked by that errored.
   lngErrorCount = lngErrorCount + 1
   If lngErrorCount > 5 Then
@@ -145,95 +128,92 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       strErrMessage = "You can't Get the GroupName property before it has " _
         & "been Let. Try the MacFile_.AssignFile method to create a new object in this class."
     Case MacError.err_SpecificFileInvalid
-        strErrDescription = "Invalid value for SpecificFile property: " _
-            & strValue
-        strErrMessage = "The you've entered an invalid value for the" _
-            & " SpecificFile property. Make sure you only use " & _
-            "specific file types that are in the config.json file."
+      strErrDescription = "Invalid value for SpecificFile property: " _
+          & strValue
+      strErrMessage = "The you've entered an invalid value for the" _
+          & " SpecificFile property. Make sure you only use " & _
+          "specific file types that are in the config.json file."
     Case MacError.err_SpecificFileNotSet
-        strErrDescription = "SpecificFile property has not been Let."
-        strErrMessage = "You can't Get the SpecificFile property " & _
-            "before it has been Let. Try the MacFile_.AssignFile " & _
-            "method to create a new object in this class."
+      strErrDescription = "SpecificFile property has not been Let."
+      strErrMessage = "You can't Get the SpecificFile property " & _
+          "before it has been Let. Try the MacFile_.AssignFile " & _
+          "method to create a new object in this class."
     Case MacError.err_DeleteThisDoc
-        strErrDescription = "Can't delete file that is currently " & _
-            "executing code: " & strValue
-        strErrMessage = "The file you are trying to delete is " & _
-            "currently executing macro code."
+      strErrDescription = "Can't delete file that is currently " & _
+          "executing code: " & strValue
+      strErrMessage = "The file you are trying to delete is " & _
+          "currently executing macro code."
     Case MacError.err_TempDeleteFail
-        strErrDescription = "Failed to delete the previous file in the " _
-            & "temp directory: " & strValue
-        strErrMessage = "We can't download the file; a temp file " & _
-            "is still there."
+      strErrDescription = "Failed to delete the previous file in the " _
+          & "temp directory: " & strValue
+      strErrMessage = "We can't download the file; a temp file " & _
+          "is still there."
     Case MacError.err_NoInternet
-        strErrDescription = "No network connection. Download aborted."
-        strErrMessage = "We weren't able to download the file " & _
-            "because we can't connect to the internet. Check your " & _
-            "network connection and try again."
+      strErrDescription = "No network connection. Download aborted."
+      strErrMessage = "We weren't able to download the file " & _
+          "because we can't connect to the internet. Check your " & _
+          "network connection and try again."
     Case MacError.err_Http404
-        strErrDescription = "File HTTP status 404. Check if DownloadURL" _
-            & " is correct, and file is posted: " & strValue
-        strErrMessage = "Could not download file from the internet."
+      strErrDescription = "File HTTP status 404. Check if DownloadURL" _
+          & " is correct, and file is posted: " & strValue
+      strErrMessage = "Could not download file from the internet."
     Case MacError.err_BadHttpStatus
-        strErrDescription = "File HTTP status: " & strValue & _
+      strErrDescription = "File HTTP status: " & strValue & _
             ". Download aborted."
-        strErrMessage = "There is some problem with the file you are" _
+      strErrMessage = "There is some problem with the file you are" _
             & " trying to download."
         ' Need to get Source as passed in object first, so do this last
     Case MacError.err_DownloadFail
-        strErrDescription = "File download failed: " & strValue
-        strErrMessage = "Download failed."
+      strErrDescription = "File download failed: " & strValue
+      strErrMessage = "Download failed."
     Case MacError.err_LocalDeleteFail
         ' genUtils.GeneralHelpers.KillAll() will notify user if file is open
-        strErrDescription = "File in final install location could not " _
-            & "be deleted. If it was because the file was open, the " _
-            & "user was notified: " & strValue
-        blnNotifyUser = False
+      strErrDescription = "File in final install location could not be " & _
+        "deleted. If the file was open, the user was notified: " & strValue
+      blnNotifyUser = False
     Case MacError.err_LocalCopyFail
-        strErrDescription = "File not saved to final directory: " & _
-            strValue
-        strErrMessage = "There was an error installing the " & _
-        "Macmillan template."
+      strErrDescription = "File not saved to final directory: " & strValue
+      strErrMessage = "There was an error installing the Macmillan template."
     Case MacError.err_LocalReadOnly
-        strErrDescription = "Final dir for file is read-only: " & _
-            strValue
-        strErrMessage = "The folder you are trying to access is " & _
-         "read-only."
+      strErrDescription = "Final dir for file is read-only: " & strValue
+      strErrMessage = "The folder you are trying to access is read-only."
     Case MacError.err_TempReadOnly
-        strErrDescription = "Temp dir is read-only: " & strValue
-        strErrMessage = "Your temp folder is read-only."
+      strErrDescription = "Temp dir is read-only: " & strValue
+      strErrMessage = "Your temp folder is read-only."
     Case MacError.err_TempMissing
-        strErrDescription = "Temp directory is missing: " & strValue
-        strErrMessage = "There is an error with your temp folder."
+      strErrDescription = "Temp directory is missing: " & strValue
+       strErrMessage = "There is an error with your temp folder."
     Case MacError.err_FileNotThere
-        strErrDescription = "File does not exist: " & strValue
-        strErrMessage = "The file " & strValue & " does " _
+       strErrDescription = "File does not exist: " & strValue
+       strErrMessage = "The file " & strValue & " does " _
             & "not exist."
     Case MacError.err_NotWordFormat
-        strErrDescription = "File extension is not a native Word " & _
+      strErrDescription = "File extension is not a native Word " & _
             "document or template: " & strValue
-        strErrMessage = "This file does not appear to be a Word " & _
+       strErrMessage = "This file does not appear to be a Word " & _
             "file: " & strValue
     Case MacError.err_ConfigPathNull
-        strErrDescription = "FullConfigPath custom doc property is not " _
+       strErrDescription = "FullConfigPath custom doc property is not " _
             & "set in the document."
-        strErrMessage = "We can't find the config.json file because " _
+      strErrMessage = "We can't find the config.json file because " _
             & "the local path is not in the template properties."
     Case MacError.err_RootDirInvalid
-        strErrDescription = "Value for root directory in config.json is" _
+      strErrDescription = "Value for root directory in config.json is" _
             & " not an option in the RootDir property: " & strValue
-        strErrMessage = "The folder where we save the Tools template" _
-            & " doesn't exist."
+      strErrMessage = "The folder where we save the Tools template" _
+          & " doesn't exist."
     Case MacError.err_LogReadOnly
-        strErrDescription = "Log file is read only: " & strValue
-        strErrMessage = "There is a problem with the logs."
+      strErrDescription = "Log file is read only: " & strValue
+      strErrMessage = "There is a problem with the logs."
     Case MacError.err_DirectoryMissing
       strErrDescription = "The directory " & strValue & " is missing."
       strErrMessage = strErrDescription
+    Case MacError.err_ParaIndexInvalid
+      strErrDescription = "The requested paragraph is out of range."
+      strErrMessage = strErrDescription
     Case Else
-        strErrDescription = "Undocumented error - " & _
-            strErrDescription
-        strErrMessage = "Not sure what's going on here."
+      strErrDescription = "Undocumented error - " & strErrDescription
+      strErrMessage = "Not sure what's going on here."
   End Select
 
   Else
@@ -724,6 +704,37 @@ Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String
     
 End Function
 
+
+Public Function ParaInfo(ParaInd As Long, InfoType As WdInformation) _
+  As Variant
+' In general: get a variety of info about a paragraph (or its document)
+' Most common usage: InfoType = wdActiveEndAdjustedPageNumber
+  On Error GoTo ParaInfoError
+  
+' Make sure we have an activeDoc
+  If activeDoc Is Nothing Then
+    Set activeDoc = ActiveDocument
+  End If
+  
+' Make sure our paragraph index is in range
+  If ParaInd <= activeDoc.Paragraphs.Count Then
+  ' Set range for our paragraph
+    Dim rngPara As Range
+    Set rngPara = activeDoc.Paragraphs(ParaInd).Range
+    ParaInfo = rngPara.Information(InfoType)
+  Else
+    Err.Raise MacError.err_ParaIndexInvalid
+  End If
+
+  Exit Function
+ParaInfoError:
+  Err.Source = strModule & "ParaInfo"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call GlobalCleanup
+  End If
+End Function
 
 Public Sub zz_clearFind()
 

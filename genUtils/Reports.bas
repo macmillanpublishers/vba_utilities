@@ -81,7 +81,7 @@ ReportsStartupError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.GlobalCleanup
+    Call genUtils.ReportsTerminate
   End If
 End Function
 
@@ -265,7 +265,7 @@ StyleDictionaryError:
   If ErrorChecker(Err, strBodyStyle) = False Then
     Resume
   Else
-    Call genUtils.GeneralHelpers.GlobalCleanup
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -344,7 +344,7 @@ IsbnCheckError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.GlobalCleanup
+    Call genUtils.ReportsTerminate
   End If
 End Function
 
@@ -431,7 +431,7 @@ IsbnSearchError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.GlobalCleanup
+    Call genUtils.ReportsTerminate
   End If
 End Function
 
@@ -504,7 +504,7 @@ AddBookInfoError:
   If ErrorChecker(Err, strInfoStyle) = False Then
     Resume
   Else
-    Call genUtils.GlobalCleanup
+    Call genUtils.ReportsTerminate
   End If
 End Function
 
@@ -560,7 +560,7 @@ TitlepageCheckError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.GeneralHelpers.GlobalCleanup
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -579,7 +579,7 @@ SectionCheckError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.GeneralHelpers.GlobalCleanup
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -626,7 +626,7 @@ IsHeadingError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Cell genUtils.GlobalCleanup
+    Cell genUtils.ReportsTerminate
   End If
 End Function
 
@@ -666,7 +666,7 @@ SectionNameError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    genUtils.GlobalCleanup
+    genUtils.ReportsTerminate
   End If
 End Function
 
@@ -682,7 +682,7 @@ Private Function AddHeading(ParaInd As Long) As Boolean
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.GlobalCleanup
+    Call genUtils.ReportsTerminate
   End If
 End Function
 ' #############################################################################
@@ -2124,7 +2124,7 @@ ErrHandler:
       If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
         Resume
       Else
-        Call genUtils.GeneralHelpers.GlobalCleanup
+        Call genUtils.Reports.ReportsTerminate
       End If
     End If
 

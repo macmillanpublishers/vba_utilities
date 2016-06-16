@@ -1053,7 +1053,7 @@ Sub CreateTextFile(strText As String, suffix As String)
     End If
 End Sub
 
-Function GetText(StyleName As String, Optional returnArray As Boolean = False) _
+Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
   As String
   If activeDoc Is Nothing Then
     Set activeDoc = ActiveDocument
@@ -1108,7 +1108,7 @@ Function GetText(StyleName As String, Optional returnArray As Boolean = False) _
       styleArray(1) = ""
   End If
   
-  If returnArray = False Then
+  If ReturnArray = False Then
     GetText = genUtils.GeneralHelpers.Reduce(styleArray)
   Else
     GetText = styleArray
@@ -1133,14 +1133,15 @@ End Function
 ' Iterates through item passed to it (currently only an Array, but in future
 ' add support for Dictionary or Collection) and returns a string of all of the
 ' elements. Add handling in future to return other summaries (add all numbers?)
-Public Function Reduce(StartGroup As Variant) As Variant
+Public Function Reduce(StartGroup As Variant, Optional Delimiter As String = _
+  vbNewLine) As Variant
   On Error GoTo ReduceError
   If VBA.IsArray(StartGroup) = True Then
     Dim strReturn As String
     Dim A As Long
     
     For A = LBound(StartGroup) To UBound(StartGroup)
-      strReturn = strReturn & StartGroup(A) & vbNewLine
+      strReturn = strReturn & StartGroup(A) & Delimiter
     Next A
     
   Else
@@ -1150,7 +1151,7 @@ Public Function Reduce(StartGroup As Variant) As Variant
 
   Exit Function
 ReduceError:
-  Err.Source = strModule & "Reduce)"
+  Err.Source = strModule & "Reduce"
   If ErrorChecker(Err) = False Then
     Resume
   Else

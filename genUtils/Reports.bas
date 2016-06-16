@@ -23,6 +23,8 @@ Private dictBookInfo As genUtils.Dictionary
 Private dictStyles As genUtils.Dictionary
 ' store acceptable heading styles
 Private dictHeadings As genUtils.Dictionary
+' store style-to-section conversion
+Private dictSections As genUtils.Dictionary
 
 Private Enum BookInfo
   bk_Title = 1
@@ -48,8 +50,8 @@ Public Function ReportsStartup(DocPath As String) As genUtils.Dictionary
   
 ' Check for `book_info.json` file, read into global dictionary variable
   Dim strInfoPath As String
+  strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
   If GeneralHelpers.IsItThere(strInfoPath) = True Then
-    strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
     Set dictBookInfo = genUtils.ClassHelpers.ReadJson(strInfoPath)
   Else
     Err.Raise MacError.err_FileNotThere
@@ -200,7 +202,7 @@ Public Function IsbnCheck() As genUtils.Dictionary
   ' Search for unstyled ISBN (returns tagged with bookmarks)
     Dim blnUnstyled As Boolean
     Dim arrISBN() As String
-    arrISBN = IsbnSearch
+    arrISBN = IsbnSearch(ReturnArray:=True)
     If genUtils.IsArrayEmpty(arrISBN) = True Then
       blnUnstyled = False
     Else
@@ -262,13 +264,18 @@ End Function
 ' ===== UnstyledIsbn ==========================================================
 ' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
 ' tags as bookmarks and returns array. Optional FilePath is for passing doc path
-' from powershell.
+' from powershell. ReturnString is True by default also cuz powershell.
 
-Public Function IsbnSearch(Optional FilePath As String) As Variant
-'  On Error GoTo IsbnSearchError
+' Don't actually need to log anything with LogFile param, but powershell expects
+' to pass that argument so we'll make it optional.
+
+Public Function IsbnSearch(Optional FilePath As String, _
+  Optional LogFile As String, _
+  Optional ReturnString As Boolean = True) As Variant
+  On Error GoTo IsbnSearchError
   Dim lngCounter As Long
   Dim strSearchPattern As String
-  Dim returnArray() As String
+  Dim ReturnArray() As String
 
   ' Make sure our document is open and active
   ' If not passing file path, will ref. activeDoc global var
@@ -312,7 +319,7 @@ Public Function IsbnSearch(Optional FilePath As String) As Variant
   Do While Selection.Find.Execute = True And lngCounter < 100
     lngCounter = lngCounter + 1
 
-    ' Delete if it already exists
+    ' Delete if bookmark already exists
     If activeDoc.Bookmarks.Exists("ISBN" & lngCounter) = True Then
       activeDoc.Bookmarks.Item("ISBN" & lngCounter).Delete
     End If
@@ -320,20 +327,24 @@ Public Function IsbnSearch(Optional FilePath As String) As Variant
     activeDoc.Bookmarks.Add "ISBN" & lngCounter, Selection
     
     ' Also add to array to return to calling procedure
-    ReDim Preserve returnArray(0 To lngCounter)
-    returnArray(lngCounter) = Selection.Text
+    ReDim Preserve ReturnArray(0 To lngCounter)
+    ReturnArray(lngCounter) = Selection.Text
   Loop
   
-  IsbnSearch = returnArray
+  If ReturnString = False Then
+    IsbnSearch = ReturnArray
+  Else
+    ' Default is comma-delimited string
+    IsbnSearch = genUtils.Reduce(ReturnArray, ",")
   Exit Function
 
-'IsbnSearchError:
-'  Err.Source = strReports & "UnstyledIsbn"
-'  If ErrorChecker(Err) = False Then
-'    Resume
-'  Else
-'    Call genUtils.GlobalCleanup
-'  End If
+IsbnSearchError:
+  Err.Source = strReports & "UnstyledIsbn"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
 End Function
 
 
@@ -489,8 +500,9 @@ End Function
 ' Is this paragraph style a Macmillan heading style? Eventually store style
 ' names externally.
 
-Private Function IsHeading(ParaInd As Long) As Boolean
+Private Function IsHeading(StyleName As String) As Boolean
   On Error GoTo IsHeadingError
+' Hard code for now. `dictHeadings` is global scope so only have to create once
   If dictHeadings Is Nothing Then
     Set dictHeadings = New Dictionary
     With dictHeadings
@@ -513,8 +525,13 @@ Private Function IsHeading(ParaInd As Long) As Boolean
       .Add "Recipe Head (rh)"
       .Add "Sub-Recipe Head (srh)"
       .Add "Recipe Var Head (rvh)"
+      .Add "Poem Subtitle (vst)"
+      .Add "Poem Title (vt)"
     End With
   End If
+  
+' So just see if our style is one of these styles
+  IsHeading = dictHeadings.Exists(StyleName)
   Exit Function
 IsHeadingError:
   Err.Source = strReports & "IsHeading"
@@ -522,6 +539,46 @@ IsHeadingError:
     Resume
   Else
     Cell genUtils.GlobalCleanup
+  End If
+End Function
+
+
+' ===== SectionName ===========================================================
+' Determines section name from style name. Reads from external JSON file. When
+' we get around to changing style names so the section is always the first word
+' we can make this much simpler.
+
+Private Function SectionName(StyleName As String) As String
+  On Error GoTo SectionNameError
+' Create dictionary if it hasn't been yet
+  If dictSections Is Nothing Then
+  ' Check for `sections.json` file, read into global dictionary
+    Dim strSections As String
+    strSections = ThisDocument.Path & Application.PathSeparator & "sections.json"
+    If genUtils.IsItThere(strSections) = True Then
+      Set dictSections = genUtils.ClassHelpers.ReadJson(strSections)
+    Else
+      Err.Raise MacError.err_FileNotThere
+    End If
+  End If
+
+' If first word is a key, section is value
+  Dim strFirst As String
+  strFirst = Left(StyleName, InStr(StyleName, " ") - 1)
+  If dictSections.Exists(strFirst) = True Then
+    SectionName = dictSections.Item(strFirst)
+' Else it's just a generic chapter section
+  Else
+    SectionName = "Chapter"
+  End If
+  Exit Function
+
+SectionNameError:
+  Err.Source = strReports & "SectionName"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    genUtils.GlobalCleanup
   End If
 End Function
 ' #############################################################################

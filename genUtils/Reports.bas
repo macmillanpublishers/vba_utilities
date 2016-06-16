@@ -25,6 +25,8 @@ Private dictStyles As genUtils.Dictionary
 Private dictHeadings As genUtils.Dictionary
 ' store style-to-section conversion
 Private dictSections As genUtils.Dictionary
+' also path to write alerts to
+Private strAlertFile As String
 
 Private Enum BookInfo
   bk_Title = 1
@@ -37,11 +39,15 @@ End Enum
 ' Set some global vars, check some things. Probably should be a class Initialize
 ' eventually.
 
-Public Function ReportsStartup(DocPath As String) As genUtils.Dictionary
+Public Function ReportsStartup(DocPath As String, AlertPath As String) _
+  As genUtils.Dictionary
   On Error GoTo ReportsStartupError
+' Get this first, in case we have an error early:
+  strAlertFile = AlertPath
+
 ' The .ps1 that calls this macro also opens the file, so should already be
 ' part of the Documents collection, but we'll check anyway.
-  If genUtils.GeneralHelpers.IsOpen(DocPath) = False Then
+    If genUtils.GeneralHelpers.IsOpen(DocPath) = False Then
     Documents.Open (DocPath)
   End If
 
@@ -78,6 +84,88 @@ ReportsStartupError:
     Call genUtils.GlobalCleanup
   End If
 End Function
+
+
+' ===== ReportsTerminate ======================================================
+' Things to do if we have to terminate the macro early due to an error. To be
+' called if ErrorChecker returns false. Again, some day would work better as
+' a class with a legit Class_Terminate procedure.
+
+Private Sub ReportsTerminate()
+  Dim lngErrNumber As Long
+  Dim strErrDescription As String
+  Dim strErrSource As String
+  
+  lngErrNumber = Err.Number
+  strErrDescription = Err.Description
+  strErrSource = Err.Source
+
+' Get current Err values before new `On Error` (which clear Err object)
+  On Error GoTo ReportsTerminateError
+
+' Write error file to active doc dir
+  If strAlertFile = vbNullString Then
+    If Not activeDoc Is Nothing Then
+      strAlertFile = activeDoc.Path
+    Else
+      strAlertFile = ActiveDocument.Path
+    End If
+    strAlertFile = strAlertFile & Application.PathSeparator & "ALERT_" & _
+        Format(Now, "yyyy-mm-dd_hh:mm") & ".txt"
+  End If
+  
+' Create error message from Err values
+  Dim strAlert As String
+  strAlert = "=========================================" & vbNewLine & _
+    Now & " | " & strErrSource & vbNewLine & _
+    lngErrNumber & ": " & strErrDescription
+  
+  
+' if we can write a file there, write alert message
+  If genUtils.GeneralHelpers.ParentDirExists(strAlertFile) = True Then
+    Dim FileNum As Long
+    FileNum = FreeFile()
+    Open strAlertFile For Append As #FileNum
+    Print #FileNum, strAlert
+    Close #FileNum
+  Else
+    ' just in case it stays...
+    Debug.Print strAlert
+  End If
+  
+' Kill global objects
+  If Not dictBookInfo Is Nothing Then
+    Set dictBookInfo = Nothing
+  End If
+  If Not dictStyles Is Nothing Then
+    Set dictStyles = Nothing
+  End If
+  If Not dictHeadings Is Nothing Then
+    Set dictHeadings = Nothing
+  End If
+  If Not dictSections Is Nothing Then
+    Set dictSections = Nothing
+  End If
+  If Not activeDoc Is Nothing Then
+    Set activeDoc = Nothing
+  End If
+
+  ' Close all open documents
+  Dim objDoc As Document
+  Dim strExt As String
+  For Each objDoc In Documents
+    ' don't close any macro templates, might be running code.
+    strExt = VBA.Right(objDoc.Name, InStr(StrReverse(objDoc.Name), "."))
+    If strExt <> ".dotm" Then
+      objDoc.Close saveValue
+    End If
+  Next objDoc
+
+' Do NOT use `Exit Sub` before, since we ALWAYS want this to terminate.
+ReportsTerminateError:
+  End
+End Sub
+
 
 ' ===== StyleCheck ============================================================
 ' Call this from origin project. Performs variety of style checks, returns
@@ -261,7 +349,7 @@ IsbnCheckError:
 End Function
 
 
-' ===== UnstyledIsbn ==========================================================
+' ===== IsbnSearch ============================================================
 ' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
 ' tags as bookmarks and returns array. Optional FilePath is for passing doc path
 ' from powershell. ReturnString is True by default also cuz powershell.
@@ -579,6 +667,22 @@ SectionNameError:
     Resume
   Else
     genUtils.GlobalCleanup
+  End If
+End Function
+
+
+' ===== AddHeading ============================================================
+' Adds CTNP heading ABOVE the paragraph passed as arg, with section name text.
+' Though each chapter is just "Chapter" -- will have to add numbers later.
+
+Private Function AddHeading(ParaInd As Long) As Boolean
+  On Error GoTo AddHeadingError
+  Exit Function
+  Err.Source strReports & "AddHeading"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
   End If
 End Function
 ' #############################################################################

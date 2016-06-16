@@ -677,7 +677,45 @@ End Function
 
 Private Function AddHeading(ParaInd As Long) As Boolean
   On Error GoTo AddHeadingError
+' Get current para count to test at end that we added a new one
+  Dim lngParas As Long
+  lngParas = activeDoc.Paragraphs.Count
+
+  ' generic head style (eventually store externally)
+  Dim strHeadStyle As String
+  strHeadStyle = "Chap Title Nonprinting (ctnp)"
+  
+' Set range for the para in question
+  Dim rngPara As Range
+  Set rngPara = activeDoc.Paragraphs(ParaInd).Range
+  
+' Get style name of that paragraph
+  Dim strParaStyle As String
+  strParaStyle = rngPara.Style
+
+' Look up section name of that style
+  Dim strSectionName As String
+  strSectionName = Reports.SectionName(strParaStyle)
+  ' add line ending ('cuz new paragraph)
+  strSectionName = strSectionName & vbNewLine
+  
+' Insert new paragraph
+  rngPara.InsertBefore (strSectionName)
+  
+' Add correct style (inserted paragraph now part of `rngPara` object)
+  rngPara.Paragraphs(1) = strHeadStyle
+
+' Verify we added a paragraph
+  Dim lngNewParas As Long
+  lngNewParas = activeDoc.Paragraphs.Count
+  If lngNewParas = lngParas + 1 Then
+    AddHeading = True
+  Else
+    AddHeading = False
+  End If
   Exit Function
+  
+AddHeadingError:
   Err.Source strReports & "AddHeading"
   If ErrorChecker(Err) = False Then
     Resume

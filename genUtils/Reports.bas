@@ -351,8 +351,11 @@ End Function
 
 ' ===== IsbnSearch ============================================================
 ' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
-' tags as bookmarks and returns array. Optional FilePath is for passing doc path
-' from powershell. ReturnString is True by default also cuz powershell.
+' tags as bookmarks and returns array or string.
+
+' PUBLIC because needs to be called independently from powershell if file name
+' doesn't include ISBN. Optional FilePath is for passing doc path from PS.
+' ReturnString is True by default also cuz powershell.
 
 ' Don't actually need to log anything with LogFile param, but powershell expects
 ' to pass that argument so we'll make it optional.
@@ -509,7 +512,6 @@ AddBookInfoError:
 End Function
 
 
-
 ' ===== TitlepageCheck ========================================================
 ' Test that titlepage exists, Book Title exists, Author Name exists
 
@@ -583,6 +585,80 @@ SectionCheckError:
   End If
 End Function
 
+' ===== StyleCleanup ==========================================================
+' Tweaking some styles that will cause problems. Can probably cut once we
+' update style name list.
+
+Private Function StyleCleanup() As genUtils.Dictionary
+  On Error GoTo StyleCleanupError
+
+' Change "FM Epigraph" to just "Epigraph" so we can determine section
+' Hard-code styles cuz we only need this until we change style names
+  Dim strFmEpis(1 To 3) As String
+  Dim X As Long
+  strFmEpis(1) = "FM Epigraph - non-verse (fmepi)"
+  strFmEpis(2) = "FM Epigraph - verse (fmepiv)"
+  strFmEpis(3) = "FM Epigraph Source (fmeps)"
+
+' Loop through to see if these are even in use. If yes, replace.
+  Dim strNewEpi As String
+  For X = LBound(strFmEpis) To UBound(strFmEpis)
+    If genUtils.GeneralHelpers.IsStyleInUse(strFmEpis(X)) = True Then
+    ' Convert to correct style name (vbTextCompare = case insensitive)
+      strNewEpi = VBA.LTrim(VBA.Replace(strFmEpis(X), "FM", "", _
+        Compare:=vbTextCompare))
+    ' Find/Replace all instances. Will error if new style not present, but
+    ' ErrorChecker will add if we pass the new style name to it.
+      With activeDoc.Range.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = ""
+        .Replacement.Text = ""
+        .Format = True
+        .Style = strFmEpis(X)
+        .Replacement.Style = strNewEpi
+        .MatchCase = False
+        .MatchWholeWord = False
+        .MatchWildcards = False
+        .Execute Replace:=wdReplaceAll
+      End With
+    End If
+  Next X
+
+' Remove any section break characters. Can't assume they'll be in their own
+' paragraphs, so remove solo paragraphs in next step.
+  With activeDoc.Range.Find
+    .ClearFormatting
+    .Replacement.ClearFormatting
+    .Text = "^b"
+    .Replacement.Text = ""
+    .Format = True
+    .Style = strFmEpis(X)
+    .Replacement.Style = strNewEpi
+    .MatchCase = False
+    .MatchWholeWord = False
+    .MatchWildcards = False
+    .Execute Replace:=wdReplaceAll
+  End With
+
+' Remove any section break styles. Make sure it's just a paragraph mark. If
+' additional body text, change to "Text - Standard" style (don't delete).
+
+
+' Remove any Half Title pages. (If want to keep in future, create a separate
+' function to search for all half titles, add headings/breaks. Note that any
+' extra page breaks will get cleaned up in `PageBreakCleanup` function.
+
+
+  Exit Function
+StyleCleanupError:
+  Err.Source = strReports & "StyleCleanup"
+  If ErrorChecker(Err, strNewEpi) = False Then
+    Resume
+  Else
+    Call Reports.ReportsTerminate
+  End If
+End Function
 
 ' ===== IsHeading =============================================================
 ' Is this paragraph style a Macmillan heading style? Eventually store style
@@ -717,6 +793,64 @@ Private Function AddHeading(ParaInd As Long) As Boolean
   
 AddHeadingError:
   Err.Source strReports & "AddHeading"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.ReportsTerminate
+  End If
+End Function
+
+' ===== PageBreakCleanup ======================================================
+' Clean up page break characters/styles, so just single paragraph break chars
+' styles as "Page Break" remain.
+
+Private Function PageBreakCleanup() As Boolean
+  On Error GoTo PageBreakCleanupError
+
+' Add paragraph breaks around every page break character (so we know for sure
+' paragraph style of break won't apply to any body text). Will add extra blank
+' paragraphs that we can clean up later.
+
+
+' Apply "Page Break (pb)" style to every PB char (to catch any unstyled PB)
+
+
+' Now that we are sure every PB char has PB style, remove all PB char
+
+
+' Remove multiple PB-styled paragraphs in a row
+
+
+  Exit Function
+
+PageBreakCleanupError:
+  Err.Source = strReports & "PageBreakCleanup"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call Reports.ReportsTerminate
+  End If
+End Function
+
+' ===== PageBreakCheck ========================================================
+' Check that every page break is followed by a heading. If not, add one.
+
+Private Function PageBreakCheck() As Boolean
+  On Error GoTo PageBreakCheckError
+
+' Loop through search of all "Page Break"-styled paragraphs
+
+
+' If the NEXT paragraph is NOT an approved heading style...
+
+
+' ... determine the section and add a CTNP heading
+
+
+  Exit Function
+  
+PageBreakCheckError:
+  Err.Source = strReports & "PageBreakCheck"
   If ErrorChecker(Err) = False Then
     Resume
   Else

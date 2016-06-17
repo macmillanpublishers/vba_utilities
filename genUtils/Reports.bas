@@ -427,6 +427,7 @@ Public Function IsbnSearch(Optional FilePath As String, _
   Else
     ' Default is comma-delimited string
     IsbnSearch = genUtils.Reduce(ReturnArray, ",")
+  End If
   Exit Function
 
 IsbnSearchError:
@@ -591,7 +592,9 @@ End Function
 
 Private Function StyleCleanup() As genUtils.Dictionary
   On Error GoTo StyleCleanupError
-
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
 ' Change "FM Epigraph" to just "Epigraph" so we can determine section
 ' Hard-code styles cuz we only need this until we change style names
   Dim strFmEpis(1 To 3) As String
@@ -604,6 +607,7 @@ Private Function StyleCleanup() As genUtils.Dictionary
   Dim strNewEpi As String
   For X = LBound(strFmEpis) To UBound(strFmEpis)
     If genUtils.GeneralHelpers.IsStyleInUse(strFmEpis(X)) = True Then
+      dictReturn.Add "convertFmEpi", True
     ' Convert to correct style name (vbTextCompare = case insensitive)
       strNewEpi = VBA.LTrim(VBA.Replace(strFmEpis(X), "FM", "", _
         Compare:=vbTextCompare))
@@ -639,18 +643,68 @@ Private Function StyleCleanup() As genUtils.Dictionary
     .MatchWholeWord = False
     .MatchWildcards = False
     .Execute Replace:=wdReplaceAll
+  
+    If .Found = True Then
+      dictReturn.Add "deleteSectionBrk", True
+    Else
+      dictReturn.Add "deleteSectionBrk", False
+    End If
+  End With
+  
+
+' Convert any Section Break styles to Page Break (because they may have been
+' added after a Page Break and we don't want to confuse PageBreak fixes later
+' Use variable for new style name in case it's not present
+  strNewEpi = "Page Break (pb)"
+  With activeDoc.Range.Find
+    .ClearFormatting
+    .Replacement.ClearFormatting
+    .Text = ""
+    .Replacement.Text = ""
+    .Format = True
+    .Style = "Section Break (sbr)"
+    .Replacement.Style = strNewEpi
+    .MatchCase = False
+    .MatchWholeWord = False
+    .MatchWildcards = False
+    .Execute Replace:=wdReplaceAll
+  
+    If .Found = True Then
+      dictReturn.Add "deleteSectionStyle", True
+    Else
+      dictReturn.Add "deleteSectionStyle", False
+    End If
   End With
 
-' Remove any section break styles. Make sure it's just a paragraph mark. If
-' additional body text, change to "Text - Standard" style (don't delete).
-
-
-' Remove any Half Title pages. (If want to keep in future, create a separate
+' Remove any Half Title paras. (If want to keep in future, create a separate
 ' function to search for all half titles, add headings/breaks. Note that any
 ' extra page breaks will get cleaned up in `PageBreakCleanup` function.
+  strNewEpi = "Halftitle Book Title (htit)"
+  With activeDoc.Range.Find
+    .ClearFormatting
+    .Replacement.ClearFormatting
+    .Text = "*"
+    .Replacement.Text = ""
+    .Format = True
+    .Style = strNewEpi
+    .MatchCase = False
+    .MatchWholeWord = False
+    .MatchWildcards = True
+    .Execute Replace:=wdReplaceAll
+  
+    If .Found = True Then
+      dictReturn.Add "deleteHalfTitle", True
+    Else
+      dictReturn.Add "deleteHalfTitle", False
+    End If
+  End With
 
-
+  Call genUtils.zz_clearFind
+  
+  dictReturn.Item("pass") = True
+  Set StyleCleanup = dictReturn
   Exit Function
+
 StyleCleanupError:
   Err.Source = strReports & "StyleCleanup"
   If ErrorChecker(Err, strNewEpi) = False Then

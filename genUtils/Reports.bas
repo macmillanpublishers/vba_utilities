@@ -830,41 +830,62 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
 ' Add paragraph breaks around every page break character (so we know for sure
 ' paragraph style of break won't apply to any body text). Will add extra blank
 ' paragraphs that we can clean up later.
+' Also add "Page Break (pb)" style.
+  Dim strBreakStyle As String
+  strBreakStyle = "Page Break (pb)"
   genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = "^m"
     .Replacement.Text = "^p^m^p"
-    .Format = False
-    .Wrap = wdFindStop
-    .MatchCase = False
-    .MatchWildcards = False
-    .MatchWholeWord = False
+    .Format = True
+    .Replacement.Style = strBreakStyle
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then
-      dictReturn.Add "pageBrkBuffer", True
+      dictReturn.Add "pageBrkReplace", True
     Else
-      dictReturn.Add "pageBrkBuffer", False
+      dictReturn.Add "pageBrkReplace", False
     End If
   End With
 
-' Apply "Page Break (pb)" style to every PB char (to catch any unstyled PB).
-' We know there isn't any body text, because we added the extra breaks above.
+' Now that we are sure every PB char has PB style, remove all PB char
   genUtils.zz_clearFind
   With activeDoc.Range.Find
-  
-
-' Now that we are sure every PB char has PB style, remove all PB char
-
+    .Text = "^m"
+    .Replacement.Text = ""
+    .Execute Replace:=wdReplaceAll
+    
+    If .Found = True Then
+      dictReturn.Add "pageBrkRemove", True
+    Else
+      dictReturn.Add "pageBrkRemove", False
+    End If
+  End With
 
 ' Remove multiple PB-styled paragraphs in a row
-
+  genUtils.zz_clearFind
+  With activeDoc.Range.Find
+    .Text = "^13{2,}"
+    .Replacement.Text = "^p"
+    .Style = strBreakStyle
+    .MatchWildcards = True
+    .Execute Replace:=wdReplaceAll
+    
+    If .Found = True Then
+      dictReturn.Add "rmMultipleParas", True
+    Else
+      dictReturn.Add "rmMultipleParas", False
+    End If
+  End With
+  
+  dictReturn.Item("pass") = True
+  Set PageBreakCleanup = dictReturn
 
   Exit Function
 
 PageBreakCleanupError:
   Err.Source = strReports & "PageBreakCleanup"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strBreakStyle) = False Then
     Resume
   Else
     Call Reports.ReportsTerminate

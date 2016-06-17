@@ -768,7 +768,7 @@ End Function
 ' Adds CTNP heading ABOVE the paragraph passed as arg, with section name text.
 ' Though each chapter is just "Chapter" -- will have to add numbers later.
 
-Private Function AddHeading(ParaInd As Long) As Boolean
+Private Function AddHeading(paraInd As Long) As Boolean
   On Error GoTo AddHeadingError
 ' Get current para count to test at end that we added a new one
   Dim lngParas As Long
@@ -780,7 +780,7 @@ Private Function AddHeading(ParaInd As Long) As Boolean
   
 ' Set range for the para in question
   Dim rngPara As Range
-  Set rngPara = activeDoc.Paragraphs(ParaInd).Range
+  Set rngPara = activeDoc.Paragraphs(paraInd).Range
   
 ' Get style name of that paragraph
   Dim strParaStyle As String
@@ -937,8 +937,13 @@ Private Function PageBreakCheck() As genUtils.Dictionary
     Loop
   End With
   
-  ' Remove all "Page Break" styles, so we can add later (to capture missing ones)
-  If genUtils.StyleReplace(strPageBreak, wdStyleNormal) = True Then
+' Remove all "Page Break" styles. We need to add a page break to the end of
+' each section later (in case some have no page break), but we don't want to
+' duplicate so we'll remove now. Do not remove the actual page break, because
+' we need a non-heading style between a section that is ONLY a heading (maybe
+' it's a placeholder) and the next section's heading.
+
+  If genUtils.StyleReplace(strPageBreak, "Text - Standard (tx)") = True Then
     dictReturn.Add "pgBrkStyleRemoved", True
   Else
     dictReturn.Add "pgBrkStyleRemoved", False
@@ -956,6 +961,60 @@ PageBreakCheckError:
     Call genUtils.ReportsTerminate
   End If
 End Function
+
+' ===== SectionHeadInd ========================================================
+' Identify the start of each section (based on paragraph style). Returns an
+' array of paragraph indices.
+
+Private Function SectionHeadInd() As Variant
+  On Error GoTo SectionHeadIndError
+  Dim strCurrentStyle As String
+  Dim blnIsHeading As Boolean
+  Dim paraInd() As Long
+  Dim lngParaCount As Long: lngParaCount = activeDoc.Paragraphs.Count
+' P = current paragraph, Q = paraInd() upper-bound
+  Dim P As Long, Q As Long
+ 
+' Loop through paragraphs with DO loop, because we area going to be skipping
+' ahead later in the loop (i.e., don't want to start loop with EVERY para
+  P = 1
+  Q = 0
+  Do Until P > lngParaCount
+    strCurrentStyle = activeDoc.Paragraphs(P).Style
+    If IsHeading(strCurrentStyle) = True Then
+    ' This is the FIRST heading paragraph in a row, add to output array
+      Q = Q + 1
+      ReDim paraInd(1 To Q)
+      paraInd(Q) = P
+      
+    ' Loop until we find the next paragraph that is NOT a heading (assumes that
+    ' allowable heading sections are all grouped together. Would get confused
+    ' if someone throws in a non-heading style between headings!
+      Do
+        P = P + 1
+        If P < lngParaCount Then
+          strCurrentStyle = activeDoc.Paragraphs(P).Style
+          blnIsHeading = IsHeading(strCurrentStyle)
+        Else
+          Exit Do
+        End If
+      Loop Until blnIsHeading = False
+    End If
+    P = P + 1
+  Loop
+  
+  SectionHeadInd = paraInd()
+  Exit Function
+
+SectionHeadIndError:
+  Err.Source = strReports = "SectionHeadInd"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.ReportsTerminate
+  End If
+End Function
+
 
 
 ' #############################################################################

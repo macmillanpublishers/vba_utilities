@@ -730,11 +730,32 @@ Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String
     
 End Function
 
+' ===== ParaIndex =============================================================
+' Returns the paragraph index of the current selection. Default is to return the
+' END paragraph index if selection is more than 1 paragraph. `UseEnd:=False`
+' would return the index of the START paragraph.
+Public Function ParaIndex(Optional UseEnd As Boolean = True) As Long
+  On Error GoTo ParaIndexError
+  If UseEnd = True Then
+    ParaIndex = activeDoc.Range(0, Selection.End).Paragraphs.Count
+  Else
+    ParaIndex = activeDoc.Range(0, Selection.Start).Paragraphs.Count
+  Exit Function
+ParaIndexError:
+  Err.Source = strModule & "ParaIndex"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    genUtils.GlobalCleanup
+  End If
+End Function
+
+' ===== ParaInfo ==============================================================
+' In general: get a variety of info about a paragraph (or its document)
+' Most common usage: InfoType = wdActiveEndAdjustedPageNumber
 
 Public Function ParaInfo(ParaInd As Long, InfoType As WdInformation) _
   As Variant
-' In general: get a variety of info about a paragraph (or its document)
-' Most common usage: InfoType = wdActiveEndAdjustedPageNumber
   On Error GoTo ParaInfoError
   
 ' Make sure we have an activeDoc

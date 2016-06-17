@@ -47,7 +47,7 @@ Public Function ReportsStartup(DocPath As String, AlertPath As String) _
 
 ' The .ps1 that calls this macro also opens the file, so should already be
 ' part of the Documents collection, but we'll check anyway.
-    If genUtils.GeneralHelpers.IsOpen(DocPath) = False Then
+  If genUtils.GeneralHelpers.IsOpen(DocPath) = False Then
     Documents.Open (DocPath)
   End If
 
@@ -392,6 +392,8 @@ Public Function IsbnSearch(Optional FilePath As String, _
   ' which we want to start at 0 because may pass back to powershell
   lngCounter = -1
   
+  genUtils.zz_clearFind
+  
   ' Start search at beginning of doc
   Selection.HomeKey Unit:=wdStory
   
@@ -604,44 +606,24 @@ Private Function StyleCleanup() As genUtils.Dictionary
   strFmEpis(3) = "FM Epigraph Source (fmeps)"
 
 ' Loop through to see if these are even in use. If yes, replace.
-  Dim strNewEpi As String
+  Dim strNewStyle As String
+  Dim blnSuccess As Boolean: blnSuccess = False
   For X = LBound(strFmEpis) To UBound(strFmEpis)
     If genUtils.GeneralHelpers.IsStyleInUse(strFmEpis(X)) = True Then
-      dictReturn.Add "convertFmEpi", True
     ' Convert to correct style name (vbTextCompare = case insensitive)
-      strNewEpi = VBA.LTrim(VBA.Replace(strFmEpis(X), "FM", "", _
+      strNewStyle = VBA.LTrim(VBA.Replace(strFmEpis(X), "FM", "", _
         Compare:=vbTextCompare))
-    ' Find/Replace all instances. Will error if new style not present, but
-    ' ErrorChecker will add if we pass the new style name to it.
-      With activeDoc.Range.Find
-        .ClearFormatting
-        .Replacement.ClearFormatting
-        .Text = ""
-        .Replacement.Text = ""
-        .Format = True
-        .Style = strFmEpis(X)
-        .Replacement.Style = strNewEpi
-        .MatchCase = False
-        .MatchWholeWord = False
-        .MatchWildcards = False
-        .Execute Replace:=wdReplaceAll
-      End With
+      blnSuccess = genUtils.GeneralHelpers.StyleReplace(strFmEpis(X), strNewStyle)
+      dictReturn.Add "convertFmEpi", blnSuccess
     End If
   Next X
 
 ' Remove any section break characters. Can't assume they'll be in their own
 ' paragraphs, so remove solo paragraphs in next step.
+  genUtils.zz_clearFind
   With activeDoc.Range.Find
-    .ClearFormatting
-    .Replacement.ClearFormatting
     .Text = "^b"
     .Replacement.Text = ""
-    .Format = True
-    .Style = strFmEpis(X)
-    .Replacement.Style = strNewEpi
-    .MatchCase = False
-    .MatchWholeWord = False
-    .MatchWildcards = False
     .Execute Replace:=wdReplaceAll
   
     If .Found = True Then
@@ -650,45 +632,26 @@ Private Function StyleCleanup() As genUtils.Dictionary
       dictReturn.Add "deleteSectionBrk", False
     End If
   End With
-  
 
 ' Convert any Section Break styles to Page Break (because they may have been
 ' added after a Page Break and we don't want to confuse PageBreak fixes later
 ' Use variable for new style name in case it's not present
-  strNewEpi = "Page Break (pb)"
-  With activeDoc.Range.Find
-    .ClearFormatting
-    .Replacement.ClearFormatting
-    .Text = ""
-    .Replacement.Text = ""
-    .Format = True
-    .Style = "Section Break (sbr)"
-    .Replacement.Style = strNewEpi
-    .MatchCase = False
-    .MatchWholeWord = False
-    .MatchWildcards = False
-    .Execute Replace:=wdReplaceAll
-  
-    If .Found = True Then
-      dictReturn.Add "deleteSectionStyle", True
-    Else
-      dictReturn.Add "deleteSectionStyle", False
-    End If
-  End With
+  Dim strOldStyle As String
+  strOldStyle = "Section Break (sbr)"
+  strNewStyle = "Page Break (pb)"
+  blnSuccess = genUtils.GeneralHelpers.StyleReplace(strOldStyle, strNewStyle)
+  dictReturn.Add "deleteSectionBrkStyle", blnSuccess
 
 ' Remove any Half Title paras. (If want to keep in future, create a separate
 ' function to search for all half titles, add headings/breaks. Note that any
 ' extra page breaks will get cleaned up in `PageBreakCleanup` function.
-  strNewEpi = "Halftitle Book Title (htit)"
+  strNewStyle = "Halftitle Book Title (htit)"
+  genUtils.zz_clearFind
   With activeDoc.Range.Find
-    .ClearFormatting
-    .Replacement.ClearFormatting
     .Text = "*"
     .Replacement.Text = ""
     .Format = True
-    .Style = strNewEpi
-    .MatchCase = False
-    .MatchWholeWord = False
+    .Style = strNewStyle
     .MatchWildcards = True
     .Execute Replace:=wdReplaceAll
   
@@ -858,16 +821,38 @@ End Function
 ' Clean up page break characters/styles, so just single paragraph break chars
 ' styles as "Page Break" remain.
 
-Private Function PageBreakCleanup() As Boolean
+Private Function PageBreakCleanup() As genUtils.Dictionary
   On Error GoTo PageBreakCleanupError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
 
 ' Add paragraph breaks around every page break character (so we know for sure
 ' paragraph style of break won't apply to any body text). Will add extra blank
 ' paragraphs that we can clean up later.
+  genUtils.zz_clearFind
+  With activeDoc.Range.Find
+    .Text = "^m"
+    .Replacement.Text = "^p^m^p"
+    .Format = False
+    .Wrap = wdFindStop
+    .MatchCase = False
+    .MatchWildcards = False
+    .MatchWholeWord = False
+    .Execute Replace:=wdReplaceAll
+    
+    If .Found = True Then
+      dictReturn.Add "pageBrkBuffer", True
+    Else
+      dictReturn.Add "pageBrkBuffer", False
+    End If
+  End With
 
-
-' Apply "Page Break (pb)" style to every PB char (to catch any unstyled PB)
-
+' Apply "Page Break (pb)" style to every PB char (to catch any unstyled PB).
+' We know there isn't any body text, because we added the extra breaks above.
+  genUtils.zz_clearFind
+  With activeDoc.Range.Find
+  
 
 ' Now that we are sure every PB char has PB style, remove all PB char
 

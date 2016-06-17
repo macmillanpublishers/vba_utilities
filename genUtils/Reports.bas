@@ -867,6 +867,7 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
   With activeDoc.Range.Find
     .Text = "^13{2,}"
     .Replacement.Text = "^p"
+    .Format = True
     .Style = strBreakStyle
     .MatchWildcards = True
     .Execute Replace:=wdReplaceAll
@@ -895,28 +896,68 @@ End Function
 ' ===== PageBreakCheck ========================================================
 ' Check that every page break is followed by a heading. If not, add one.
 
-Private Function PageBreakCheck() As Boolean
+Private Function PageBreakCheck() As genUtils.Dictionary
   On Error GoTo PageBreakCheckError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
 
 ' Loop through search of all "Page Break"-styled paragraphs
+  Dim strNextStyle As String
+  Dim lngParaInd As Long
+  
+  Dim lngParaCount As Long
+  lngParaCount = activeDoc.Paragraphs.Count
+  Dim lngCount As Long
+  lngCount = 0
+  Dim strPageBreak As String
+  strPageBreak = "Page Break (pb)"
+  
+  genUtils.zz_clearFind
+  Selection.HomeKey Unit:=wdStory
+  With Selection.Find
+    .Style = strPageBreak
+    .Execute
+    
+    Do While .Found = True And lngCount < 200
+      ' Loop counter
+      lngCount = lngCount + 1
+      lngParaInd = genUtils.GeneralHelpers.ParaIndex
+      ' Errors if we try to access para after end, so check that
+      If lngParaCount > lngParaInd Then
+      ' If the NEXT paragraph is NOT an approved heading style...
+        strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Style
+        If IsHeading(strNextStyle) = False Then
+          ' ... add a CTNP heading
+          If AddHeading(lngParaInd + 1) = True Then
+            dictReturn.Item("addedHeadings") = dictReturn.Item("addedHeadings") + 1
+          End If
+        End If
+      End If
+    Loop
+  End With
+  
+  ' Remove all "Page Break" styles, so we can add later (to capture missing ones)
+  If genUtils.StyleReplace(strPageBreak, wdStyleNormal) = True Then
+    dictReturn.Add "pgBrkStyleRemoved", True
+  Else
+    dictReturn.Add "pgBrkStyleRemoved", False
+  End If
 
-
-' If the NEXT paragraph is NOT an approved heading style...
-
-
-' ... determine the section and add a CTNP heading
-
-
+  dictReturn.Item("pass") = True
+  Set PageBreakCheck = dictReturn
   Exit Function
   
 PageBreakCheckError:
   Err.Source = strReports & "PageBreakCheck"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strPageBreak) = False Then
     Resume
   Else
     Call genUtils.ReportsTerminate
   End If
 End Function
+
+
 ' #############################################################################
 ' =============================================================================
 '

@@ -1021,7 +1021,7 @@ End Function
 
 Private Function SectionRange(ParaIndexArray() As Variant) As Variant
   On Error GoTo SectionRangeError
-  Dim rangeArray() As Range
+  Dim rangeArray() As Variant
   Dim rngSection As Range
   Dim lngParaCount As activeDoc.Paragraphs.Count
   
@@ -1066,6 +1066,53 @@ SectionRangeError:
   End If
 End Function
 
+
+' ===== HeadingCheck ==========================================================
+' Validate a variety of heading requirements, fix if not met.
+
+Private Function HeadingCheck(RngSections() As Variant) As genUtils.Dictionary
+  On Error GoTo HeadingCheckError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
+
+' Loop through section ranges
+
+
+  ' Add styled section breaks to end of range
+  
+  
+  ' Get style of first paragraph
+  
+  ' If CTNP...
+  
+    ' Does it have text?
+    
+    ' Is that text just "Chapter" with no numbers?
+    
+  ' If CN (OR: PN, FMT, BMT) ...
+  
+    ' Remove any character styles
+    
+    ' Is next para a CT (or PT, FMH, BMH)? (If no, change this to CT)
+    
+  ' If CT (or PT, FMH, BMH) ...
+  
+    ' Is next para CN? (or PN, FMT, BMT) (If yes, swap and remove char styles)
+    
+    
+
+  Set HeadingCheck = dictReturn
+  Exit Function
+  
+HeadingCheckError:
+  Err.Source = strReports & "HeadingCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.ReportsTerminate
+  End If
+End Function
 ' #############################################################################
 ' =============================================================================
 '

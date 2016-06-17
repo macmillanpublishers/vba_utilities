@@ -1159,6 +1159,41 @@ ReduceError:
   End If
 End Function
 
+
+' ===== StyleReplace ==========================================================
+' Replace all instances of a specific paragraph style with a different style.
+' If you want to "remove" the style, replace with "Normal" or whatever. Returns
+' False if no replacements were made.
+
+Public Function StyleReplace(SearchStyle As String, ReplaceStyle As String) As _
+  Boolean
+  On Error GoTo StyleReplaceError
+  
+  genUtils.zz_clearFind
+  With activeDoc.Range.Find
+    .Format = True
+    .Style = SearchStyle
+    .Replacement = ReplaceStyle
+    .Execute Replace:=wdReplaceAll
+    
+    If .Found = True Then
+      StyleReplace = True
+    Else
+      StyleReplace = False
+    End If
+  
+  End With
+  genUtils.zz_clearFind
+  Exit Function
+  
+StyleReplaceError:
+  Err.Source = strReports & "StyleReplace"
+  If ErrorChecker(Err, ReplaceStyle) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
 Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeaderCol As Boolean) As Variant
 
 '------Load CSV into 2d array, NOTE!!: base 0---------

@@ -754,7 +754,7 @@ End Function
 ' In general: get a variety of info about a paragraph (or its document)
 ' Most common usage: InfoType = wdActiveEndAdjustedPageNumber
 
-Public Function ParaInfo(ParaInd As Long, InfoType As WdInformation) _
+Public Function ParaInfo(paraInd As Long, InfoType As WdInformation) _
   As Variant
   On Error GoTo ParaInfoError
   
@@ -764,10 +764,10 @@ Public Function ParaInfo(ParaInd As Long, InfoType As WdInformation) _
   End If
   
 ' Make sure our paragraph index is in range
-  If ParaInd <= activeDoc.Paragraphs.Count Then
+  If paraInd <= activeDoc.Paragraphs.Count Then
   ' Set range for our paragraph
     Dim rngPara As Range
-    Set rngPara = activeDoc.Paragraphs(ParaInd).Range
+    Set rngPara = activeDoc.Paragraphs(paraInd).Range
     ParaInfo = rngPara.Information(InfoType)
   Else
     Err.Raise MacError.err_ParaIndexInvalid
@@ -1089,15 +1089,14 @@ Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
   Selection.HomeKey Unit:=wdStory
   
   On Error GoTo ErrHandler
-  
-      Selection.Find.ClearFormatting
+      genUtils.zz_clearFind
       With Selection.Find
           .Text = ""
           .Replacement.Text = ""
           .Forward = True
           .Wrap = wdFindStop
           .Format = True
-          .Style = ActiveDocument.Styles(StyleName)
+          .Style = activeDoc.Styles(StyleName)
           .MatchCase = False
           .MatchWholeWord = False
           .MatchWildcards = False

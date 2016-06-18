@@ -28,6 +28,29 @@ Private dictSections As genUtils.Dictionary
 ' also path to write alerts to
 Private strAlertFile As String
 
+' A bunch of styles we'll need. Public so ErrorChecker can create if missing.
+' But how will ErrorChecker know which style is needed?
+Public Const strPageBreak As String = "Page Break (pb)"
+Public Const strSectionBreak As String = "Section Break (sbr)"
+Public Const strChapTitle As String = "Chap Title (ct)"
+Public Const strChapNumber As String = "Chap Number (cn)"
+Public Const strChapNonprinting As String = "Chap Title Nonprinting (ctnp)"
+Public Const strIsbnStyle As String = "span isbn (ISBN)"
+Public Const strBookTitle As String = "Titlepage Book Title (tit)"
+Public Const strAuthorName As String = "Titlepage Author Name (au)"
+Public Const strCopyright As String = "Copyright page single space (crtx)"
+Public Const strBodyStyle As String = "Text - Standard (tx)"
+Public Const strFmEpiText As String = "FM Epigraph - non-verse (fmepi)"
+Public Const strFmEpiVerse As String = "FM Epigraph - verse (fmepiv)"
+Public Const strFmEpiSource As String = "FM Epigraph Source (fmeps)"
+Public Const strHalftitle As String = "Halftitle Book Title (htit)"
+Public Const strPartTitle As String = "Part Title (pt)"
+Public Const strPartNumber As String = "Part Number (pn)"
+Public Const strFmHead As String = "FM Head (fmh)"
+Public Const strFmTitle As String = "FM Title (fmt)"
+Public Const strBmHead As String = "BM Head (bmh)"
+Public Const strBmTitle As String = "BM Title (bmt)"
+
 Private Enum BookInfo
   bk_Title = 1
   bk_Authors = 2
@@ -190,7 +213,6 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
   Dim strStyle As String
-  Dim strBodyStyle As String: strBodyStyle = "Text - Standard (tx)"
   Dim A As Long
   
 ' Loop through all paragraphs in document from END to START so we end up with
@@ -278,9 +300,6 @@ Public Function IsbnCheck() As genUtils.Dictionary
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   
-  Dim strIsbnStyle As String
-  strIsbnStyle = "span isbn (ISBN)"
-  
 ' If no styled ISBN exists...
   Dim blnStyledIsbn As Boolean
   blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
@@ -314,7 +333,7 @@ Public Function IsbnCheck() As genUtils.Dictionary
         bkName.Select
         Selection.Style = strIsbnStyle
         ' Report that we made a change
-        dictReturn.Item("taggedUnstyled") = True
+        dictReturn.Item("taggedUnstyledIsbn") = True
         bkName.Delete
       End If
     Next
@@ -457,13 +476,13 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   Select Case InfoType
     Case BookInfo.bk_Title
       strInfoKey = "title"
-      strInfoStyle = "Titlepage Book Title (tit)"
+      strInfoStyle = strBookTitle
     Case BookInfo.bk_Authors
       strInfoKey = "author"
-      strInfoStyle = "Titlepage Author Name (au)"
+      strInfoStyle = strAuthorName
     Case BookInfo.bk_ISBN
       strInfoKey = "isbn"
-      strInfoStyle = "Copyright page single space (crtx)"
+      strInfoStyle = strCopyright
   End Select
   
 ' Get info string
@@ -528,10 +547,6 @@ Public Function TitlepageCheck() As genUtils.Dictionary
     .Add "bookTitleExists", False
     .Add "authorNameExists", False
   End With
-  
-' Some style names (eventually store externally?)
-  Dim strTitle As String: strTitle = "Titlepage Book Title (tit)"
-  Dim strAuthor As String: strAuthor = "Titlepage Author Name (au)"
 
   Dim blnTitle As Boolean
   Dim blnAuthor As Boolean
@@ -551,8 +566,8 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   End If
 
 ' Did it all work?
-  If genUtils.IsStyleInUse(strTitle) = True And _
-    genUtils.IsStyleInUse(strAuthor) = True Then
+  If genUtils.IsStyleInUse(strBookTitle) = True And _
+    genUtils.IsStyleInUse(strAuthorName) = True Then
     dictReturn.Item("pass") = True
   End If
   
@@ -601,9 +616,9 @@ Private Function StyleCleanup() As genUtils.Dictionary
 ' Hard-code styles cuz we only need this until we change style names
   Dim strFmEpis(1 To 3) As String
   Dim X As Long
-  strFmEpis(1) = "FM Epigraph - non-verse (fmepi)"
-  strFmEpis(2) = "FM Epigraph - verse (fmepiv)"
-  strFmEpis(3) = "FM Epigraph Source (fmeps)"
+  strFmEpis(1) = strFmEpiText
+  strFmEpis(2) = strFmEpiVerse
+  strFmEpis(3) = strFmEpiSource
 
 ' Loop through to see if these are even in use. If yes, replace.
   Dim strNewStyle As String
@@ -637,21 +652,20 @@ Private Function StyleCleanup() As genUtils.Dictionary
 ' added after a Page Break and we don't want to confuse PageBreak fixes later
 ' Use variable for new style name in case it's not present
   Dim strOldStyle As String
-  strOldStyle = "Section Break (sbr)"
-  strNewStyle = "Page Break (pb)"
+  strOldStyle = strSectionBreak
+  strNewStyle = strPageBreak
   blnSuccess = genUtils.GeneralHelpers.StyleReplace(strOldStyle, strNewStyle)
   dictReturn.Add "deleteSectionBrkStyle", blnSuccess
 
 ' Remove any Half Title paras. (If want to keep in future, create a separate
 ' function to search for all half titles, add headings/breaks. Note that any
 ' extra page breaks will get cleaned up in `PageBreakCleanup` function.
-  strNewStyle = "Halftitle Book Title (htit)"
   genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = "*"
     .Replacement.Text = ""
     .Format = True
-    .Style = strNewStyle
+    .Style = strHalftitle
     .MatchWildcards = True
     .Execute Replace:=wdReplaceAll
   
@@ -773,10 +787,6 @@ Private Function AddHeading(paraInd As Long) As Boolean
 ' Get current para count to test at end that we added a new one
   Dim lngParas As Long
   lngParas = activeDoc.Paragraphs.Count
-
-  ' generic head style (eventually store externally)
-  Dim strHeadStyle As String
-  strHeadStyle = "Chap Title Nonprinting (ctnp)"
   
 ' Set range for the para in question
   Dim rngPara As Range
@@ -796,7 +806,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   rngPara.InsertBefore (strSectionName)
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
-  rngPara.Paragraphs(1) = strHeadStyle
+  rngPara.Paragraphs(1) = strChapNonprinting
 
 ' Verify we added a paragraph
   Dim lngNewParas As Long
@@ -831,14 +841,13 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
 ' paragraph style of break won't apply to any body text). Will add extra blank
 ' paragraphs that we can clean up later.
 ' Also add "Page Break (pb)" style.
-  Dim strBreakStyle As String
-  strBreakStyle = "Page Break (pb)"
+
   genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = "^m"
     .Replacement.Text = "^p^m^p"
     .Format = True
-    .Replacement.Style = strBreakStyle
+    .Replacement.Style = strPageBreak
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then
@@ -868,7 +877,7 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
     .Text = "^13{2,}"
     .Replacement.Text = "^p"
     .Format = True
-    .Style = strBreakStyle
+    .Style = strPageBreak
     .MatchWildcards = True
     .Execute Replace:=wdReplaceAll
     
@@ -886,7 +895,7 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
 
 PageBreakCleanupError:
   Err.Source = strReports & "PageBreakCleanup"
-  If ErrorChecker(Err, strBreakStyle) = False Then
+  If ErrorChecker(Err, strPageBreak) = False Then
     Resume
   Else
     Call Reports.ReportsTerminate
@@ -910,8 +919,6 @@ Private Function PageBreakCheck() As genUtils.Dictionary
   lngParaCount = activeDoc.Paragraphs.Count
   Dim lngCount As Long
   lngCount = 0
-  Dim strPageBreak As String
-  strPageBreak = "Page Break (pb)"
   
   genUtils.zz_clearFind
   Selection.HomeKey Unit:=wdStory
@@ -943,7 +950,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
 ' we need a non-heading style between a section that is ONLY a heading (maybe
 ' it's a placeholder) and the next section's heading.
 
-  If genUtils.StyleReplace(strPageBreak, "Text - Standard (tx)") = True Then
+  If genUtils.StyleReplace(strPageBreak, strBodyStyle) = True Then
     dictReturn.Add "pgBrkStyleRemoved", True
   Else
     dictReturn.Add "pgBrkStyleRemoved", False
@@ -1077,30 +1084,146 @@ Private Function HeadingCheck(RngSections() As Variant) As genUtils.Dictionary
   dictReturn.Add "pass", False
 
 ' Loop through section ranges
+  Dim D As Long
+  Dim rngSect As Range
+  Dim rngFirst As Range
+  Dim rngSecond As Range
+  Dim strFirstStyle As String
+  Dim strSecondStyle As String
+  Dim strFirstText As String
+  Dim strSecondText As String
+  Dim lngChapCount As Long: lngChapCount = 0
+  Dim strSectionKey As String
+  Dim blnRmCharFormat As Boolean
+  
+  For D = LBound(RngSections) To UBound(RngSections)
+    strSectionKey = "section" & D
+    Set rngSect = RngSections(D)
+    Set rngFirst = rngSect.Paragraphs(1).Range
+    Set rngSecond = rngSect.Paragraphs(2).Range
+  ' Get style of first and second paragraphs
+    strFirstStyle = rngFirst.Style
+    strSecondStyle = rngSecond.Style
+  ' Get text of first and second paragraphs, without final paragraph return
+    strFirstText = Left(rngFirst.Text, Len(rngFirst.Text) - 1)
+    strSecondText = Left(rngSecond.Text, Len(rngSecond.Text) - 1)
+    
+    Select Case strFirstStyle
+      Case strChapNonprinting
+        dictReturn.Add strSectionKey & "FirstStyle", strChapNonprinting
+      ' Does it have text?
+        If strFirstText = vbNullString Then  ' No text (just paragraph return)
+        ' Add section name to blank paragraph
+          strFirstText = SectionName(strFirstStyle)
+          rngFirst.InsertBefore strFirstText
+          dictReturn.Add strSectionKey & "AddHeadText", strFirstText
+        Else
+        ' Is that text just "Chapter" with no numbers?
+          If strFirstText = "Chapter" Then
+            lngChapCount = lngChapCount + 1
+            strFirstText = strFirstText & " " & lngChapCount
+            rngFirst.Text = strFirstText
+            dictReturn.Add strSectionKey & "AddChapNum", strFirstText
+          End If
+        End If
+        
+      Case strChapNumber
+        dictReturn.Add strSectionKey & "FirstStyle", strChapNumber
+      ' Remove any character styles
+        blnRmCharFormat = ChapNumCleanUp(StyleName:=strChapNumber, SearchRange:=rngFirst)
+        dictReturn.Add strSectionKey & "ChapNumCleanUp", blnRmCharFormat
+        
+      ' Is next para a CT? (If no, change this to CT)
+        If strSecondStyle <> strChapTitle Then
+          rngFirst.Style = strChapTitle
+          dictReturn.Add strSectionKey & "ChapNumToTitle", True
+        End If
+        
+      Case strPartNumber
+        dictReturn.Add strSectionKey & "FirstStyle", strPartNumber
+      ' Remove any character styles
+        blnRmCharFormat = ChapNumCleanUp(StyleName:=strPartNumber, SearchRange:=rngFirst)
+        dictReturn.Add strSectionKey & "PartNumCleanUp", blnRmCharFormat
+        
+      ' Is next para a CT? (If no, change this to CT)
+        If strSecondStyle <> strPartTitle Then
+          rngFirst.Style = strPartTitle
+          dictReturn.Add strSectionKey & "PartNumToTitle", True
+        End If
 
+      Case strFmHead
+        dictReturn.Add strSectionKey & "FirstStyle", strFmHead
+      ' Remove any character styles
+        blnRmCharFormat = ChapNumCleanUp(StyleName:=strFmHead, SearchRange:=rngFirst)
+        dictReturn.Add strSectionKey & "FmhCleanUp", blnRmCharFormat
+      
+      Case strBmHead
+        dictReturn.Add strSectionKey & "FirstStyle", strBmHead
+      ' Remove any character styles
+        blnRmCharFormat = ChapNumCleanUp(StyleName:=strBmHead, SearchRange:=rngFirst)
+        dictReturn.Add strSectionKey & "BmhCleanUp", blnRmCharFormat
 
-  ' Add styled section breaks to end of range
+      Case strChapTitle
+      ' Is next para CN?
+        If strSecondStyle = strChapNumber Then
+        ' Remove any character styles
+          blnRmCharFormat = ChapNumCleanUp(StyleName:=strChapNumber, SearchRange:=rngSecond)
+          dictReturn.Add strSectionKey & "ChapNumCleanUp", blnRmCharFormat
+        ' move CN before CT
+          rngSecond.Cut
+          rngFirst.Collapse (wdCollapseStart)
+          rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
+          dictReturn.Add strSectionKey & "ChapTitleSwap", True
+        End If
   
+      Case strPartTitle
+      ' Is next para PN?
+        If strSecondStyle = strPartNumber Then
+        ' Remove any character styles
+          blnRmCharFormat = ChapNumCleanUp(StyleName:=strPartNumber, SearchRange:=rngSecond)
+          dictReturn.Add strSectionKey & "PartNumCleanUp", blnRmCharFormat
+        ' move PN before PT
+          rngSecond.Cut
+          rngFirst.Collapse (wdCollapseStart)
+          rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
+          dictReturn.Add strSectionKey & "PartTitleSwap", True
+        End If
+
+      Case strFmTitle
+      ' Is next para FMH?
+        If strSecondStyle = strFmHead Then
+        ' Remove any character styles
+          blnRmCharFormat = ChapNumCleanUp(StyleName:=strFmHead, SearchRange:=rngSecond)
+          dictReturn.Add strSectionKey & "FmhCleanUp", blnRmCharFormat
+        ' move PN before PT
+          rngSecond.Cut
+          rngFirst.Collapse (wdCollapseStart)
+          rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
+          dictReturn.Add strSectionKey & "FmTitleSwap", True
+        End If
+      
+      Case strBmTitle
+      ' Is next para BMH?
+        If strSecondStyle = strBmHead Then
+        ' Remove any character styles
+          blnRmCharFormat = ChapNumCleanUp(StyleName:=strBmHead, SearchRange:=rngSecond)
+          dictReturn.Add strSectionKey & "BmhCleanUp", blnRmCharFormat
+        ' move PN before PT
+          rngSecond.Cut
+          rngFirst.Collapse (wdCollapseStart)
+          rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
+          dictReturn.Add strSectionKey & "BmTitleSwap", True
+        End If
+    End Select
   
-  ' Get style of first paragraph
-  
-  ' If CTNP...
-  
-    ' Does it have text?
-    
-    ' Is that text just "Chapter" with no numbers?
-    
-  ' If CN (OR: PN, FMT, BMT) ...
-  
-    ' Remove any character styles
-    
-    ' Is next para a CT (or PT, FMH, BMH)? (If no, change this to CT)
-    
-  ' If CT (or PT, FMH, BMH) ...
-  
-    ' Is next para CN? (or PN, FMT, BMT) (If yes, swap and remove char styles)
-    
-    
+  ' Add styled section breaks to end of range. Do last; `.Collapse` changes rng
+    With rngSect
+     .Collapse Direction:=wdCollapseEnd
+     .InsertBreak Type:=wdSectionBreakNextPage
+     .Style = strPageBreak
+     dictReturn.Add strSectionKey & "AddSectionBreak", True
+    End With
+  Next D
 
   Set HeadingCheck = dictReturn
   Exit Function
@@ -2711,56 +2834,56 @@ End Sub
 '
 'End Function
 '
-'Private Sub ChapNumCleanUp()
-'    ' Removes character styles from Chapter Number paragraphs
-'    Dim iCount As Long
-'    Dim strText As String
-'    Dim intCount As Long
-'
-'    'Move selection back to start of document
-'    Selection.HomeKey Unit:=wdStory
-'
-'    On Error GoTo ErrHandler
-'
-'    intCount = 0
-'    With Selection.Find
-'        .ClearFormatting
-'        .Text = ""
-'        .Replacement.Text = ""
-'        .Forward = True
-'        .Wrap = wdFindStop
-'        .Format = True
-'        .Style = ActiveDocument.Styles("Chap Number (cn)")
-'        .MatchCase = False
-'        .MatchWholeWord = False
-'        .MatchWildcards = False
-'        .MatchSoundsLike = False
-'        .MatchAllWordForms = False
-'
-'        Do While .Execute(Forward:=True) = True And intCount < 1000   ' < 1000 to precent infinite loop
-'            intCount = intCount + 1
-'            #If Mac Then
-'                ' Mac 2011 doesn't support ClearCharacterFormattingAll method
-'                ' And ClearFormatting removes paragraph formatting as well
-'                Selection.ClearFormatting
-'                Selection.Style = "Chap Number (cn)"
-'            #Else
-'                Selection.ClearCharacterAllFormatting
-'            #End If
-'        Loop
-'
-'    End With
-'
-'
-'    Exit Sub
-'
-'ErrHandler:
-'        'Debug.Print Err.Number & ": " & Err.Description
-'    If Err.Number = 5941 Or Err.Number = 5834 Then      ' style doesn't exist in document
-'        Exit Sub
-'    End If
-'End Sub
-'
+Private Function ChapNumCleanUp(Optional StyleName As String = strChapNumber, _
+  Optional SearchRange As Range) As Boolean
+  On Error GoTo ChapNumCleanUpError
+  ' Removes character styles from Chapter Number paragraphs
+  ChapNumCleanUp = False
+  
+' Set selection
+  If SearchRange Is Nothing Then
+    activeDoc.Select
+  Else
+    SearchRange.Select
+  End If
+
+' Move selection back to start of document
+  Selection.HomeKey Unit:=wdStory
+  genUtils.GeneralHelpers.zz_clearFind
+
+  Dim intCount As Long
+  intCount = 0
+  With Selection.Find
+    .Forward = True
+    .Wrap = wdFindStop
+    .Format = True
+    .Style = StyleName
+  ' < 1000 to prevent infinite loop
+    Do While .Execute(Forward:=True) = True And intCount < 1000
+      ChapNumCleanUp
+      intCount = intCount + 1
+      #If Mac Then
+      ' Mac 2011 doesn't support ClearCharacterFormattingAll method
+      ' And ClearFormatting removes paragraph formatting as well
+        Selection.ClearFormatting
+        Selection.Style = StyleName
+      #Else
+        Selection.ClearCharacterAllFormatting
+      #End If
+    Loop
+  End With
+
+  Exit Function
+
+ChapNumCleanUpError:
+  Err.Source = strReports & "ChapNumCleanUp"
+  If ErrorChecker(Err, StyleName) = False Then
+    Resume
+  Else
+    genUtils.ReportsTerminate
+  End If
+End Function
+
 '
 'Private Function CheckFileName() As Boolean
 '' Returns error message if file name contains special characters

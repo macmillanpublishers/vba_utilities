@@ -300,6 +300,7 @@ Public Function IsbnCheck() As genUtils.Dictionary
   On Error GoTo IsbnCheckError
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
   
 ' If no styled ISBN exists...
   Dim blnStyledIsbn As Boolean
@@ -347,12 +348,12 @@ Public Function IsbnCheck() As genUtils.Dictionary
   Dim isbnArray() As String   ' Even though they ARE numbers, keep as string
   isbnArray = genUtils.GeneralHelpers.GetText(strIsbnStyle, True)
 
-' Add that this completed successfully?
+' Add that this completed successfully
   If genUtils.GeneralHelpers.IsArrayEmpty(isbnArray) = True Then
-    dictReturn.Add "pass", True
+    dictReturn.Item("pass") = True
     dictReturn.Add "list", isbnArray
   Else
-    dictReturn.Add "pass", False
+    dictReturn.Item("pass") = False
   End If
   
   Set IsbnCheck = dictReturn

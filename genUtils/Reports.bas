@@ -586,14 +586,34 @@ End Function
 
 
 ' ===== SectionCheck ==========================================================
-' Tags book sections, adds to dictionary as ranges. Also fixes breaks.
+' Clean up some section styles, standardize page breaks, add section headings
+' after each page break style.
 
 Public Function SectionCheck() As genUtils.Dictionary
   On Error GoTo SectionCheckError
-  ' Create array of paragrpah indices of page breaks
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
+
+' Need to combine returned test dictionaries with this to reutrn single
+  Dim dictStep As genUtils.Dictionary
   
-  ' Create array of section ranges based on those page breaks
+' fix some section styles (can probably cut after update style names)
+  Set dictStep = StyleCleanup()
+  Set dictReturn = genUtils.ClassHelpers.MergeDictionary(dictReturn, dictStep)
+
+' Fix page break formatting/styles
+  Set dictStep = PageBreakCleanup()
+  Set dictReturn = genUtils.ClassHelpers.MergeDictionary(dictReturn, dictStep)
+  
+' Add section heads after each page break style
+  Set dictStep = PageBreakCheck()
+  Set dictReturn = genUtils.ClassHelpers.MergeDictionary(dictReturn, dictStep)
+
+  dictReturn.Item("pass") = True
+  Set SectionCheck = dictReturn
   Exit Function
+
 SectionCheckError:
   Err.Source = strReports & "SectionCheck"
   If ErrorChecker(Err) = False Then
@@ -634,7 +654,7 @@ Private Function StyleCleanup() As genUtils.Dictionary
   Next X
 
 ' Remove any section break characters. Can't assume they'll be in their own
-' paragraphs, so remove solo paragraphs in next step.
+' paragraphs.
   genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = "^b"
@@ -658,7 +678,7 @@ Private Function StyleCleanup() As genUtils.Dictionary
   dictReturn.Add "deleteSectionBrkStyle", blnSuccess
 
 ' Remove any Half Title paras. (If want to keep in future, create a separate
-' function to search for all half titles, add headings/breaks. Note that any
+' function to search for all half titles, add headings/breaks.) Note that any
 ' extra page breaks will get cleaned up in `PageBreakCleanup` function.
   genUtils.zz_clearFind
   With activeDoc.Range.Find
@@ -1075,13 +1095,22 @@ End Function
 
 
 ' ===== HeadingCheck ==========================================================
-' Validate a variety of heading requirements, fix if not met.
+' Validate a variety of heading requirements, fix if not met. Parameter is an
+' array of ranges (one for each section) returned from SectionRange function
 
-Private Function HeadingCheck(RngSections() As Variant) As genUtils.Dictionary
+Public Function HeadingCheck() As genUtils.Dictionary
   On Error GoTo HeadingCheckError
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
+
+' Get paragraph indices of section start paragraphs
+  Dim rngParaInd As Variant
+  Set rngParaInd = SectionInd()
+
+' Create array of ranges of each section
+  Dim rngSections() As Variant
+  Set rngSections = SectionRange(rngParaInd)
 
 ' Loop through section ranges
   Dim D As Long
@@ -1096,9 +1125,9 @@ Private Function HeadingCheck(RngSections() As Variant) As genUtils.Dictionary
   Dim strSectionKey As String
   Dim blnRmCharFormat As Boolean
   
-  For D = LBound(RngSections) To UBound(RngSections)
+  For D = LBound(rngSections) To UBound(rngSections)
     strSectionKey = "section" & D
-    Set rngSect = RngSections(D)
+    Set rngSect = rngSections(D)
     Set rngFirst = rngSect.Paragraphs(1).Range
     Set rngSecond = rngSect.Paragraphs(2).Range
   ' Get style of first and second paragraphs
@@ -1224,6 +1253,8 @@ Private Function HeadingCheck(RngSections() As Variant) As genUtils.Dictionary
      dictReturn.Add strSectionKey & "AddSectionBreak", True
     End With
   Next D
+  
+' Reset Note Options to restart numbering at each section?
 
   Set HeadingCheck = dictReturn
   Exit Function

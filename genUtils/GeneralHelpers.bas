@@ -1193,7 +1193,7 @@ Public Function StyleReplace(SearchStyle As String, ReplaceStyle As String) As _
   With activeDoc.Range.Find
     .Format = True
     .Style = SearchStyle
-    .Replacement = ReplaceStyle
+    .Replacement.Style = ReplaceStyle
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then

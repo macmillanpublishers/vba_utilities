@@ -50,6 +50,7 @@ Public Const strFmHead As String = "FM Head (fmh)"
 Public Const strFmTitle As String = "FM Title (fmt)"
 Public Const strBmHead As String = "BM Head (bmh)"
 Public Const strBmTitle As String = "BM Title (bmt)"
+Public Const strIllustrationHolder As String = "Illustration holder (ill)"
 
 Private Enum BookInfo
   bk_Title = 1
@@ -1267,6 +1268,59 @@ HeadingCheckError:
     Call genUtils.ReportsTerminate
   End If
 End Function
+
+
+' ===== IllustrationCheck =====================================================
+' Various illustration validation checks.
+
+Public Function IllustrationCheck() As genUtils.Dictionary
+  On Error GoTo IllustrationCheckError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
+  
+' replace all "Illustration holder" text with placeholder.
+' eventually make this its own function?
+  Dim strPlaceholder As String
+  strPlaceholder = "TK.jpg" & vbNewLine
+
+  If genUtils.GeneralHelpers.IsStyleInUse(strIllustrationHolder) = False Then
+    dictReturn.Add "illHolderExists", False
+  Else
+    dictReturn.Add "illHolderExists", True
+  ' Replace text of all paragraphs with that style
+    genUtils.zz_clearFind
+    With activeDoc.Range.Find
+      .Replacement.Text = strPlaceholder
+      .Format = True
+      .Style = strIllustrationHolder
+      .Replacement.Style = strIllustrationHolder
+      .Execute Replace:=wdReplaceAll
+      
+      If .Found = True Then
+        dictReturn.Add "replaceIllText", True
+      Else
+        dictReturn.Add "replaceIllText", False
+      End If
+    
+    End With
+    genUtils.zz_clearFind
+  End If
+  
+  dictReturn.Item("pass") = True
+  Set IllustrationCheck = dictReturn
+  Exit Function
+  
+IllustrationCheckError:
+  Err.Source = strReports & "IllustrationCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.ReportsTerminate
+  End If
+End Function
+
+
 ' #############################################################################
 ' =============================================================================
 '

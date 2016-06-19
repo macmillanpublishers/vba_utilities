@@ -61,7 +61,7 @@ Public Function ReadJson(JsonPath As String) As genUtils.Dictionary
   If dictJson Is Nothing Then
     Debug.Print "ReadJson fail"
   Else
-    Debug.Print "dictJson count: " & dictJson.Count
+'    Debug.Print "dictJson count: " & dictJson.Count
   End If
   
   Set ReadJson = dictJson
@@ -145,3 +145,52 @@ AddToJsonError:
     Call genUtils.GeneralHelpers.GlobalCleanup
   End If
 End Sub
+
+' =============================================================================
+'       DICTIONARY HELPERS
+' =============================================================================
+
+' ===== MergeDictionary =======================================================
+' Add all key:value pairs of one dictionary to another dictionary. Default is
+' to overwrite value in DictOne if a key in DictTwo matches; Overwrite = False
+' adds an integer to the key name and adds a new key:value pair.
+
+Public Function MergeDictionary(DictOne As genUtils.Dictionary, DictTwo As _
+  genUtils.Dictionary, Optional Overwrite As Boolean = True) As _
+  genUtils.Dictionary
+  On Error GoTo MergeDictionaryError
+  Dim key2 As Variant
+  Dim lngCount As Long
+  Dim strKey As String
+  
+  lngCount = 0
+  
+  ' Use .Item() not .Add, because .Add errors if same key is used
+  For Each key2 In DictTwo
+    If Overwrite = False Then
+      If DictOne.Exists(key2) = True Then
+        lngCount = lngCount + 1
+        strKey = key2 & lngCount
+      Else
+        strKey = key2
+      End If
+    Else
+      strKey = key2
+    End If
+    
+    DictOne.Item(strKey) = DictTwo(key2)
+  
+  Next key2
+  
+  Set MergeDictionary = DictOne
+  Exit Function
+
+MergeDictionaryError:
+  Err.Source strModule & "MergeDictionary"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function
+

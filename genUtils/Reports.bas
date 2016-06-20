@@ -520,6 +520,13 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   rngNew.InsertBefore (strNewText)
   rngNew.Style = strInfoStyle
   
+  ' Test if it was successful
+  If genUtils.GeneralHelpers.IsStyleInUse(strInfoStyle) = True Then
+    AddBookInfo = True
+  Else
+    AddBookInfo = False
+  End If
+  
   ' ISBN also needs character style
   If InfoType = bk_ISBN Then
     strInfoStyle = "span ISBN (isbn)"
@@ -591,9 +598,9 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   End If
 
 ' Does Author Name exist?
-  blnTitle = dictStyles.Exists(strAuthorName)
-  dictReturn.Item("authorNameExists") = blnTitle
-  If blnTitle = False Then
+  blnAuthor = dictStyles.Exists(strAuthorName)
+  dictReturn.Item("authorNameExists") = blnAuthor
+  If blnAuthor = False Then
     dictReturn.Item("authorNameAdded") = AddBookInfo(bk_Authors)
   End If
 

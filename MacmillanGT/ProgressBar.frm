@@ -16,7 +16,12 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 
 
+
+
+
+
 ' By Erica Warren - erica.warren@macmillan.com
+
 
 ' ==== USE ==========================
 ' Displays a userform progress bar to use while another macro is running

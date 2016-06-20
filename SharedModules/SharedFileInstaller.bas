@@ -14,20 +14,44 @@ Attribute VB_Name = "SharedFileInstaller"
 Option Explicit
 Option Base 1
 
-Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As String, ByRef FileName() As String, ByRef FinalDir() As String)
+Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As String, ByRef TemplatesToInstall() As String)
 
 '"Installer" argument = True if this is for a standalone installtion file.
 '"Installer" argument = False is this is part of a daily check of the current file and only updates if out of date.
     
-    '' --------------- Check that variables were passed correctly -------------------------
-    'Dim x As Long
-    'For x = LBound(FileName()) To UBound(FileName())
-    '    Debug.Print & " " & FileName(x) & " " & FinalDir(x) & vbNewLine
-    'Next x
+    ' Separate file name from directory path
+    Dim lngBreak As Long
+    Dim FileName() As String
+    Dim FinalDir() As String
+    Dim Z As Long
+    
+    For Z = LBound(TemplatesToInstall()) To UBound(TemplatesToInstall())
+'        Debug.Print "Path: " & TemplatesToInstall(z)
+        
+        lngBreak = InStrRev(TemplatesToInstall(Z), Application.PathSeparator)
+'        Debug.Print "Final sep at: " & lngBreak
+        
+        If lngBreak >= 1 Then
+            ReDim Preserve FileName(1 To Z)
+            FileName(Z) = Right(TemplatesToInstall(Z), (Len(TemplatesToInstall(Z)) - lngBreak))
+            
+            ReDim Preserve FinalDir(1 To Z)
+            FinalDir(Z) = Left(TemplatesToInstall(Z), lngBreak - 1)
+            
+'            Debug.Print "File Name #" & z & ": " & FileName(z)
+'            Debug.Print "Directory #" & z & ": " & FinalDir(z)
+        Else
+            ' No path separator in full path specification
+            MsgBox "You need to specify the full path to your templates!"
+            Exit Sub
+        End If
+        
+    Next Z
+    
     
     '' --------------- Set up variable names ----------------------------------------------
     '' Create style directory and logfile names
-    Dim a As Long
+    Dim A As Long
     Dim arrLogInfo() As Variant
     ReDim arrLogInfo(1 To 3)
     Dim strStyleDir() As String
@@ -38,12 +62,12 @@ Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As S
     ReDim strFullLogPath(LBound(FileName()) To UBound(FileName()))
     
     ' ------------ Define Log Dirs and such -----------------------------------------
-    For a = LBound(FileName()) To UBound(FileName())
-        arrLogInfo() = CreateLogFileInfo(FileName(a))
-        strStyleDir(a) = arrLogInfo(1)
-        strLogDir(a) = arrLogInfo(2)
-        strFullLogPath(a) = arrLogInfo(3)
-    Next a
+    For A = LBound(FileName()) To UBound(FileName())
+        arrLogInfo() = CreateLogFileInfo(FileName(A))
+        strStyleDir(A) = arrLogInfo(1)
+        strLogDir(A) = arrLogInfo(2)
+        strFullLogPath(A) = arrLogInfo(3)
+    Next A
     
     'Debug.Print "Style Dir is: " & strStyleDir(1) & vbNewLine & _
                 "Log dir is: " & strLogDir(1) & vbNewLine & _
@@ -60,20 +84,20 @@ Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As S
     Dim logString As String
     Dim strTypeOfInstall As String
 
-    Dim b As Long
+    Dim B As Long
     
-    For b = LBound(FileName()) To UBound(FileName())
+    For B = LBound(FileName()) To UBound(FileName())
         
         ' Check if log dir/file exists, create if it doesn't, check last mod date if it does
         ' We don't need the true/false info for Installer, but we DO need to run these two
         ' functions to create directories if they don't exist yet
         
         ' If last mod date less than 1 day ago, CheckLog = True
-        blnLogUpToDate(b) = CheckLog(strStyleDir(b), strLogDir(b), strFullLogPath(b))
+        blnLogUpToDate(B) = CheckLog(strStyleDir(B), strLogDir(B), strFullLogPath(B))
         'Debug.Print FileName(b) & " log exists and was checked today: " & blnLogUpToDate(b)
         
         ' Check if template exists, if not create any missing directories
-        blnTemplateExists(b) = IsTemplateThere(FinalDir(b), FileName(b), strFullLogPath(b))
+        blnTemplateExists(B) = IsTemplateThere(FinalDir(B), FileName(B), strFullLogPath(B))
         ' Debug.Print FileName(b) & " exists: " & blnTemplateExists(b)
         
         ' ===============================
@@ -92,37 +116,37 @@ Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As S
             ' blnTemplateExists(b) = True              '|
             ' ==========================================
                 
-            If blnLogUpToDate(b) = True And blnTemplateExists(b) = True Then ' already checked today, already exists
-                installCheck(b) = False
-            ElseIf blnLogUpToDate(b) = False And blnTemplateExists(b) = True Then 'Log is new or not checked today, already exists
+            If blnLogUpToDate(B) = True And blnTemplateExists(B) = True Then ' already checked today, already exists
+                installCheck(B) = False
+            ElseIf blnLogUpToDate(B) = False And blnTemplateExists(B) = True Then 'Log is new or not checked today, already exists
                 'check version number
-                installCheck(b) = NeedUpdate(DownloadFrom, FinalDir(b), FileName(b), strFullLogPath(b))
+                installCheck(B) = NeedUpdate(DownloadFrom, FinalDir(B), FileName(B), strFullLogPath(B))
             Else ' blnTemplateExists = False, just download new template
-                 installCheck(b) = True
+                 installCheck(B) = True
             End If
         Else
-            installCheck(b) = True
+            installCheck(B) = True
         End If
         
-    Next b
+    Next B
 
     ' ---------------- Create new array of template files we need to install -----------------
     Dim strInstallFile() As String
     Dim strInstallDir() As String
-    Dim c As Long
-    Dim x As Long
+    Dim C As Long
+    Dim X As Long
     
-    x = 0
+    X = 0
     
-    For c = LBound(FileName()) To UBound(FileName())
-        If installCheck(c) = True Then
-            x = x + 1
-            ReDim Preserve strInstallFile(1 To x)
-                strInstallFile(x) = FileName(c)
-            ReDim Preserve strInstallDir(1 To x)
-                strInstallDir(x) = FinalDir(c)
+    For C = LBound(FileName()) To UBound(FileName())
+        If installCheck(C) = True Then
+            X = X + 1
+            ReDim Preserve strInstallFile(1 To X)
+                strInstallFile(X) = FileName(C)
+            ReDim Preserve strInstallDir(1 To X)
+                strInstallDir(X) = FinalDir(C)
         End If
-    Next c
+    Next C
     
     'Debug.Print strInstallFile(1) & vbNewLine & strInstallDir(1)
     
@@ -163,22 +187,23 @@ Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As S
     Call CloseOpenDocs
         
     '----------------- download template files ------------------------------------------
-    Dim d As Long
+    Dim D As Long
     
-    For d = LBound(strInstallFile()) To UBound(strInstallFile())
+    For D = LBound(strInstallFile()) To UBound(strInstallFile())
     
-        If IsReadOnly(strInstallDir(d)) = True Then
+        If IsReadOnly(strInstallDir(D)) = True Then
             ' Can't replace with new file if destination is read-only; Startup on Mac w/o admin is read-only
             Dim strReadOnlyError As String
             
-            strReadOnlyError = "Sorry, you don't have permission to install the file " & strInstallFile(d) & vbNewLine & vbNewLine & _
+            strReadOnlyError = "Sorry, you don't have permission to install the file " & strInstallFile(D) & vbNewLine & vbNewLine & _
                 "If you are in-house at Macmillan on a Mac, try re-installing the Macmillan Style Template & Macros from the Digital Workflow category in Self Service."
                 
                 MsgBox strReadOnlyError, vbOKOnly, "Update Failed"
                 Exit Sub
         Else
             'If False, error in download; user was notified in DownloadFromConfluence function
-            If DownloadFromConfluence(DownloadFrom, strInstallDir(d), strFullLogPath(d), strInstallFile(d)) = False Then
+            If DownloadFromConfluence(DownloadSource:=DownloadFrom, FinalDir:=strInstallDir(D), _
+                LogFile:=strFullLogPath(D), FileName:=strInstallFile(D)) = False Then
                 If Installer = True Then
                     #If Mac Then    ' because application.quit generates error on Mac
                         ActiveDocument.Close (wdDoNotSaveChanges)
@@ -195,7 +220,7 @@ Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As S
         ' Will be added again by MacmillanGT AutoExec when it's launched, to capture updates
         #If Mac Then
             Dim Bar As CommandBar
-            If strInstallFile(d) = "MacmillanGT.dotm" Then
+            If strInstallFile(D) = "MacmillanGT.dotm" Then
                 For Each Bar In CommandBars
                     If Bar.Name = "Macmillan Tools" Then
                         Bar.Delete
@@ -204,7 +229,7 @@ Sub Installer(DownloadFrom As GitBranch, Installer As Boolean, TemplateName As S
                     Next
             End If
         #End If
-    Next d
+    Next D
     
     '------Display installation complete message   ---------------------------
     Dim strComplete As String
@@ -273,10 +298,11 @@ Private Function NeedUpdate(DownloadURL As GitBranch, Directory As String, FileN
         #End If
         
         strInstalledVersion = Documents(strFullTemplatePath).CustomDocumentProperties("Version")
-        Documents(strFullTemplatePath).Close
+        Documents(strFullTemplatePath).Close SaveChanges:=wdDoNotSaveChanges
         logString = Now & " -- installed version is " & strInstalledVersion
+'        Debug.Print "InstalledVersion : |" & strInstalledVersion; "|"
     Else
-        strInstalledVersion = 0     ' Template is not installed
+        strInstalledVersion = "0"     ' Template is not installed
         logString = Now & " -- No template installed, version number is 0."
     End If
     
@@ -306,16 +332,18 @@ Private Function NeedUpdate(DownloadURL As GitBranch, Directory As String, FileN
     'Debug.Print strVersion
     
     'If False, error in download; user was notified in DownloadFromConfluence function
-    If DownloadFromConfluence(DownloadURL, strStyleDir, Log, strVersion) = False Then
-        NeedUpdate = False
-        Exit Function
+    If DownloadFromConfluence(DownloadSource:=DownloadURL, FinalDir:=strStyleDir, LogFile:=Log, _
+        FileName:=strVersion) = False Then
+            NeedUpdate = False
+            Exit Function
     End If
         
     '-------------------- Get version number of current template ---------------------
     If IsItThere(strFullVersionPath) = True Then
         NeedUpdate = True
         Dim strCurrentVersion As String
-        strCurrentVersion = ImportVariable(strFullVersionPath)
+
+        strCurrentVersion = ReadTextFile(Path:=strFullVersionPath, FirstLineOnly:=True)
         
         ' git converts all line endings to LF which messes up PC, and I don't want to deal
         ' with it so we'll just remove everything
@@ -327,6 +355,8 @@ Private Function NeedUpdate(DownloadURL As GitBranch, Directory As String, FileN
             strCurrentVersion = Replace(strCurrentVersion, vbCr, "")
         End If
         
+'        Debug.Print "Text File: |" & strCurrentVersion & "|"
+
         logString = Now & " -- Current version is " & strCurrentVersion
     Else
         NeedUpdate = False

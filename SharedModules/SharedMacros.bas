@@ -10,21 +10,93 @@ Public Enum GitBranch
     develop = 3
 End Enum
 
-' Doze sub only works on Windows
-' Will remove in later version and use UPdateBarAndWait instead
+Public Enum TemplatesList
+    updaterTemplates = 1
+    toolsTemplates = 2
+    stylesTemplates = 3
+    installTemplates = 4
+    allTemplates = 5
+End Enum
 
-#If Win64 Then
-    Public Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As LongPtr)
-#ElseIf Win32 Then
-    Public Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
-#End If
+Public Function GetTemplatesList(TemplatesYouWant As TemplatesList, Optional PathToRepo As String) As Variant
+    ' returns an array of paths to template files in their final installation locations
+    ' if you want to use "allTemplates" (i.e., for updating code in templates), must include PathToRepo
+    
+    Dim strStartupDir As String
+    Dim strStyleDir As String
+    Dim strMacDocs As String
+    Dim strStylesName As String
+    
+    strStylesName = "MacmillanStyleTemplate"
+    
+    strStartupDir = Application.StartupPath
+    
+    #If Mac Then
+        strMacDocs = MacScript("return (path to documents folder) as string")
+        strStyleDir = strMacDocs & strStylesName
+    #Else
+        strStyleDir = Environ("PROGRAMDATA") & Application.PathSeparator & strStylesName
+    #End If
+    
+    Dim strPathsToTemplates() As String
+    Dim K As Long
+    K = 0
+    
+    ' get the updater file for these requests
+    If TemplatesYouWant = updaterTemplates Or _
+        TemplatesYouWant = installTemplates Or _
+        TemplatesYouWant = allTemplates Then
+        K = K + 1
+        ReDim Preserve strPathsToTemplates(1 To K)
+        strPathsToTemplates(K) = strStartupDir & Application.PathSeparator & "GtUpdater.dotm"
+    End If
+    
+    ' get the tools file for these requests
+    If TemplatesYouWant = toolsTemplates Or _
+        TemplatesYouWant = installTemplates Or _
+        TemplatesYouWant = allTemplates Then
+        K = K + 1
+        ReDim Preserve strPathsToTemplates(1 To K)
+        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "MacmillanGT.dotm"
+    End If
+    
+    ' get the styles files for these requests
+    If TemplatesYouWant = stylesTemplates Or _
+        TemplatesYouWant = installTemplates Or _
+        TemplatesYouWant = allTemplates Then
+        K = K + 1
+        ReDim Preserve strPathsToTemplates(1 To K)
+        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "macmillan.dotm"
+        
+        K = K + 1
+        ReDim Preserve strPathsToTemplates(1 To K)
+        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "macmillan_NoColor.dotm"
 
-Public Sub Doze(ByVal lngPeriod As Long)
-    DoEvents
-    Sleep lngPeriod
-    ' Call it in desired location to sleep for 1 seconds like this:
-    ' Doze 1000
-End Sub
+        K = K + 1
+        ReDim Preserve strPathsToTemplates(1 To K)
+        strPathsToTemplates(K) = strStyleDir & Application.PathSeparator & "macmillan_CoverCopy.dotm"
+    End If
+    
+    ' also get the installer file
+    If TemplatesYouWant = allTemplates And PathToRepo <> vbNullString Then
+        K = K + 1
+        ReDim Preserve strPathsToTemplates(1 To K)
+        strPathsToTemplates(K) = PathToRepo & Application.PathSeparator & "MacmillanTemplateInstaller" _
+            & Application.PathSeparator & "MacmillanTemplateInstaller.docm"
+        
+        ' Could also add paths to open _BETA and _DEVELOP installer files?
+    End If
+    
+    ' DEBUGGING: check tha list!
+'    Dim H As Long
+'    For H = LBound(strPathsToTemplates) To (UBound(strPathsToTemplates))
+'        Debug.Print H & ": " & strPathsToTemplates(H)
+'    Next H
+    
+    
+    GetTemplatesList = strPathsToTemplates
+    
+End Function
 
 
 Public Function IsItThere(Path)
@@ -60,7 +132,8 @@ ErrHandler:
     End If
 End Function
 
-Public Function DownloadFromConfluence(DownloadSource As GitBranch, FinalDir As String, LogFile As String, FileName As String) As Boolean
+Public Function DownloadFromConfluence(FinalDir As String, LogFile As String, FileName As String, _
+    Optional DownloadSource As GitBranch = master) As Boolean
 'FinalDir is directory w/o file name
 
     Dim logString As String
@@ -216,12 +289,18 @@ Public Function DownloadFromConfluence(DownloadSource As GitBranch, FinalDir As 
 
         logString = Now & " -- Previous version file in final directory."
         LogInformation LogFile, logString
-    
-        ' Can't delete template if loaded as add-in
-        On Error Resume Next        'Error = add-in not available, don't need to uninstall
-            AddIns(strFinalPath).Installed = False
-        On Error GoTo 0
-                
+        
+        ' get file extension
+        Dim strExt As String
+        strExt = Right(strFinalPath, InStrRev(StrReverse(strFinalPath), "."))
+        
+        ' can't delete template if it's installed as an add-in
+        If InStr(strExt, "dot") > 0 Then
+            On Error Resume Next        'Error = add-in not available, don't need to uninstall
+                AddIns(strFinalPath).Installed = False
+            On Error GoTo 0
+        End If
+  
         ' Test if dir is read only
         If IsReadOnly(FinalDir) = True Then ' Dir is read only
             logString = Now & " -- old " & FileName & " file is read only, can't delete/replace. " _
@@ -336,6 +415,20 @@ Dim FileNum As Integer
     Open LogFile For Append As #FileNum ' creates the file if it doesn't exist
     Print #FileNum, LogMessage ' write information at the end of the text file
     Close #FileNum ' close the file
+End Sub
+
+Public Sub OverwriteTextFile(TextFile As String, NewText As String)
+' TextFile should be full path
+    
+    Dim FileNum As Integer
+    
+    If IsItThere(TextFile) = True Then
+        FileNum = FreeFile ' next file number
+        Open TextFile For Output Access Write As #FileNum
+        Print #FileNum, NewText ' overwrite information in the text of the file
+        Close #FileNum ' close the file
+    End If
+
 End Sub
 
 Public Function CreateLogFileInfo(ByRef FileName As String) As Variant
@@ -499,8 +592,6 @@ Function PatternMatch(SearchPattern As String, SearchText As String, WholeString
         .Execute
     End With
     
-    
-    
     If Selection.Find.Found = True Then
         If WholeString = True Then
             ' The final paragraph return is the only character the new doc had it in,
@@ -623,6 +714,7 @@ Function IsArrayEmpty(Arr As Variant) As Boolean
     If IsArray(Arr) = False Then
         ' we weren't passed an array, return True
         IsArrayEmpty = True
+        Exit Function
     End If
     
     ' Attempt to get the UBound of the array. If the array is
@@ -691,7 +783,7 @@ Sub CreateTextFile(strText As String, suffix As String)
     '''end ''''for 32 char Mc OS bug part 1
     
     'set and open file for output
-    Dim e As Integer
+    Dim E As Integer
     fnum = FreeFile()
     Open reqReportDoc For Output As fnum
     
@@ -794,7 +886,7 @@ Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeader
     Dim num_cols As Long
     Dim the_array() As Variant
     Dim R As Long
-    Dim c As Long
+    Dim C As Long
     
         If IsItThere(Path) = False Then
             MsgBox "There was a problem with your Castoff.", vbCritical, "Error: CSV not available"
@@ -845,10 +937,10 @@ Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeader
         For R = lngHeaderRow To num_rows           ' start at 1 (not 0) if we are not using the header row
             If Len(lines(R)) > 0 Then
                 one_line = Split(lines(R), ",")
-                For c = lngHeaderCol To num_cols   ' start at 1 (not 0) if we are not using the header column
+                For C = lngHeaderCol To num_cols   ' start at 1 (not 0) if we are not using the header column
                     'Debug.Print one_line(c)
-                    the_array((R - lngHeaderRow), (c - lngHeaderCol)) = one_line(c)   ' -1 because if are not using header row/column from CSV
-                Next c
+                    the_array((R - lngHeaderRow), (C - lngHeaderCol)) = one_line(C)   ' -1 because if are not using header row/column from CSV
+                Next C
             End If
         Next R
     
@@ -873,12 +965,14 @@ Sub CloseOpenDocs()
     Dim strInstallerName As String
     Dim strSaveWarning As String
     Dim objDocument As Document
-    Dim b As Long
+    Dim B As Long
     Dim doc As Document
     
     strInstallerName = ThisDocument.Name
+
         'MsgBox "Installer Name: " & strInstallerName
         'MsgBox "Open docs: " & Documents.Count
+
 
     If Documents.Count > 1 Then
         strSaveWarning = "All other Word documents must be closed to run the macro." & vbNewLine & vbNewLine & _
@@ -906,10 +1000,12 @@ End Sub
 
 
 
-Function StartupSettings(Optional AcceptAll As Boolean = False) As Boolean
+Function StartupSettings(Optional StoriesUsed As Variant, Optional AcceptAll As Boolean = False) As Boolean
     ' records/adjusts/checks settings and stuff before running the rest of the macro
     ' returns TRUE if some check is bad and we can't run the macro
     
+    ' mainDoc will only do stuff to main body text, not EN or FN stories. So
+    ' do all main-text-only stuff first, then loop through stories
     Dim mainDoc As Document
     Set mainDoc = ActiveDocument
     
@@ -988,27 +1084,51 @@ Function StartupSettings(Optional AcceptAll As Boolean = False) As Boolean
     
     
     ' ========== Delete field codes ==========
-    Dim strContents As String
+    ' Fields break cleanup and char styles, so we delete them (but retain their
+    ' result, if any). Furthermore, fields make no sense in a manuscript, so
+    ' even if they didn't break anything we don't want them.
+    ' Note, however, that even though linked endnotes and footnotes are
+    ' types of fields, this loop doesn't affect them.
     
-    ' This has some kind of problem with some type of fields in endnotes? Investiagte
-    ' Ideally would check all stories, but then we'd have to add the step of getting
-    ' all of the active stories.
-    ' With ActiveDocument.StoryRanges(StoryTypes)
-    With mainDoc
-        While .Fields.Count > 0
-            strContents = .Fields.Item(1).result
-            .Fields(1).Select
-            
-            With Selection
-                .Fields.Item(1).Delete
-                .InsertAfter strContents
-            End With
-        Wend
-    End With
+    Dim A As Long
+    Dim thisRange As Range
+    Dim objField As Field
+    Dim strContent As String
     
+    ' StoriesUsed is optional; if an array of stories is not passed, just use the main text story here
+    If IsArrayEmpty(StoriesUsed) = True Then
+        ReDim StoriesUsed(1 To 1)
+        StoriesUsed(1) = wdMainTextStory
+    End If
+
+    For A = LBound(StoriesUsed) To UBound(StoriesUsed)
+        Set thisRange = ActiveDocument.StoryRanges(StoriesUsed(A))
+        For Each objField In thisRange.Fields
+'            Debug.Print thisRange.Fields.Count
+            If thisRange.Fields.Count > 0 Then
+                With objField
+'                    Debug.Print .Index & ": " & .Kind
+                    ' None or Cold means it has no result, so we just delete
+                    If .Kind = wdFieldKindNone Or .Kind = wdFieldKindCold Then
+                        .Delete
+                    Else ' It has a result, so we replace field w/ just its content
+                        strContent = .result
+                        .Select
+                        .Delete
+                        Selection.InsertAfter strContent
+                    End If
+                End With
+            End If
+        Next objField
+
+    Next A
+
     
     ' ========== Remove content controls ==========
-    ' Doesn't work at all for a Mac
+    ' Content controls also break character styles and cleanup
+    ' They are used by some imprints for frontmatter templates
+    ' for editorial, though.
+    ' Doesn't work at all for a Mac, so...
     #If Win32 Then
         ClearContentControls
     #End If
@@ -1065,6 +1185,8 @@ Private Sub ClearContentControls()
     Next
 
 End Sub
+
+
 
 
 Sub Cleanup()
@@ -1154,8 +1276,30 @@ Function IsReadOnly(Path As String) As Boolean
     
 End Function
 
+
+Public Function ReadTextFile(Path As String, Optional FirstLineOnly As Boolean = True) As String
+' load string from text file
+
+    Dim fnum As Long
+    Dim strTextWeWant As String
+    
+    fnum = FreeFile()
+    Open Path For Input As fnum
+    
+    If FirstLineOnly = False Then
+        strTextWeWant = Input$(LOF(fnum), #fnum)
+    Else
+        Line Input #fnum, strTextWeWant
+    End If
+    
+    Close fnum
+    
+    ReadTextFile = strTextWeWant
+End Function
+
+
 Function HiddenTextSucks(StoryType As WdStoryType) As Boolean                                             'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var
-    Debug.Print StoryType
+'    Debug.Print StoryType
     Dim activeRng As Range
     Set activeRng = ActiveDocument.StoryRanges(StoryType)
     ' No, really, it does. Why is that even an option?
@@ -1165,12 +1309,18 @@ Function HiddenTextSucks(StoryType As WdStoryType) As Boolean                   
     
     HiddenTextSucks = False
     
+    ' If Hidden text isn't shown, it won't be deleted, which
+    ' defeats the purpose of doing this at all.
+    Dim blnCurrentHiddenView As Boolean
+    blnCurrentHiddenView = ActiveDocument.ActiveWindow.View.ShowAll
+    ActiveDocument.ActiveWindow.View.ShowAll = True
+
+    
     Dim aCounter As Long
     aCounter = 0
     
-    'Move selection to start of document
+    ' Select whole doc (story, actually)
     activeRng.Select
-    ' Selection.HomeKey Unit:=wdStory
 
     With Selection.Find
         .ClearFormatting
@@ -1187,12 +1337,286 @@ Function HiddenTextSucks(StoryType As WdStoryType) As Boolean                   
         .Execute ReplaceWith:="", Replace:=wdReplaceAll
     End With
     
-'    Do While Selection.Find.Execute = True And aCounter < 500
-'        'aCounter < 500 so we don't get an infinite loop
-'        aCounter = aCounter + 1
-'
-'        ' If we found some text, delete it
-'        Selection.Delete
-'        HiddenTextSucks = True
-'    Loop
+    Do While Selection.Find.Execute = True And aCounter < 500
+        'aCounter < 500 so we don't get an infinite loop
+        aCounter = aCounter + 1
+        HiddenTextSucks = True
+    Loop
+    
+    ' Now restore Hidden Text view settings
+    ActiveDocument.ActiveWindow.View.ShowAll = blnCurrentHiddenView
+    
 End Function
+
+
+Sub ClearPilcrowFormat(StoryType As WdStoryType)
+' A pilcrow is the paragraph mark symbol. This clears all formatting and styles from
+' pilcrows as found via ^p
+    ' Change to story ranges?
+    Dim activeRange As Range
+    Set activeRange = ActiveDocument.StoryRanges(StoryType)
+
+    With activeRange.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = "^13"       ' need to use ^13 if using wildcards
+        .Replacement.Text = "^p"    ' DON'T replace with ^13, removes para style
+        .Forward = True
+        .Wrap = wdFindStop
+        .Format = True
+        .Replacement.Style = "Default Paragraph Font"
+        .Replacement.Font.Italic = False
+        .Replacement.Font.Bold = False
+        .Replacement.Font.Underline = wdUnderlineNone
+        .Replacement.Font.AllCaps = False
+        .Replacement.Font.SmallCaps = False
+        .Replacement.Font.StrikeThrough = False
+        .Replacement.Font.Subscript = False
+        .Replacement.Font.Superscript = False
+        .MatchCase = False
+        .MatchWholeWord = False
+        .MatchWildcards = True
+        .MatchSoundsLike = False
+        .MatchAllWordForms = False
+        .Execute Replace:=wdReplaceAll
+    End With
+
+End Sub
+
+Sub StyleAllHyperlinks(StoriesInUse As Variant)
+    ' StoriesInUse is an array of wdStoryTypes in use
+    ' Clears active links and adds macmillan URL char styles
+    ' to any proper URLs.
+    ' Breaking up into sections because AutoFormat does not apply hyperlinks to FN/EN stories.
+    ' Also if you AutoFormat a second time it undoes all of the formatting already applied to hyperlinks
+    
+    Dim S As Long
+    
+    Call zz_clearFind
+    
+    For S = 1 To UBound(StoriesInUse)
+        'Styles hyperlinks, must be performed after PreserveWhiteSpaceinBrkStylesA
+        Call StyleHyperlinksA(StoryType:=(StoriesInUse(S)))
+    Next S
+    
+    Call AutoFormatHyperlinks
+    
+    For S = 1 To UBound(StoriesInUse)
+        Call StyleHyperlinksB(StoryType:=(StoriesInUse(S)))
+    Next S
+    
+End Sub
+
+Private Sub StyleHyperlinksA(StoryType As WdStoryType)
+    ' PRIVATE, if you want to style hyperlinks from another module,
+    ' call StyleAllHyperlinks sub above.
+    ' added by Erica 2014-10-07, v. 3.4
+    ' removes all live hyperlinks but leaves hyperlink text intact
+    ' then styles all URLs as "span hyperlink (url)" style
+    ' -----------------------------------------
+    ' this first bit removes all live hyperlinks from document
+    ' we want to remove these from urls AND text; will add back to just urls later
+    Dim activeRng As Range
+    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    ' remove all embedded hyperlinks regardless of character style
+    With activeRng
+        While .Hyperlinks.Count > 0
+            .Hyperlinks(1).Delete
+        Wend
+    End With
+    '------------------------------------------
+    'removes all hyperlink styles
+    Dim HyperlinkStyleArray(3) As String
+    Dim P As Long
+    
+On Error GoTo LinksErrorHandler:
+    
+    HyperlinkStyleArray(1) = "Hyperlink"        'built-in style applied automatically to links
+    HyperlinkStyleArray(2) = "FollowedHyperlink"    'built-in style applied automatically
+    HyperlinkStyleArray(3) = "span hyperlink (url)" 'Macmillan template style for links
+    
+    For P = 1 To UBound(HyperlinkStyleArray())
+        With activeRng.Find
+            .ClearFormatting
+            .Replacement.ClearFormatting
+            .Style = HyperlinkStyleArray(P)
+            .Replacement.Style = ActiveDocument.Styles("Default Paragraph Font")
+            .Text = ""
+            .Replacement.Text = ""
+            .Forward = True
+            .Wrap = wdFindContinue
+            .Format = True
+            .MatchCase = False
+            .MatchWholeWord = False
+            .MatchWildcards = False
+            .MatchSoundsLike = False
+            .MatchAllWordForms = False
+            .Execute Replace:=wdReplaceAll
+        End With
+    Next
+    
+On Error GoTo 0
+    
+    Exit Sub
+    
+LinksErrorHandler:
+        '5834 means item does not exist
+        '5941 means style not present in collection
+        If Err.Number = 5834 Or Err.Number = 5941 Then
+            
+            'If style is not present, add style
+            Dim myStyle As Style
+            Set myStyle = ActiveDocument.Styles.Add(Name:="span hyperlink (url)", Type:=wdStyleTypeCharacter)
+            Resume
+'            ' Used to add highlight color, but actually if style is missing, it's
+'            ' probably a MS w/o Macmillan's styles and the highlight will be annoying.
+'            'If missing style was Macmillan built-in style, add character highlighting
+'            If myStyle = "span hyperlink (url)" Then
+'                ActiveDocument.Styles("span hyperlink (url)").Font.Shading.BackgroundPatternColor = wdColorPaleBlue
+'            End If
+        Else
+            MsgBox "Error " & Err.Number & ": " & Err.Description
+            On Error GoTo 0
+            Exit Sub
+        End If
+
+End Sub
+
+Private Sub AutoFormatHyperlinks()
+    ' PRIVATE, if you want to style hyperlinks from another module,
+    ' call StyleAllHyperlinks sub above.
+    '--------------------------------------------------
+    ' converts all URLs to hyperlinks with built-in "Hyperlink" style
+    ' because some show up as plain text
+    ' Note this also removes all blank paragraphs regardless of style,
+    ' so needs to come after sub PreserveWhiteSpaceinBrkA
+    
+    
+    Dim f1 As Boolean, f2 As Boolean, f3 As Boolean
+    Dim f4 As Boolean, f5 As Boolean, f6 As Boolean
+    Dim f7 As Boolean, f8 As Boolean, f9 As Boolean
+    Dim f10 As Boolean
+      
+    'This first bit autoformats hyperlinks in main text story
+    With Options
+        ' Save current AutoFormat settings
+        f1 = .AutoFormatApplyHeadings
+        f2 = .AutoFormatApplyLists
+        f3 = .AutoFormatApplyBulletedLists
+        f4 = .AutoFormatApplyOtherParas
+        f5 = .AutoFormatReplaceQuotes
+        f6 = .AutoFormatReplaceSymbols
+        f7 = .AutoFormatReplaceOrdinals
+        f8 = .AutoFormatReplaceFractions
+        f9 = .AutoFormatReplacePlainTextEmphasis
+        f10 = .AutoFormatReplaceHyperlinks
+        ' Only convert URLs
+        .AutoFormatApplyHeadings = False
+        .AutoFormatApplyLists = False
+        .AutoFormatApplyBulletedLists = False
+        .AutoFormatApplyOtherParas = False
+        .AutoFormatReplaceQuotes = False
+        .AutoFormatReplaceSymbols = False
+        .AutoFormatReplaceOrdinals = False
+        .AutoFormatReplaceFractions = False
+        .AutoFormatReplacePlainTextEmphasis = False
+        .AutoFormatReplaceHyperlinks = True
+        ' Perform AutoFormat
+        ActiveDocument.Content.AutoFormat
+        ' Restore original AutoFormat settings
+        .AutoFormatApplyHeadings = f1
+        .AutoFormatApplyLists = f2
+        .AutoFormatApplyBulletedLists = f3
+        .AutoFormatApplyOtherParas = f4
+        .AutoFormatReplaceQuotes = f5
+        .AutoFormatReplaceSymbols = f6
+        .AutoFormatReplaceOrdinals = f7
+        .AutoFormatReplaceFractions = f8
+        .AutoFormatReplacePlainTextEmphasis = f9
+        .AutoFormatReplaceHyperlinks = f10
+    End With
+    
+    'This bit autoformats hyperlinks in endnotes and footnotes
+    ' from http://www.vbaexpress.com/forum/showthread.php?52466-applying-hyperlink-styles-in-footnotes-and-endnotes
+    Dim oDoc As Document
+    Dim oTemp As Document
+    Dim oNote As Range
+    Dim oRng As Range
+    
+    'oDoc.Save      ' Already saved active doc?
+    Set oDoc = ActiveDocument
+    Set oTemp = Documents.Add(Template:=oDoc.FullName, Visible:=False)
+    
+    If oDoc.Footnotes.Count >= 1 Then
+        Dim oFN As Footnote
+        For Each oFN In oDoc.Footnotes
+            Set oNote = oFN.Range
+            Set oRng = oTemp.Range
+            oRng.FormattedText = oNote.FormattedText
+            'oRng.Style = "Footnote Text"
+            Options.AutoFormatReplaceHyperlinks = True
+            oRng.AutoFormat
+            oRng.End = oRng.End - 1
+            oNote.FormattedText = oRng.FormattedText
+        Next oFN
+        Set oFN = Nothing
+    End If
+    
+    If oDoc.Endnotes.Count >= 1 Then
+        Dim oEN As Endnote
+        For Each oEN In oDoc.Endnotes
+            Set oNote = oEN.Range
+            Set oRng = oTemp.Range
+            oRng.FormattedText = oNote.FormattedText
+            'oRng.Style = "Endnote Text"
+            Options.AutoFormatReplaceHyperlinks = True
+            oRng.AutoFormat
+            oRng.End = oRng.End - 1
+            oNote.FormattedText = oRng.FormattedText
+        Next oEN
+        Set oEN = Nothing
+    End If
+    
+    oTemp.Close SaveChanges:=wdDoNotSaveChanges
+    Set oTemp = Nothing
+    Set oRng = Nothing
+    Set oNote = Nothing
+    
+End Sub
+
+Private Sub StyleHyperlinksB(StoryType As WdStoryType)
+    ' PRIVATE, if you want to style hyperlinks from another module,
+    ' call StyleAllHyperlinks sub above.
+    '--------------------------------------------------
+    ' apply macmillan URL style to hyperlinks we just tagged in Autoformat
+    Dim activeRng As Range
+    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    With activeRng.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Style = "Hyperlink"
+        .Replacement.Style = ActiveDocument.Styles("span hyperlink (url)")
+        .Text = ""
+        .Replacement.Text = ""
+        .Forward = True
+        .Wrap = wdFindContinue
+        .Format = True
+        .MatchCase = False
+        .MatchWholeWord = False
+        .MatchWildcards = False
+        .MatchSoundsLike = False
+        .MatchAllWordForms = False
+        .Execute Replace:=wdReplaceAll
+    End With
+    
+    ' -----------------------------------------------
+    ' Removes all hyperlinks from the document (that were added with AutoFormat)
+    ' Text to display is left intact, macmillan style is left intact
+    With activeRng
+        While .Hyperlinks.Count > 0
+            .Hyperlinks(1).Delete
+        Wend
+    End With
+    
+End Sub
+

@@ -5,8 +5,14 @@ Dim activeRng As Range
 
 Sub EndnoteDeEmbed()
 
-    '------- Check if document is saved ---------
-    If CheckSave = True Then
+    '------------check for endnotes and footnotes--------------------------
+    Dim stStories() As Variant
+    stStories = StoryArray
+    
+    ' ======= Run startup checks ========
+    ' True means a check failed (e.g., doc protection on)
+    If StartupSettings(StoriesUsed:=stStories) = True Then
+        Call Cleanup
         Exit Sub
     End If
     
@@ -19,7 +25,6 @@ Sub EndnoteDeEmbed()
     Dim addHeader As Boolean
     Dim nRng As Range, eNote As Endnote, nref As String, refCopy As String
     Dim sectionCount As Long
-    Dim StoryRange As Range
     Dim EndnotesExist As Boolean
     Dim TheOS As String
     Dim palgraveTag As Boolean
@@ -31,7 +36,6 @@ Sub EndnoteDeEmbed()
     BookmarkNum = 1
     lastRefSection = 0
     addHeader = True
-    EndnotesExist = False
     TheOS = System.OperatingSystem
     palgraveTag = False
     
@@ -41,13 +45,8 @@ Sub EndnoteDeEmbed()
         "Click OK to exit the Endnotes macro."
         Exit Sub
     End If
-    For Each StoryRange In ActiveDocument.StoryRanges
-        If StoryRange.StoryType = wdEndnotesStory Then
-            EndnotesExist = True
-            Exit For
-        End If
-    Next StoryRange
-    If EndnotesExist = False Then
+
+    If SharedMacros.EndnotesExist = False Then
         MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
         Exit Sub
     End If
@@ -64,16 +63,6 @@ Sub EndnoteDeEmbed()
             Exit Sub
         End If
     End If
-
-    '------------record status of current status bar and then turn on-------
-    Dim currentStatusBar As Boolean
-    currentStatusBar = Application.DisplayStatusBar
-    Application.DisplayStatusBar = True
-    
-    '-----------Turn off track changes--------
-    Dim currentTracking As Boolean
-    currentTracking = ActiveDocument.TrackRevisions
-    ActiveDocument.TrackRevisions = False
     
     '--------Progress Bar------------------------------
     'Percent complete and status for progress bar (PC) and status bar (Mac)
@@ -86,19 +75,13 @@ Sub EndnoteDeEmbed()
     sglPercentComplete = 0.04
     strStatus = "* Getting started..."
     
-    #If Mac Then
-        Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-        DoEvents
-    #Else
-        Dim objProgressNotes As ProgressBar
-        Set objProgressNotes = New ProgressBar
-        
-        objProgressNotes.Title = strTitle
-        objProgressNotes.Show
-        
-        objProgressNotes.Increment sglPercentComplete, strStatus
-        Doze 50 ' Wait 50 milliseconds for progress bar to update
-    #End If
+    Dim objProgressNotes As ProgressBar
+    Set objProgressNotes = New ProgressBar  ' Triggers Initialize event, which uses Show method for PC
+    
+    objProgressNotes.Title = strTitle
+    
+    ' Calls ProgressBar.Increment mathod and waits for it to complete
+    Call UpdateBarAndWait(Bar:=objProgressNotes, Status:=strStatus, Percent:=sglPercentComplete)
 
     ' Setup global Endnote settings (continuous number, endnotes at document end, number with integers)
     'ActiveDocument.Endnotes.StartingNumber = 1
@@ -114,7 +97,6 @@ Sub EndnoteDeEmbed()
     If iReply = vbYes Then palgraveTag = True
     
     ' Begin working on Endnotes
-    Application.ScreenUpdating = False
     
     Dim intNotesCount As Integer
     Dim intCurrentNote As Integer
@@ -131,13 +113,8 @@ Sub EndnoteDeEmbed()
           sglPercentComplete = (((intCurrentNote / intNotesCount) * 0.95) + 0.04)
           strCountMsg = "* Unlinking endnote " & intCurrentNote & " of " & intNotesCount & vbNewLine & strStatus
           
-          #If Mac Then
-            Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strCountMsg
-            DoEvents
-          #Else
-            objProgressNotes.Increment sglPercentComplete, strCountMsg
-            Doze 50 ' Wait 50 milliseconds for progress bar to update
-          #End If
+            Call UpdateBarAndWait(Bar:=objProgressNotes, Status:=strCountMsg, Percent:=sglPercentComplete)
+
         End If
               
         With eNote
@@ -250,28 +227,17 @@ Sub EndnoteDeEmbed()
     sglPercentComplete = 0.99
     strStatus = "* Finishing up..." & vbNewLine & strStatus
     
-    #If Mac Then
-      Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-      DoEvents
-    #Else
-      objProgressNotes.Increment sglPercentComplete, strStatus
-      Doze 50 ' Wait 50 milliseconds for progress bar to update
-    #End If
+    Call UpdateBarAndWait(Bar:=objProgressNotes, Status:=strStatus, Percent:=sglPercentComplete)
     
-    Call RemoveAllBookmarks
+    ' Delete all bookmarks added earlier
+    Dim bkm As Bookmark
+    For Each bkm In ActiveDocument.Bookmarks
+        bkm.Delete
+    Next bkm
+    
+    Call Cleanup
+    Unload objProgressNotes
 
-Cleanup:
-    ' ---- Close progress bar -----
-    #If Mac Then
-      ' Nothing?
-    #Else
-      Unload objProgressNotes
-    #End If
-    
-    ActiveDocument.TrackRevisions = currentTracking
-    Application.DisplayStatusBar = currentStatusBar
-    Application.ScreenUpdating = True
-    Application.ScreenRefresh
 
 End Sub
 
@@ -279,7 +245,7 @@ Function endnoteHeader(refSection As Integer) As String
 Dim sectionRng As Range
     Dim searchStylesArray(4) As String                       ' number of items in array should be declared here
     Dim searchTest As Boolean
-    Dim i As Long
+    Dim I As Long
     
     Call zz_clearFind
     
@@ -289,13 +255,13 @@ Dim sectionRng As Range
     searchStylesArray(3) = "Chap Title (ct)"
     searchStylesArray(4) = "Chap Title Nonprinting (ctnp)"
     searchTest = False
-    i = 1
+    I = 1
     
     Do Until searchTest = True
     Set sectionRng = ActiveDocument.Sections(refSection).Range
     With sectionRng.Find
       .ClearFormatting
-      .Style = searchStylesArray(i)
+      .Style = searchStylesArray(I)
       .Wrap = wdFindStop
       .Forward = True
     End With
@@ -305,8 +271,8 @@ Dim sectionRng As Range
     Else
     'following line for debug: comment later
         'MsgBox searchStylesArray(i) + " Not Found"
-        i = i + 1
-        If i = 5 Then
+        I = I + 1
+        If I = 5 Then
             searchTest = True
             endnoteHeader = "```No Header found```"
         End If
@@ -317,34 +283,5 @@ Dim sectionRng As Range
     
 End Function
 
-Sub RemoveAllBookmarks()
-
-'three options from http://wordribbon.tips.net/T009004_Removing_All_Bookmarks.html
-    'Version 1
-    Dim objBookmark As Bookmark
-    For Each objBookmark In ActiveDocument.Bookmarks
-        objBookmark.Delete
-    Next
-    
-    'Version 2
-    'Dim stBookmark As Bookmark
-    'ActiveDocument.Bookmarks.ShowHidden = True
-    'If ActiveDocument.Bookmarks.Count >= 1 Then
-    '   For Each stBookmark In ActiveDocument.Bookmarks
-    '      stBookmark.Delete
-    '   Next stBookmark
-    'End If
-    
-    'Version 3
-    'Dim objBookmark As Bookmark
-    '
-    'For Each objBookmark In ActiveDocument.Bookmarks
-    '    If Left(objBookmark.Name, 1) <> "_" Then objBookmark.Delete
-    'Next
-    
-    
-    'http://wordribbon.tips.net/T009004_Removing_All_Bookmarks.html
-
-End Sub
 
 

@@ -166,7 +166,7 @@ Public Function MergeDictionary(DictOne As genUtils.Dictionary, DictTwo As _
   lngCount = 0
   
   ' Use .Item() not .Add, because .Add errors if same key is used
-  For Each key2 In DictTwo
+  For Each key2 In DictTwo.Keys
     If Overwrite = False Then
       If DictOne.Exists(key2) = True Then
         lngCount = lngCount + 1
@@ -186,7 +186,7 @@ Public Function MergeDictionary(DictOne As genUtils.Dictionary, DictTwo As _
   Exit Function
 
 MergeDictionaryError:
-  Err.Source strModule & "MergeDictionary"
+  Err.Source = strClassHelpers & "MergeDictionary"
   If ErrorChecker(Err) = False Then
     Resume
   Else

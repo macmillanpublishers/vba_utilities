@@ -301,6 +301,10 @@ End Function
 ' end of every macro?
 
 Sub GlobalCleanup()
+  Application.DisplayAlerts = wdAlertsAll
+  Application.ScreenUpdating = True
+  Application.ScreenRefresh
+  On Error GoTo 0
   ' Halts ALL execution, resets all variables, unloads all userforms, etc.
   End
 End Sub
@@ -614,24 +618,17 @@ Public Function IsStyleInUse(StyleName As String) As Boolean
   Call genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = ""
-    .Replacement.Text = ""
-    .Forward = True
-    .Wrap = wdFindStop
     .Format = True
     .Style = ActiveDocument.Styles(StyleName)
-    .MatchCase = False
-    .MatchWholeWord = False
-    .MatchWildcards = False
-    .MatchSoundsLike = False
-    .MatchAllWordForms = False
+    .Execute
+    
+    If .Found = True Then
+      IsStyleInUse = True
+    Else
+      IsStyleInUse = False
+    End If
   End With
   
-  If activeDoc.Find.Execute = True Then
-    IsStyleInUse = True
-  Else
-    IsStyleInUse = False
-  End If
-
   Exit Function
 IsStyleInUseError:
   Err.Source = strModule & "IsStyleInUse"
@@ -740,6 +737,7 @@ Public Function ParaIndex(Optional UseEnd As Boolean = True) As Long
     ParaIndex = activeDoc.Range(0, Selection.End).Paragraphs.Count
   Else
     ParaIndex = activeDoc.Range(0, Selection.Start).Paragraphs.Count
+  End If
   Exit Function
 ParaIndexError:
   Err.Source = strModule & "ParaIndex"
@@ -1075,13 +1073,13 @@ Sub CreateTextFile(strText As String, suffix As String)
 End Sub
 
 Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
-  As String
+  As Variant
   If activeDoc Is Nothing Then
     Set activeDoc = ActiveDocument
   End If
   
   Dim fCount As Integer
-  Dim styleArray() As String
+  Dim styleArray() As Variant
 
   fCount = 0
   
@@ -1124,7 +1122,7 @@ Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
   Loop
       
   If fCount = 0 Then
-      ReDim Preserve styleArray(1 To 1)
+      ReDim styleArray(1 To 1)
       styleArray(1) = ""
   End If
   
@@ -1207,7 +1205,7 @@ Public Function StyleReplace(SearchStyle As String, ReplaceStyle As String) As _
   Exit Function
   
 StyleReplaceError:
-  Err.Source = strReports & "StyleReplace"
+  Err.Source = strModule & "StyleReplace"
   If ErrorChecker(Err, ReplaceStyle) = False Then
     Resume
   Else

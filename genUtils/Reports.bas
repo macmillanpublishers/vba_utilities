@@ -105,7 +105,7 @@ ReportsStartupError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -115,7 +115,7 @@ End Function
 ' called if ErrorChecker returns false. Again, some day would work better as
 ' a class with a legit Class_Terminate procedure.
 
-Private Sub ReportsTerminate()
+Public Sub ReportsTerminate()
   Dim lngErrNumber As Long
   Dim strErrDescription As String
   Dim strErrSource As String
@@ -181,7 +181,7 @@ Private Sub ReportsTerminate()
     ' don't close any macro templates, might be running code.
     strExt = VBA.Right(objDoc.Name, InStr(StrReverse(objDoc.Name), "."))
     If strExt <> ".dotm" Then
-      objDoc.Close saveValue
+      objDoc.Close wdDoNotSaveChanges
     End If
   Next objDoc
 
@@ -200,7 +200,7 @@ End Sub
 Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   genUtils.Dictionary
 
-  On Error GoTo StyleDictionaryError
+  On Error GoTo StyleCheckError
   
 ' At some point will also have to loop through active stories (EN. FN)
 ' Also `dictStyles` must be declared as global var.
@@ -213,6 +213,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   dictReturn.Add "unstyledCount", 0    ' for now, just a count. can add more data later
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
+'  Debug.Print "Total paragraphs: " & lngParaCt
   Dim strStyle As String
   Dim A As Long
   
@@ -226,9 +227,9 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
       Exit For
     End If
     
-'    If A Mod 200 = 0 Then
-'      Debug.Print "Paragraph " & A
-'    End If
+    If A Mod 200 = 0 Then
+      Debug.Print "Paragraph " & A
+    End If
 
   ' Get style name
     strStyle = activeDoc.Paragraphs(A).Style
@@ -280,11 +281,11 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   dictReturn.Item("uniqueStyles") = dictStyles.Count
   dictReturn.Item("percentStyled") = lngPercent
   
-  Set StyleDictionary = dictReturn
+  Set StyleCheck = dictReturn
   Exit Function
 
-StyleDictionaryError:
-  Err.Source = strReports & "StyleDictionary"
+StyleCheckError:
+  Err.Source = strReports & "StyleCheck"
   If ErrorChecker(Err, strBodyStyle) = False Then
     Resume
   Else
@@ -311,7 +312,7 @@ Public Function IsbnCheck() As genUtils.Dictionary
   ' Search for unstyled ISBN (returns tagged with bookmarks)
     Dim blnUnstyled As Boolean
     Dim arrISBN() As String
-    arrISBN = IsbnSearch(ReturnArray:=True)
+    arrISBN = IsbnSearch(ReturnString:=False)
     If genUtils.IsArrayEmpty(arrISBN) = True Then
       blnUnstyled = False
     Else
@@ -345,11 +346,11 @@ Public Function IsbnCheck() As genUtils.Dictionary
   Call genUtils.Reports.ISBNcleanup
   
 ' Read tagged isbns
-  Dim isbnArray() As String   ' Even though they ARE numbers, keep as string
+  Dim isbnArray() As Variant  ' Even though they ARE numbers, keep as string
   isbnArray = genUtils.GeneralHelpers.GetText(strIsbnStyle, True)
 
 ' Add that this completed successfully
-  If genUtils.GeneralHelpers.IsArrayEmpty(isbnArray) = True Then
+  If genUtils.GeneralHelpers.IsArrayEmpty(isbnArray) = False Then
     dictReturn.Item("pass") = True
     dictReturn.Add "list", isbnArray
   Else
@@ -365,7 +366,7 @@ IsbnCheckError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -458,7 +459,7 @@ IsbnSearchError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -502,7 +503,7 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   Dim key1 As Variant
   Dim lngCurrentStart As Long
   Dim lngStartPara As Long: lngStartPara = 1  ' Default if not found
-  For Each key1 In dictStyles
+  For Each key1 In dictStyles.Keys
     If InStr(key1, strInfoSection) > 0 Then
       lngCurrentStart = dictStyles(key1).Item("startPara")
       ' Should return LAST paragraph with that section's style.
@@ -516,7 +517,7 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   ' Once entered, new para takes index of lngStartPara.
   Dim rngNew As Range
   Set rngNew = activeDoc.Paragraphs(lngStartPara).Range
-  rngNew.InsertBefore = strNewText
+  rngNew.InsertBefore (strNewText)
   rngNew.Style = strInfoStyle
   
   ' ISBN also needs character style
@@ -531,7 +532,7 @@ AddBookInfoError:
   If ErrorChecker(Err, strInfoStyle) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -551,6 +552,9 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   End With
 
   Dim blnTitle As Boolean
+  Dim lngTitleCount As Long
+  Dim strTitle As String
+  Dim lngCount As Long: lngCount = 0
   Dim blnAuthor As Boolean
 
 ' Does Book Title exist?
@@ -558,6 +562,32 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   dictReturn.Item("bookTitleExists") = blnTitle
   If blnTitle = False Then
     dictReturn.Item("bookTitleAdded") = AddBookInfo(bk_Title)
+  Else
+    ' Is it more than one line?
+    lngTitleCount = dictStyles(strBookTitle)("count")
+    If lngTitleCount > 1 Then
+      genUtils.zz_clearFind
+      activeDoc.Select
+      Selection.HomeKey Unit:=wdStory
+      With Selection
+        .Find.Format = True
+        .Find.Style = strBookTitle
+        .Find.Execute
+        
+        Do While .Find.Found = True And lngCount < 50
+          lngCount = lngCount + 1
+          .MoveDown Unit:=wdParagraph, Extend:=wdMove
+          .Expand wdParagraph
+          If .Style = strBookTitle Then
+            .MoveUp Unit:=wdParagraph, Count:=2, Extend:=wdMove
+            .Expand wdParagraph
+            .Characters.Last.Delete
+            .InsertAfter " "
+          End If
+          .Find.Execute
+        Loop
+      End With
+    End If
   End If
 
 ' Does Author Name exist?
@@ -578,7 +608,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   Exit Function
   
 TitlepageCheckError:
-  Err.Source strReports & "TitlepageCheck"
+  Err.Source = strReports & "TitlepageCheck"
   If ErrorChecker(Err) = False Then
     Resume
   Else
@@ -651,7 +681,7 @@ Private Function StyleCleanup() As genUtils.Dictionary
       strNewStyle = VBA.LTrim(VBA.Replace(strFmEpis(X), "FM", "", _
         Compare:=vbTextCompare))
       blnSuccess = genUtils.GeneralHelpers.StyleReplace(strFmEpis(X), strNewStyle)
-      dictReturn.Add "convertFmEpi", blnSuccess
+      dictReturn.Add "convertFmEpi" & X, strNewStyle
     End If
   Next X
 
@@ -683,11 +713,12 @@ Private Function StyleCleanup() As genUtils.Dictionary
 ' function to search for all half titles, add headings/breaks.) Note that any
 ' extra page breaks will get cleaned up in `PageBreakCleanup` function.
   genUtils.zz_clearFind
+  strNewStyle = strHalftitle
   With activeDoc.Range.Find
     .Text = "*"
     .Replacement.Text = ""
     .Format = True
-    .Style = strHalftitle
+    .Style = strNewStyle
     .MatchWildcards = True
     .Execute Replace:=wdReplaceAll
   
@@ -706,10 +737,10 @@ Private Function StyleCleanup() As genUtils.Dictionary
 
 StyleCleanupError:
   Err.Source = strReports & "StyleCleanup"
-  If ErrorChecker(Err, strNewEpi) = False Then
+  If ErrorChecker(Err, strNewStyle) = False Then
     Resume
   Else
-    Call Reports.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -722,40 +753,47 @@ Private Function IsHeading(StyleName As String) As Boolean
 ' Hard code for now. `dictHeadings` is global scope so only have to create once
   If dictHeadings Is Nothing Then
     Set dictHeadings = New Dictionary
+  ' Value arg not optional. Change to True if found (maybe helpful in future).
     With dictHeadings
-      .Add "Front Sales Quote Head (fsqh)"
-      .Add "FM Head (fmh)"
-      .Add "FM Title (fmt)"
-      .Add "Fm Head ALT (afmh)"
-      .Add "Chap Title (ct)"
-      .Add "Chap Number (cn)"
-      .Add "Chap Title Nonprinting (ctnp)"
-      .Add "Part Title (pt)"
-      .Add "Part Number (pn)"
-      .Add "BM Head (bmh)"
-      .Add "BM Title (bmt)"
-      .Add "BM Head ALT (abmh)"
-      .Add "Appendix Head (aph)"
-      .Add "About Author Text Head (atah)"
-      .Add "Series Page Heading (sh)"
-      .Add "Ad Card Main Head (acmh)"
-      .Add "Recipe Head (rh)"
-      .Add "Sub-Recipe Head (srh)"
-      .Add "Recipe Var Head (rvh)"
-      .Add "Poem Subtitle (vst)"
-      .Add "Poem Title (vt)"
+      .Add "Front Sales Quote Head (fsqh)", False
+      .Add "FM Head (fmh)", False
+      .Add "FM Title (fmt)", False
+      .Add "Fm Head ALT (afmh)", False
+      .Add "Chap Title (ct)", False
+      .Add "Chap Number (cn)", False
+      .Add "Chap Title Nonprinting (ctnp)", False
+      .Add "Part Title (pt)", False
+      .Add "Part Number (pn)", False
+      .Add "BM Head (bmh)", False
+      .Add "BM Title (bmt)", False
+      .Add "BM Head ALT (abmh)", False
+      .Add "Appendix Head (aph)", False
+      .Add "About Author Text Head (atah)", False
+      .Add "Series Page Heading (sh)", False
+      .Add "Ad Card Main Head (acmh)", False
+      .Add "Recipe Head (rh)", False
+      .Add "Sub-Recipe Head (srh)", False
+      .Add "Recipe Var Head (rvh)", False
+      .Add "Poem Subtitle (vst)", False
+      .Add "Poem Title (vt)", False
     End With
   End If
   
 ' So just see if our style is one of these styles
-  IsHeading = dictHeadings.Exists(StyleName)
+  Dim blnResult As Boolean
+  blnResult = dictHeadings.Exists(StyleName)
+  If blnResult = True Then
+    dictHeadings.Item(StyleName) = True
+  End If
+  IsHeading = blnResult
   Exit Function
+
 IsHeadingError:
   Err.Source = strReports & "IsHeading"
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Cell genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -828,7 +866,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   rngPara.InsertBefore (strSectionName)
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
-  rngPara.Paragraphs(1) = strChapNonprinting
+  rngPara.Paragraphs(1).Style = strChapNonprinting
 
 ' Verify we added a paragraph
   Dim lngNewParas As Long
@@ -841,11 +879,11 @@ Private Function AddHeading(paraInd As Long) As Boolean
   Exit Function
   
 AddHeadingError:
-  Err.Source strReports & "AddHeading"
+  Err.Source = strReports & "AddHeading"
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -876,6 +914,24 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
       dictReturn.Add "pageBrkReplace", True
     Else
       dictReturn.Add "pageBrkReplace", False
+    End If
+  End With
+
+' If we had an unstyled page break char, new trailing ^p is wrong style
+' Use this to make sure all correct style.
+  genUtils.zz_clearFind
+  With activeDoc.Range.Find
+    .Text = "^m^13{1,}"
+    .Replacement.Text = "^m^p"
+    .Format = True
+    .MatchWildcards = True
+    .Replacement.Style = strPageBreak
+    .Execute Replace:=wdReplaceAll
+    
+    If .Found = True Then
+      dictReturn.Add "pageBrkReplace2", True
+    Else
+      dictReturn.Add "pageBrkReplace2", False
     End If
   End With
 
@@ -945,6 +1001,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
   genUtils.zz_clearFind
   Selection.HomeKey Unit:=wdStory
   With Selection.Find
+    .Text = ""
     .Style = strPageBreak
     .Execute
     
@@ -952,6 +1009,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Loop counter
       lngCount = lngCount + 1
       lngParaInd = genUtils.GeneralHelpers.ParaIndex
+'      Debug.Print "Section start: " & lngParaInd
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
@@ -963,6 +1021,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
           End If
         End If
       End If
+      .Execute
     Loop
   End With
   
@@ -987,7 +1046,7 @@ PageBreakCheckError:
   If ErrorChecker(Err, strPageBreak) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -999,7 +1058,7 @@ Private Function SectionHeadInd() As Variant
   On Error GoTo SectionHeadIndError
   Dim strCurrentStyle As String
   Dim blnIsHeading As Boolean
-  Dim paraInd() As Long
+  Dim paraInd() As Variant
   Dim lngParaCount As Long: lngParaCount = activeDoc.Paragraphs.Count
 ' P = current paragraph, Q = paraInd() upper-bound
   Dim P As Long, Q As Long
@@ -1010,12 +1069,13 @@ Private Function SectionHeadInd() As Variant
   Q = 0
   Do Until P > lngParaCount
     strCurrentStyle = activeDoc.Paragraphs(P).Style
+'    Debug.Print strCurrentStyle
     If IsHeading(strCurrentStyle) = True Then
     ' This is the FIRST heading paragraph in a row, add to output array
       Q = Q + 1
       ReDim Preserve paraInd(1 To Q)
       paraInd(Q) = P
-      
+'      Debug.Print "Heading index: " & P
     ' Loop until we find the next paragraph that is NOT a heading (assumes that
     ' allowable heading sections are all grouped together. Would get confused
     ' if someone throws in a non-heading style between headings!
@@ -1036,11 +1096,11 @@ Private Function SectionHeadInd() As Variant
   Exit Function
 
 SectionHeadIndError:
-  Err.Source = strReports = "SectionHeadInd"
+  Err.Source = strReports & "SectionHeadInd"
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -1052,7 +1112,7 @@ Private Function SectionRange(ParaIndexArray() As Variant) As Variant
   On Error GoTo SectionRangeError
   Dim rangeArray() As Variant
   Dim rngSection As Range
-  Dim lngParaCount As activeDoc.Paragraphs.Count
+  Dim lngParaCount As Long: lngParaCount = activeDoc.Paragraphs.Count
   
   Dim lngLBound As Long
   Dim lngUBound As Long
@@ -1069,15 +1129,29 @@ Private Function SectionRange(ParaIndexArray() As Variant) As Variant
   For G = lngLBound To lngUBound
   ' Determine start and end section index numbers
     lngStart = ParaIndexArray(G)
+'    Debug.Print lngStart
     If G < lngUBound Then
-      lngEnd = ParaIndexArray(G + 1)
+      lngEnd = ParaIndexArray(G + 1) - 1
     Else
       lngEnd = lngParaCount
     End If
+'    Debug.Print lngEnd
+    Dim lngColor As Long
   ' Set range based on those start/end points
     With activeDoc
       Set rngSection = .Range(Start:=.Paragraphs(lngStart).Range.Start, _
         End:=.Paragraphs(lngEnd).Range.End)
+      
+'      ' DEBUGGING
+'      If G Mod 2 = 0 Then
+'        lngColor = wdColorAqua
+'      Else
+'        lngColor = wdColorPink
+'      End If
+'      rngSection.Shading.BackgroundPatternColor = lngColor
+'    ' DEBUGGING
+    
+    
     End With
   ' Add range to array
     Set rangeArray(G) = rngSection
@@ -1091,7 +1165,7 @@ SectionRangeError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -1107,13 +1181,17 @@ Public Function HeadingCheck() As genUtils.Dictionary
   dictReturn.Add "pass", False
 
 ' Get paragraph indices of section start paragraphs
-  Dim rngParaInd As Variant
-  Set rngParaInd = SectionInd()
+  Dim rngParaInd() As Variant
+'  Debug.Print "SectionHeadInd start"
+  rngParaInd = SectionHeadInd
+'  Debug.Print "SectionHeadInd stop"
 
 ' Create array of ranges of each section
   Dim rngSections() As Variant
-  Set rngSections = SectionRange(rngParaInd)
-
+'  Debug.Print "SectionRange start"
+  rngSections = SectionRange(rngParaInd)
+'  Debug.Print "SectionRange end"
+  
 ' Loop through section ranges
   Dim D As Long
   Dim rngSect As Range
@@ -1126,15 +1204,39 @@ Public Function HeadingCheck() As genUtils.Dictionary
   Dim lngChapCount As Long: lngChapCount = 0
   Dim strSectionKey As String
   Dim blnRmCharFormat As Boolean
-  
-  For D = LBound(rngSections) To UBound(rngSections)
+  Dim blnChapterNumber As Boolean: blnChapterNumber = False
+
+  For D = UBound(rngSections) To LBound(rngSections) Step -1
+    ' Replace with error message for infinite loop
+    If D > 200 Then
+      Debug.Print "Section loop exit!"
+    End If
+
     strSectionKey = "section" & D
+'    Debug.Print strSectionKey
+    
     Set rngSect = rngSections(D)
+    
+'    '' DEBUGGING
+'    Dim lngColor As Long
+'    If D Mod 2 = 0 Then
+'      lngColor = wdColorGold
+'    Else
+'      lngColor = wdColorGreen
+'    End If
+'
+'    rngSect.Shading.BackgroundPatternColor = lngColor
+'    '' DEBUGGING
+    
     Set rngFirst = rngSect.Paragraphs(1).Range
     Set rngSecond = rngSect.Paragraphs(2).Range
+
   ' Get style of first and second paragraphs
-    strFirstStyle = rngFirst.Style
-    strSecondStyle = rngSecond.Style
+    strFirstStyle = rngFirst.ParagraphStyle
+    strSecondStyle = rngSecond.ParagraphStyle
+'    Debug.Print strFirstStyle
+'    Debug.Print strSecondStyle
+
   ' Get text of first and second paragraphs, without final paragraph return
     strFirstText = Left(rngFirst.Text, Len(rngFirst.Text) - 1)
     strSecondText = Left(rngSecond.Text, Len(rngSecond.Text) - 1)
@@ -1151,10 +1253,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
         Else
         ' Is that text just "Chapter" with no numbers?
           If strFirstText = "Chapter" Then
-            lngChapCount = lngChapCount + 1
-            strFirstText = strFirstText & " " & lngChapCount
-            rngFirst.Text = strFirstText
-            dictReturn.Add strSectionKey & "AddChapNum", strFirstText
+            blnChapterNumber = True
           End If
         End If
         
@@ -1195,6 +1294,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
         dictReturn.Add strSectionKey & "BmhCleanUp", blnRmCharFormat
 
       Case strChapTitle
+        dictReturn.Add strSectionKey & "FirstStyle", strChapTitle
       ' Is next para CN?
         If strSecondStyle = strChapNumber Then
         ' Remove any character styles
@@ -1208,7 +1308,8 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
   
       Case strPartTitle
-      ' Is next para PN?
+        dictReturn.Add strSectionKey & "FirstStyle", strPartTitle
+        ' Is next para PN?
         If strSecondStyle = strPartNumber Then
         ' Remove any character styles
           blnRmCharFormat = ChapNumCleanUp(StyleName:=strPartNumber, SearchRange:=rngSecond)
@@ -1221,6 +1322,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
 
       Case strFmTitle
+      dictReturn.Add strSectionKey & "FirstStyle", strFmTitle
       ' Is next para FMH?
         If strSecondStyle = strFmHead Then
         ' Remove any character styles
@@ -1231,9 +1333,13 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.Collapse (wdCollapseStart)
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "FmTitleSwap", True
+        Else
+          rngFirst.Style = strFmHead
+          dictReturn.Add strSectionKey & "FmtToFmh", True
         End If
       
       Case strBmTitle
+      dictReturn.Add strSectionKey & "FirstStyle", strBmTitle
       ' Is next para BMH?
         If strSecondStyle = strBmHead Then
         ' Remove any character styles
@@ -1244,20 +1350,52 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.Collapse (wdCollapseStart)
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "BmTitleSwap", True
+        Else
+          rngFirst.Style = strBmHead
+          dictReturn.Add strSectionKey & "BmtToBmh", True
         End If
     End Select
   
   ' Add styled section breaks to end of range. Do last; `.Collapse` changes rng
-    With rngSect
-     .Collapse Direction:=wdCollapseEnd
-     .InsertBreak Type:=wdSectionBreakNextPage
-     .Style = strPageBreak
-     dictReturn.Add strSectionKey & "AddSectionBreak", True
-    End With
+  ' Don't add to final range, though
+    If D < UBound(rngSections) Then
+      With rngSect
+       .Collapse Direction:=wdCollapseEnd
+       .InsertAfter vbNewLine
+  ' If need breaks: collapse, move 1 char left, insert continuous
+  ' then insert page break (no new line)
+  ' at end of loop, style all PB paragraphs as PB style
+  '     .InsertBreak Type:=wdSectionBreakContinuous
+  '     .InsertBreak Type:=wdPageBreak
+       .Style = strPageBreak
+       dictReturn.Add strSectionKey & "AddSectionBreak", True
+      End With
+    End If
   Next D
+
+' Add chapter numbers in separate step, because we are looping ranges backwards
+  genUtils.zz_clearFind
+  activeDoc.Select
+  Selection.HomeKey Unit:=wdStory
+  With Selection.Find
+    .Text = "Chapter^p"
+    .Format = True
+    .Style = strChapNonprinting
+    .Forward = True
+    .Execute
+
+    Do While .Found = True And lngChapCount < 100
+      lngChapCount = lngChapCount + 1
+      strFirstText = "Chapter " & lngChapCount
+      Selection.Text = strFirstText & vbNewLine
+      Selection.Style = strChapNonprinting
+      dictReturn.Add "AddChapNum" & lngChapCount, strFirstText
+      .Execute
+    Loop
+  End With
   
 ' Reset Note Options to restart numbering at each section?
-
+  dictReturn.Item("pass") = True
   Set HeadingCheck = dictReturn
   Exit Function
   
@@ -1266,7 +1404,7 @@ HeadingCheckError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -1292,10 +1430,15 @@ Public Function IllustrationCheck() As genUtils.Dictionary
   ' Replace text of all paragraphs with that style
     genUtils.zz_clearFind
     With activeDoc.Range.Find
-      .Replacement.Text = strPlaceholder
+      .Text = ""
+      .Replacement.Text = "^p"
       .Format = True
       .Style = strIllustrationHolder
-      .Replacement.Style = strIllustrationHolder
+      .Execute Replace:=wdReplaceAll
+' Two steps: remove text (except para return), then add new text
+' Don't call clearFind, want to maintain style info.
+      .Text = "^p"
+      .Replacement.Text = "tk.jpg^p"
       .Execute Replace:=wdReplaceAll
       
       If .Found = True Then
@@ -1317,7 +1460,7 @@ IllustrationCheckError:
   If ErrorChecker(Err) = False Then
     Resume
   Else
-    Call genUtils.ReportsTerminate
+    Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
@@ -2931,32 +3074,36 @@ Private Function ChapNumCleanUp(Optional StyleName As String = strChapNumber, _
     activeDoc.Select
   Else
     SearchRange.Select
+'    Debug.Print SearchRange.Paragraphs.Count
   End If
 
-' Move selection back to start of document
-  Selection.HomeKey Unit:=wdStory
+' Move selection back to start of RANGE
+  Selection.Collapse wdCollapseStart
   genUtils.GeneralHelpers.zz_clearFind
 
   Dim intCount As Long
   intCount = 0
   With Selection.Find
     .Forward = True
-    .Wrap = wdFindStop
     .Format = True
     .Style = StyleName
+    .Execute
   ' < 1000 to prevent infinite loop
-    Do While .Execute(Forward:=True) = True And intCount < 1000
-      ChapNumCleanUp
-      intCount = intCount + 1
+'    Do While .Found = True And intCount < 1000
+''      ChapNumCleanUp
+'      intCount = intCount + 1
       #If Mac Then
       ' Mac 2011 doesn't support ClearCharacterFormattingAll method
       ' And ClearFormatting removes paragraph formatting as well
         Selection.ClearFormatting
         Selection.Style = StyleName
       #Else
-        Selection.ClearCharacterAllFormatting
+        Selection.ClearCharacterDirectFormatting
+        Selection.Style = "Default Paragraph Font"
+'        Selection.ClearCharacterAllFormatting
       #End If
-    Loop
+'      Selection.Collapse wdCollapseEnd
+'    Loop
   End With
 
   Exit Function
@@ -2966,7 +3113,7 @@ ChapNumCleanUpError:
   If ErrorChecker(Err, StyleName) = False Then
     Resume
   Else
-    genUtils.ReportsTerminate
+    genUtils.Reports.ReportsTerminate
   End If
 End Function
 

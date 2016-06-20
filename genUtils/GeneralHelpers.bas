@@ -280,11 +280,11 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     blnNotifyUser = False
   End If
   
-  If blnNotifyUser = True Then
-      strErrMessage = strErrMessage & vbNewLine & vbNewLine & strHelpContact
-      MsgBox Prompt:=strErrMessage, Buttons:=vbExclamation, Title:= _
-          "Macmillan Tools Error"
-  End If
+'  If blnNotifyUser = True Then
+'      strErrMessage = strErrMessage & vbNewLine & vbNewLine & strHelpContact
+'      MsgBox Prompt:=strErrMessage, Buttons:=vbExclamation, Title:= _
+'          "Macmillan Tools Error"
+'  End If
   Exit Function
 
 ErrorCheckerError:

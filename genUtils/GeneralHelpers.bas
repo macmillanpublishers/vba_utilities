@@ -51,6 +51,7 @@ Public Enum MacError
     err_LogReadOnly = 20021
     err_DirectoryMissing = 20022
     err_ParaIndexInvalid = 20023
+    err_BacktickCharFound = 20024
 End Enum
 
 ' ===== ErrorChecker ==========================================================
@@ -237,6 +238,10 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     Case MacError.err_ParaIndexInvalid
       strErrDescription = "The requested paragraph is out of range."
       strErrMessage = strErrDescription
+    Case MacError.err_BacktickCharFound
+      srtErrDescription = "Backtick (`) character found in manuscript. A " & _
+        "macro was probably run before and failed."
+      strErrMessage = strErrDescription
     Case Else
       strErrDescription = "Undocumented error - " & strErrDescription
       strErrMessage = "Not sure what's going on here."
@@ -257,16 +262,21 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
   Dim strTimeStamp As String
   Dim strErrLog As String
   Dim strFileName As String
-  
+
+' Check activeDoc:
+  If activeDoc Is Nothing Then
+    Set activeDoc = ActiveDocument
+  End If
+
   ' Write error log to same location as current file.
   ' Format date so it can be part of file name. Only including date b/c users
   ' will likely run things repeatedly before asking for help, and don't want
   ' to generate a bunch of files if include time as well.
-  strFileName = Replace(Right(ActiveDocument.Name, InStr(StrReverse(ActiveDocument. _
-    Name), ".") - 1), " ", "")
+  strFileName = Replace(Right(ActiveDocument.Name, InStrRev(activeDoc.Name, _
+    ".") - 1), " ", "")
   strErrLog = ActiveDocument.Path & Application.PathSeparator & "ALERT_" & _
     strFileName & "_" & Format(Date, "yyyy-mm-dd") & ".txt"
-    Debug.Print strErrLog
+'    Debug.Print strErrLog
   ' build error message, including timestamp
   strErrMsg = Format(Time, "hh:mm:ss - ") & strErrSource & vbNewLine & _
       lngErrNumber & ": " & strErrDescription & vbNewLine
@@ -670,6 +680,7 @@ Public Sub AppendTextFile(TextFile As String, Contents As String)
   On Error GoTo AppendTextFileError
   Dim FileNum As Integer
 ' Will create file if not exist, but parent dir must exist
+  TextFile = VBA.Replace(TextFile, "/", Application.PathSeparator)
   If ParentDirExists(TextFile) = True Then
     FileNum = FreeFile ' next file number
     Open TextFile For Append As #FileNum
@@ -689,6 +700,36 @@ AppendTextFileError:
     Call genUtils.GeneralHelpers.GlobalCleanup
   End If
 End Sub
+
+Public Function SetPathSeparator(strOrigPath As String) As String
+' Must pass full path, throws error if no path separators found.
+  On Error GoTo SetPathSeparatorError
+  Dim strFinalPath As String
+  strFinalPath = strOrigPath
+  
+  Dim strCharacter(1 To 3) As String
+  strCharacter(1) = ":"
+  strCharacter(2) = "/"
+  strCharacter(3) = "\"
+  
+  Dim A As Long
+  For A = LBound(strCharacter) To UBound(strCharacter)
+    If InStr(strOrigPath, A) > 0 Then
+      strFinalPath = VBA.Replace(strFinalPath, A, Application.PathSeparator)
+    End If
+  Next A
+  
+  SetPathSeparator = strFinalPath
+  Exit Function
+  
+SetPathSeparatorError:
+  Err.Source = strModule & "SetPathSeparator"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function
 
 Public Function CheckLog(StyleDir As String, LogDir As String, LogPath As String) As Boolean
 'LogPath is *full* path to log file, including file name. Created by CreateLogFileInfo sub, to be called before this one.

@@ -13,8 +13,13 @@ Option Base 1
 Private activeRng As Range
 Private Const strCleanup As String = "genUtils.CleanupMacro."
 
-Sub MacmillanManuscriptCleanup()
+Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   On Error GoTo MacmillanManuscriptCleanupError
+' Just checking if it finishes at all for now. Can convert to a more detailed
+' set of tests later.
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
 
   '----------Timer Start-----------------------------
   'Dim StartTime As Double
@@ -31,13 +36,13 @@ Sub MacmillanManuscriptCleanup()
   ' True means a check failed (e.g., doc protection on)
   If StartupSettings(StoriesUsed:=stStories) = True Then
     Call genUtils.GeneralHelpers.CleanUp
-    Exit Sub
+    Exit Function
   End If
   
   ' Change to just check for backtick characters
   If zz_errorChecks = True Then
     Call genUtils.GeneralHelpers.CleanUp
-    Exit Sub
+    Exit Function
   End If
       
   '--------Progress Bar--------------------------------------------------------
@@ -199,8 +204,9 @@ Sub MacmillanManuscriptCleanup()
     
     'Notify user in seconds
     '  Debug.Print "This code ran successfully in " & SecondsElapsed & " seconds"
-
-  Exit Sub
+  dictReturn.Item("pass") = True
+  Set MacmillanManuscriptCleanup = dictReturn
+  Exit Function
 
 MacmillanManuscriptCleanupError:
   Err.Source = strCleanup & "MacmillanManuscriptCleanup"
@@ -209,7 +215,7 @@ MacmillanManuscriptCleanupError:
   Else
     Call genUtils.GeneralHelpers.GlobalCleanup
   End If
-End Sub
+End Function
 
 
 Private Sub RmNonWildcardItems(StoryType As WdStoryType)                                             'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var

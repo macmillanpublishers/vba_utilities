@@ -19,7 +19,11 @@ Option Base 1
 Private Const strCharStyles As String = "genUtils.CharacterStyles."
 Dim activeRng As Range
 
-Sub MacmillanCharStyles()
+Public Function MacmillanCharStyles() As genUtils.Dictionary
+  On Error GoTo MacmillanCharStylesError
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New Dictionary
+  dictReturn.Add "pass", False
   
   Dim CharacterProgress As ProgressBar
   Set CharacterProgress = New ProgressBar
@@ -28,8 +32,19 @@ Sub MacmillanCharStyles()
   
   Call genUtils.CharacterStyles.ActualCharStyles(oProgressChar:= _
     CharacterProgress, StartPercent:=0, TotalPercent:=1)
+  
+  dictReturn.Item("pass") = True
+  Set MacmillanCharStyles = dictReturn
+  Exit Function
 
-End Sub
+MacmillanCharStylesError:
+  Err.Source = strCharStyles & "MacmillanCharStyles"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function
 
 Sub ActualCharStyles(oProgressChar As ProgressBar, StartPercent As Single, _
   TotalPercent As Single)

@@ -10,7 +10,8 @@ Attribute VB_Name = "CleanupMacro"
 Option Explicit
 Option Base 1
 
-Dim activeRng As Range
+Private activeRng As Range
+Private Const strCleanup As String = "genUtils.CleanupMacro."
 
 Sub MacmillanManuscriptCleanup()
 
@@ -280,7 +281,7 @@ Sub MacmillanManuscriptCleanup()
     Call CleanUp
     Unload oProgressCleanup
     
-    MsgBox "Hurray, the Macmillan Cleanup macro has finished running! Your manuscript looks great!"                                 'v. 3.1 patch / request  v. 3.2 made a little more fun
+'    MsgBox "Hurray, the Macmillan Cleanup macro has finished running! Your manuscript looks great!"                                 'v. 3.1 patch / request  v. 3.2 made a little more fun
     
     '----------------Timer End-----------------
     'Determine how many seconds code took to run
@@ -619,7 +620,7 @@ Private Sub FixUnderlines(StoryType As WdStoryType)
 End Sub
 
 Function zz_errorChecks()
-
+  On Error GoTo zz_errorChecksError
     zz_errorChecks = False
 
     '-----test if backtick style tag already exists
@@ -646,12 +647,21 @@ Function zz_errorChecks()
     Next
 
     If foundBad = True Then                'If activeRng.Find.Execute Then
-        MsgBox "Something went wrong! The macro cannot be run on Document:" & vbNewLine & "'" & activeDoc & _
-            "'" & vbNewLine & vbNewLine & "Please contact Digital Workflow group for support, I am sure they will " & _
-            "be happy to help.", , "Error Code: 3"
+'        MsgBox "Something went wrong! The macro cannot be run on Document:" & vbNewLine & "'" & activeDoc & _
+'            "'" & vbNewLine & vbNewLine & "Please contact Digital Workflow group for support, I am sure they will " & _
+'            "be happy to help.", , "Error Code: 3"
         zz_errorChecks = True
+        Err.Raise MacError.err_BacktickCharFound
     End If
-
+    Exit Function
+    
+zz_errorChecksError:
+  Err.Source = strCleanup & "zz_errorChecks"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 

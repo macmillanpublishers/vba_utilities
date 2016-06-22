@@ -13,7 +13,10 @@ Attribute VB_Name = "CharacterStyles"
 Option Explicit
 Option Base 1
 
+Private Const strCharStyles As String = "genUtils.CharacterStyles."
 Dim activeRng As Range
+
+
 
 Sub MacmillanCharStyles()
     
@@ -230,7 +233,7 @@ Sub ActualCharStyles(oProgressChar As ProgressBar, StartPercent As Single, Total
     If TotalPercent = 1 Then
         Call CleanUp
         Unload oProgressChar
-        MsgBox "Macmillan character styles have been applied throughout your manuscript."
+'        MsgBox "Macmillan character styles have been applied throughout your manuscript."
     End If
     
     
@@ -299,8 +302,6 @@ Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
         End With
 NextLoop:
     Next
-    
-    On Error GoTo 0
     Exit Sub
     
 BreaksStyleError:
@@ -455,8 +456,6 @@ Private Sub TagExistingCharStyles(StoryType As WdStoryType)
         End With
 NextLoop:
     Next
-    
-    On Error GoTo 0
     Exit Sub
     
 CharStyleError:
@@ -541,6 +540,8 @@ Private Sub LocalStyleTag(StoryType As WdStoryType)
 End Sub
 
 Private Sub LocalStyleReplace(StoryType As WdStoryType, BkmkrStyles As Variant)
+  On Error GoTo LocalStyleReplaceError
+  
     Set activeRng = activeDoc.StoryRanges(StoryType)
     
     ' Determine if we need to do the bookmaker styles thing
@@ -615,9 +616,6 @@ Private Sub LocalStyleReplace(StoryType As WdStoryType, BkmkrStyles As Variant)
         ' because if you append "tighten" or "loosen" to
         ' regular style name, Bookmaker does that.
         If blnCheckBkmkr = True Then
-        
-On Error GoTo BkmkrError
-
             Dim Q As Long
             Dim qCount As Long
             Dim strAction As String
@@ -706,10 +704,10 @@ On Error GoTo ErrorHandler
     
 NextLoop:
     Next
-    
-    On Error GoTo 0
-    
     Exit Sub
+
+' TO DO: Move this to a more universal error handler for missing styles
+' in main ErrorChecker function
 
 ErrorHandler:
 '    Debug.Print Err.Number & ": " & Err.Description
@@ -828,7 +826,7 @@ ErrorHandler:
     
     Exit Sub
 
-BkmkrError:
+LocalStyleReplaceError:
 '    Debug.Print Err.Number & ": " & Err.Description
 '    Debug.Print "New name: " & strNewName
 '    Debug.Print "Old name: " & tagReplaceArray(h)
@@ -846,12 +844,15 @@ On Error GoTo ErrorHandler
         myStyle2.BaseStyle = tagReplaceArray(H)
         ' Then go back to BkmkrError so further errors will route
         ' correctly
-On Error GoTo BkmkrError
+On Error GoTo LocalStyleReplaceError
         Resume
     Else
-        ' something else was the error
-        MsgBox Err.Number & ": " & Err.Description
-        Resume Next
+      Err.Source = strCharStyles & "LocalStyleReplace"
+      If ErrorChecker(Err) = False Then
+        Resume
+      Else
+        Call genUtils.GeneralHelpers.GlobalCleanup
+      End If
     End If
     
 End Sub
@@ -1052,8 +1053,6 @@ On Error GoTo ErrorHandler2
         End If
     Next A
 
-On Error GoTo 0
-
     ' Change Normal (Web) back
     thisDoc.Styles("Normal (Web),_").NameLocal = "Normal (Web)"
 
@@ -1119,7 +1118,7 @@ ErrorHandler1:
 
     Else
         Debug.Print "ErrorHandler1: " & Err.Number & " " & Err.Description
-        On Error GoTo 0
+
         Call CleanUp
         Exit Sub
     End If
@@ -1155,7 +1154,7 @@ On Error GoTo ErrorHandler2
         Resume
     Else
         Debug.Print "ErrorHandler2: " & Err.Number & " " & Err.Description
-        On Error GoTo 0
+
         Call CleanUp
         Exit Sub
     End If
@@ -1164,5 +1163,3 @@ On Error GoTo ErrorHandler2
     
 End Sub
 
-Sub test()
-End Sub

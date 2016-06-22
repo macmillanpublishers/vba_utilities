@@ -234,119 +234,152 @@ End Function
 
 
 Sub ImportAllModules()
-    ' Removes all modules in all open template
-    ' and reimports them from the local Word-template git repo
-    ' SO BE SURE THE MODULES IN THE REPO ARE UP TO DATE
-    
-    Dim oDocument As Document
-    Dim strExtension As String              ' extension of current document
-    Dim strSubDirName As String             ' name of subdirectory of template in repo
-    Dim strDirInRepo(1 To 3) As String      ' declare number of items in array
-    Dim strModuleExt(1 To 3) As String     ' declare number of items in array
-    Dim strModuleFileName As String         ' file name with extension, no path
-    Dim A As Long
-    Dim B As Long
-    Dim Counter As Long
-    Dim VBComp As VBIDE.VBComponent     ' object for module we're importing
-    Dim strFullModulePath As String     ' full path to module with extension
-    Dim strModuleName As String         ' Just the module name w/ no extension
-    Dim tempVBComp As VBIDE.VBComponent ' Temp module to import ThisDocument code
-    Dim currentVBProject As VBIDE.VBProject     ' object of the VB project the modules are in
-    Dim strNewCode As String            ' New code in ThisDocument.cls module
-    
-    For Each oDocument In Documents
-        ' We don't want to run this on this code here
-        If oDocument.Name <> ThisDocument.Name Then
-            strExtension = Right(oDocument.Name, Len(oDocument.Name) - (InStrRev(oDocument.Name, ".") - 1))
-            strSubDirName = Left(oDocument.Name, InStrRev(oDocument.Name, ".") - 1)
-            'Debug.Print "File name is " & oDocument.Name
-            'Debug.Print "Extension is " & strExtension
-            'Debug.Print "Directory is " & strSubDirName
-            
-            ' We just want to work with .dotm and .docm (others can't have macros)
-            If strExtension = ".dotm" Or strExtension = ".docm" Then
-                ' an array of the directories we're going to be adding modules from
-                ' every template gets (1) all modules in its directory and (2) all shared modules
-                ' and (3) all dependencies.
-                strDirInRepo(1) = strRepoPath & Application.PathSeparator & _
-                    strSubDirName & Application.PathSeparator
-                strDirInRepo(2) = strRepoPath & Application.PathSeparator & _
-                    "SharedModules" & Application.PathSeparator
-                strDirInRepo(3) = strRepoPath & Application.PathSeparator & _
-                    "dependencies" & Application.PathSeparator
-                      
-                ' an array of file extensions we're importing, since there are other files in the repo
-                strModuleExt(1) = "bas"
-                strModuleExt(2) = "cls"
-                strModuleExt(3) = "frm"
-                
-                ' Get rid of all code currently in there, so we don't create duplicates
-                Call DeleteAllVBACode(oDocument)
-                
-                ' set the Project object for this document
-                Set currentVBProject = Nothing
-                Set currentVBProject = oDocument.VBProject
-                
-                ' loop through the directories
-                For A = LBound(strDirInRepo()) To UBound(strDirInRepo())
-                    ' for each directory, loop through all files of each extension
-                    For B = LBound(strModuleExt()) To UBound(strModuleExt())
-                        ' Dir function returns first file that matches in that dir
-                        strModuleFileName = Dir(strDirInRepo(A) & "*." & strModuleExt(B))
-                        ' so loop through each file of that extension in that directory
-                        Do While strModuleFileName <> "" And Counter < 100
-                            Counter = Counter + 1               ' to prevent infinite loops
-                            'Debug.Print strModuleFileName
-                            
-                            strModuleName = Left(strModuleFileName, InStrRev(strModuleFileName, ".") - 1)
-                            strFullModulePath = strDirInRepo(A) & strModuleFileName
-                            'Debug.Print "Full path to module is " & strFullModulePath
-                            
-                            ' Resume Next because Set VBComp = current project will cause an error if that
-                            ' module doesn't exist, and it doesn't because we just deleted everything
-                            On Error Resume Next
-                            Set VBComp = Nothing
-                            Set VBComp = currentVBProject.VBComponents(strModuleName)
-                            
-                            ' So if that Set VBComp failed because it doesnt' exist, add it!
-                            If VBComp Is Nothing Then
-                                currentVBProject.VBComponents.Import FileName:=strFullModulePath
-                                Debug.Print strFullModulePath
-                            Else    ' it DOES exist already
-                                ' See then if it's the "ThisDocument" module, which can't be deleted
-                                ' So we can't import because it would just create a duplicate, not replace
-                                If VBComp.Type = vbext_ct_Document Then
-                                    ' sp we'll create a temp module of the module we want to import
-                                    Set tempVBComp = currentVBProject.VBComponents.Import(strFullModulePath)
-                                    ' then delete the content of ThisDocument and replace it with the content
-                                    ' of the temp module
-                                    With VBComp.CodeModule
-                                        .DeleteLines 1, .CountOfLines
-                                        strNewCode = tempVBComp.CodeModule.lines(1, tempVBComp.CodeModule.CountOfLines)
-                                        .InsertLines 1, strNewCode
-                                    End With
-                                    On Error GoTo 0
-                                    ' then remove the temp module
-                                    currentVBProject.VBComponents.Remove tempVBComp
-                                End If
-                            End If
-                            ' calling Dir function again w/ no arguments gets NEXT file that
-                            ' matches original call. If no more files, returns empty string.
-                            strModuleFileName = Dir()
-                        Loop
-                        
-                        'Debug.Print strModuleFileName
-                    Next B
-                Next A
-                
-            End If
+  ' Removes all modules in all open template
+  ' and reimports them from the local Word-template git repo
+  ' SO BE SURE THE MODULES IN THE REPO ARE UP TO DATE
+  
+  Dim oDocument As Document
+  Dim strExtension As String              ' extension of current document
+  Dim strSubDirName As String             ' name of subdirectory of template in repo
+  Dim strDirInRepo() As String      ' declare number of items in array
+  Dim strModuleExt(1 To 3) As String     ' declare number of items in array
+  Dim strModuleFileName As String         ' file name with extension, no path
+  Dim A As Long
+  Dim B As Long
+  Dim Counter As Long
+  Dim VBComp As VBIDE.VBComponent     ' object for module we're importing
+  Dim strFullModulePath As String     ' full path to module with extension
+  Dim strModuleName As String         ' Just the module name w/ no extension
+  Dim tempVBComp As VBIDE.VBComponent ' Temp module to import ThisDocument code
+  Dim currentVBProject As VBIDE.VBProject     ' object of the VB project the modules are in
+  Dim strNewCode As String            ' New code in ThisDocument.cls module
+  Dim strDependencies As String
+  Dim strEachFile As String
+  Dim openTemplates As Collection
+  Set openTemplates = New Collection
+  
+  For Each oDocument In Documents
+    Debug.Print oDocument.Name
+      
+    ' We don't want to run this on this code here
+    If oDocument.Name <> ThisDocument.Name Then
+      ' Separate the name and the extension of the document
+      strExtension = Right(oDocument.Name, Len(oDocument.Name) - _
+          (InStrRev(oDocument.Name, ".") - 1))
+      strSubDirName = Left(oDocument.Name, InStrRev(oDocument.Name, ".") - 1)
+      'Debug.Print "File name is " & oDocument.Name
+      'Debug.Print "Extension is " & strExtension
+      'Debug.Print "Directory is " & strSubDirName
+      
+      ' We just want to work with .dotm and .docm (others can't have macros)
+      If strExtension = ".dotm" Or strExtension = ".docm" Then
+        ' later need to close > copy > open these files, but if we loop
+        ' thru Documents collection, "open" will add file back try again.
+        ' So create Collection to loop once:
+        openTemplates.Add oDocument
         
-            ' And then save the updated template in the repo
-            CopyTemplateToRepo TemplateDoc:=oDocument, OpenAfter:=False
-            
-        End If
+        ' get FULL path to this template in its repo
+        ReDim strDirInRepo(1 To 1)
+        strDirInRepo(1) = GetRepoPath(oDocument)
 
-    Next oDocument
+        If oDocument.Name = "genUtils.dotm" Then
+        ' Modules that need to be imported into templates but that we do
+        ' not want to track. We do want to import these, so let's get
+        ' them into a string check against later.
+          
+          strDependencies = strDirInRepo(1) & Application.PathSeparator & _
+              "dependencies"
+          Debug.Print strDependencies
+          ReDim Preserve strDirInRepo(1 To 2)
+          strDirInRepo(2) = strDependencies
+        End If
+                      
+        ' an array of file extensions we're importing, since there are other files in the repo
+        strModuleExt(1) = "bas"
+        strModuleExt(2) = "cls"
+        strModuleExt(3) = "frm"
+        
+        ' Get rid of all code currently in there, so we don't create duplicates
+        Call DeleteAllVBACode(oDocument)
+        
+        ' set the Project object for this document
+        Set currentVBProject = Nothing
+        Set currentVBProject = oDocument.VBProject
+        
+        ' loop through the directories
+        For A = LBound(strDirInRepo()) To UBound(strDirInRepo())
+          ' for each directory, loop through all files of each extension
+          For B = LBound(strModuleExt()) To UBound(strModuleExt())
+            ' Dir function returns first file that matches in that dir
+            strModuleFileName = Dir(strDirInRepo(A) & "*." & strModuleExt(B))
+            ' so loop through each file of that extension in that directory
+            Do While strModuleFileName <> "" And Counter < 100
+              Counter = Counter + 1               ' to prevent infinite loops
+              'Debug.Print strModuleFileName
+              
+              strModuleName = Left(strModuleFileName, InStrRev(strModuleFileName, ".") - 1)
+              strFullModulePath = strDirInRepo(A) & Application.PathSeparator & strModuleFileName
+              'Debug.Print "Full path to module is " & strFullModulePath
+              
+              ' Resume Next because Set VBComp = current project will cause an error if that
+              ' module doesn't exist, and it doesn't because we just deleted everything
+              On Error Resume Next
+              Set VBComp = Nothing
+              Set VBComp = currentVBProject.VBComponents(strModuleName)
+              
+              ' So if that Set VBComp failed because it doesnt' exist, add it!
+              If VBComp Is Nothing Then
+                currentVBProject.VBComponents.Import FileName:=strFullModulePath
+                Debug.Print strFullModulePath
+              Else    ' it DOES exist already
+                ' See then if it's the "ThisDocument" module, which can't be deleted
+                ' So we can't import because it would just create a duplicate, not replace
+                If VBComp.Type = vbext_ct_Document Then
+                  ' sp we'll create a temp module of the module we want to import
+                  Set tempVBComp = currentVBProject.VBComponents.Import(strFullModulePath)
+                  ' then delete the content of ThisDocument and replace it with the content
+                  ' of the temp module
+                  With VBComp.CodeModule
+                      .DeleteLines 1, .CountOfLines
+                      strNewCode = tempVBComp.CodeModule.lines(1, tempVBComp.CodeModule.CountOfLines)
+                      .InsertLines 1, strNewCode
+                  End With
+                  On Error GoTo 0
+                  ' then remove the temp module
+                  currentVBProject.VBComponents.Remove tempVBComp
+                End If
+              End If
+              
+              ' calling Dir function again w/ no arguments gets NEXT file that
+              ' matches original call. If no more files, returns empty string.
+              strModuleFileName = Dir()
+            Loop
+                        
+            'Debug.Print strModuleFileName
+          Next B
+        Next A
+      End If
+    End If
+  Next oDocument
+  ' Have to do this in a separate loop if we're opening the files after,
+  ' otherwise the newly opened file is added back to the Documents
+  ' collection and it keeps looping through them.
+'    Dim A As Long
+  Dim aDoc As Document
+  If openTemplates.Count > 0 Then
+'        For A = 1 To openTemplates.Count
+'            Set aDoc = openTemplates.Item(A)
+    For Each aDoc In openTemplates
+          ' And also save the template file in the repo if it's not open from there
+          ' CopyTemplateToRepo closes and re-opens the doc, so don't use it for THIS doc
+      If aDoc.Name <> ThisDocument.Name Then
+        CopyTemplateToRepo TemplateDoc:=aDoc, OpenAfter:=True
+      Else
+              'Debug.Print ThisDocument.Name
+        aDoc.Save
+      End If
+    Next aDoc
+  End If
     
 End Sub
 

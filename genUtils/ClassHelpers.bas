@@ -194,3 +194,32 @@ MergeDictionaryError:
   End If
 End Function
 
+' =============================================================================
+'       PROGRESS BAR HELPERS
+' =============================================================================
+'
+' ===== UpdateBarAndWait ======================================================
+' Call this to update the progress bar. Can't be in the ProgressBar class,
+' because that class updates async and can crash the program if it gets called
+' again before it finishes the first call. This includes `DoEvents` which allows
+' other work to finish before returning to the calling procedure.
+
+Public Sub UpdateBarAndWait(Bar As ProgressBar, Status As String, Percent As Single)
+    On Error GoTo UpdateBarAndWaitError
+    Bar.Done = False
+    Bar.Increment Percent, Status
+    Do
+        DoEvents  ' Allows other macro execution to continue
+    Loop Until Bar.Done = True
+    Exit Sub
+  Exit Sub
+
+UpdateBarAndWaitError:
+  Err.Source = strClassHelpers & "UpdateBarAndWaitError"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Sub
+

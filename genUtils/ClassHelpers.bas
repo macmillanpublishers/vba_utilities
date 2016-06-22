@@ -204,7 +204,8 @@ End Function
 ' again before it finishes the first call. This includes `DoEvents` which allows
 ' other work to finish before returning to the calling procedure.
 
-Public Sub UpdateBarAndWait(Bar As ProgressBar, Status As String, Percent As Single)
+Public Sub UpdateBarAndWait(Bar As ProgressBar, Status As String, _
+  Percent As Single)
     On Error GoTo UpdateBarAndWaitError
     Bar.Done = False
     Bar.Increment Percent, Status

@@ -138,13 +138,13 @@ Sub MacmillanManuscriptCleanup()
     ' ======= Run startup checks ========
     ' True means a check failed (e.g., doc protection on)
     If StartupSettings(StoriesUsed:=stStories) = True Then
-        Call Cleanup
+        Call CleanUp
         Exit Sub
     End If
     
     ' Change to just check for backtick characters
     If zz_errorChecks = True Then
-        Call Cleanup
+        Call CleanUp
         Exit Sub
     End If
         
@@ -188,7 +188,7 @@ Sub MacmillanManuscriptCleanup()
     oProgressCleanup.Title = strTitle
     
     ' This sub calls ProgressBar.Increment and waits for it to finish before returning here
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     '-----------Delete hidden text ------------------------------------------------
     Dim S As Long
@@ -215,7 +215,7 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.2
     strStatus = "* Fixing quotes, unicode, section breaks..." & vbCr & strStatus
     
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     For S = 1 To UBound(stStories())
         Call RmNonWildcardItems(StoryType:=(stStories(S)))   'has to be alone b/c Match Wildcards has to be disabled: Smart Quotes, Unicode (ellipse), section break
@@ -227,7 +227,7 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.4
     strStatus = "* Preserving styled whitespace characters..." & vbCr & strStatus
     
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     For S = 1 To UBound(stStories())
         Call PreserveStyledCharactersA(StoryType:=(stStories(S)))              ' EW added v. 3.2, tags styled page breaks, tabs
@@ -238,7 +238,7 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.6
     strStatus = "* Removing unstyled whitespace, fixing ellipses and dashes..." & vbCr & strStatus
     
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     For S = 1 To UBound(stStories())
         Call RmWhiteSpaceB(StoryType:=(stStories(S)))    'v. 3.7 does NOT remove manual page breaks or multiple paragraph returns
@@ -250,7 +250,7 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.86
     strStatus = "* Cleaning up styled whitespace..." & vbCr & strStatus
     
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     For S = 1 To UBound(stStories())
         Call PreserveStyledCharactersB(StoryType:=(stStories(S)))    ' EW added v. 3.2, replaces character tags with actual character
@@ -262,7 +262,7 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 0.87
     strStatus = "* Standardizing underline format..." & vbCr & strStatus
     
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
     
     For S = 1 To UBound(stStories())
         Call FixUnderlines(StoryType:=(stStories(S)))
@@ -275,9 +275,9 @@ Sub MacmillanManuscriptCleanup()
     sglPercentComplete = 1#
     strStatus = "* Finishing up..." & vbCr & strStatus
     
-    Call UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, Status:=strStatus, Percent:=sglPercentComplete)
 
-    Call Cleanup
+    Call CleanUp
     Unload oProgressCleanup
     
     MsgBox "Hurray, the Macmillan Cleanup macro has finished running! Your manuscript looks great!"                                 'v. 3.1 patch / request  v. 3.2 made a little more fun
@@ -294,7 +294,7 @@ End Sub
 
 
 Private Sub RmNonWildcardItems(StoryType As WdStoryType)                                             'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
     
     Dim noWildTagArray(3) As String                                   ' number of items in array should be declared here
     Dim noWildReplaceArray(3) As String              ' number of items in array should be declared here
@@ -335,7 +335,7 @@ End Sub
 Private Sub PreserveStyledCharactersA(StoryType As WdStoryType)
     ' added by EW v. 3.2
     ' replaces correctly styled characters with placeholder so they don't get removed
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
     
     Dim preserveCharFindArray(5) As String  ' declare number of items in array
     Dim preserveCharReplaceArray(5) As String   'delcare number of items in array
@@ -347,7 +347,7 @@ Private Sub PreserveStyledCharactersA(StoryType As WdStoryType)
     On Error GoTo ErrHandler
     
     Dim keyStyle As Word.Style
-    Set keyStyle = ActiveDocument.Styles(preserveCharStyle)
+    Set keyStyle = activeDoc.Styles(preserveCharStyle)
     
     preserveCharFindArray(1) = "^t" 'tabs
     preserveCharFindArray(2) = "  "  ' two spaces
@@ -391,7 +391,7 @@ ErrHandler:
 End Sub
 
 Private Sub RmWhiteSpaceB(StoryType As WdStoryType)
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
 
     Dim wsFindArray(33) As String              'number of items in array should be declared here
     Dim wsReplaceArray(33) As String       'and here
@@ -524,7 +524,7 @@ End Sub
 Private Sub PreserveStyledCharactersB(StoryType As WdStoryType)
     ' added by EW v. 3.2
     ' replaces placeholders with original characters
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
 
     Dim preserveCharFindArray(5) As String  ' declare number of items in array
     Dim preserveCharReplaceArray(5) As String   'declare number of items in array
@@ -535,7 +535,7 @@ Private Sub PreserveStyledCharactersB(StoryType As WdStoryType)
 
     On Error GoTo ErrHandler
         Dim keyStyle As Word.Style
-        Set keyStyle = ActiveDocument.Styles(preserveCharStyle)
+        Set keyStyle = activeDoc.Styles(preserveCharStyle)
 
     preserveCharFindArray(1) = "`E|" 'tabs
     preserveCharFindArray(2) = "`G|"    ' two spaces
@@ -581,7 +581,7 @@ Private Sub FixUnderlines(StoryType As WdStoryType)
     
     ' There has got to be a better way to loop through an enumeration but
     ' I've failed to find it so far
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
     
     Dim strUnderlines(1 To 16) As WdUnderline
     Dim A As Long
@@ -604,7 +604,7 @@ Private Sub FixUnderlines(StoryType As WdStoryType)
     strUnderlines(16) = wdUnderlineWords
 
     For A = LBound(strUnderlines()) To UBound(strUnderlines())
-            With ActiveDocument.Range.Find
+            With activeDoc.Range.Find
                 .ClearFormatting
                 .Replacement.ClearFormatting
                 .Text = ""
@@ -623,7 +623,7 @@ Function zz_errorChecks()
     zz_errorChecks = False
 
     '-----test if backtick style tag already exists
-    Set activeRng = ActiveDocument.Range
+    Set activeRng = activeDoc.Range
 
     Dim existingTagArray(3) As String   ' number of items in array should be declared here
     Dim B As Long
@@ -646,7 +646,7 @@ Function zz_errorChecks()
     Next
 
     If foundBad = True Then                'If activeRng.Find.Execute Then
-        MsgBox "Something went wrong! The macro cannot be run on Document:" & vbNewLine & "'" & ActiveDocument & _
+        MsgBox "Something went wrong! The macro cannot be run on Document:" & vbNewLine & "'" & activeDoc & _
             "'" & vbNewLine & vbNewLine & "Please contact Digital Workflow group for support, I am sure they will " & _
             "be happy to help.", , "Error Code: 3"
         zz_errorChecks = True
@@ -684,8 +684,8 @@ Private Sub NumRangeHyphens(StoriesInDoc As Variant)
     strLinkStyle = "span hyperlink (url)"
     
 '    For kStory = LBound(StoriesInDoc) To UBound(StoriesInDoc)
-'        Set activeRange = ActiveDocument.StoryRanges(StoriesInDoc(kStory))
-    Set activeRange = ActiveDocument.Range
+'        Set activeRange = activeDoc.StoryRanges(StoriesInDoc(kStory))
+    Set activeRange = activeDoc.Range
     
     With activeRange.Find
         ' Find each thing that is also a URL
@@ -736,7 +736,7 @@ Private Sub CleanSomeSymbols(StoryTypes As WdStoryType)
 ' Remove formatting from some symbols
     
     Dim activeRange As Range
-    Set activeRange = ActiveDocument.StoryRanges(StoryTypes)
+    Set activeRange = activeDoc.StoryRanges(StoryTypes)
     
     Dim arrSymbols(1 To 3) As String
     Dim X As Long

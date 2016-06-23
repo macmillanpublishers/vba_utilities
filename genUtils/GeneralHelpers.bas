@@ -52,6 +52,7 @@ Public Enum MacError
     err_DirectoryMissing = 20022
     err_ParaIndexInvalid = 20023
     err_BacktickCharFound = 20024
+    err_DocProtectionOn = 20025
 End Enum
 
 ' ===== ErrorChecker ==========================================================
@@ -239,8 +240,12 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       strErrDescription = "The requested paragraph is out of range."
       strErrMessage = strErrDescription
     Case MacError.err_BacktickCharFound
-      srtErrDescription = "Backtick (`) character found in manuscript. A " & _
+      strErrDescription = "Backtick (`) character found in manuscript. A " & _
         "macro was probably run before and failed."
+      strErrMessage = strErrDescription
+    Case MacError.err_DocProtectionOn
+      strErrDescription = "Document protection is enabled. Ask original user" _
+        & " to unlock the file and try again."
       strErrMessage = strErrDescription
     Case Else
       strErrDescription = "Undocumented error - " & strErrDescription
@@ -311,16 +316,20 @@ End Function
 ' end of every macro?
 
 Sub GlobalCleanup()
+  On Error GoTo GlobalCleanupError
   Application.DisplayAlerts = wdAlertsAll
   Application.ScreenUpdating = True
   Application.ScreenRefresh
   On Error GoTo 0
+
+GlobalCleanupError:
   ' Halts ALL execution, resets all variables, unloads all userforms, etc.
   End
 End Sub
 
 
 Public Function IsOldMac() As Boolean
+  On Error GoTo IsOldMacError
     ' Checks this is a Mac running Office 2011 or earlier. Good for things like
     ' checking if we need to account for file paths > 3 char (which 2011 can't
     ' handle but Mac 2016 can.
@@ -330,9 +339,19 @@ Public Function IsOldMac() As Boolean
             IsOldMac = True
         End If
     #End If
+  Exit Function
+  
+IsOldMacError:
+  Err.Source = strModule & "IsOldMac"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 Public Function DocPropExists(objDoc As Document, PropName As String) As Boolean
+  On Error GoTo DocPropExistsError
     ' Tests if a particular custom document property exists in the document. If
     ' it's already a Document object we already know that it exists and is open
     ' so we don't need to test for those here. Should be tested somewhere in
@@ -353,6 +372,14 @@ Public Function DocPropExists(objDoc As Document, PropName As String) As Boolean
     Else
         DocPropExists = False
     End If
+    Exit Function
+DocPropExistsError:
+  Err.Source = strModule & "DocPropExists"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 Public Function IsOpen(DocPath As String) As Boolean
@@ -380,7 +407,6 @@ Public Function IsOpen(DocPath As String) As Boolean
 
 IsOpenError:
     Err.Source = Err.Source & strModule & "IsOpen"
-    Debug.Print Err.Source
     If ErrorChecker(Err, DocPath) = False Then
         Resume
     Else
@@ -390,6 +416,7 @@ IsOpenError:
 End Function
 
 Public Function IsWordFormat(PathToFile As String) As Boolean
+  On Error GoTo IsWordFormatError
     ' Checks extension to see if file is a Word document or template. Notably,
     ' does not test if it's a file type that Word CAN open (e.g., .html), just
     ' if it's a native Word file type.
@@ -401,6 +428,14 @@ Public Function IsWordFormat(PathToFile As String) As Boolean
         IsWordFormat = True
     Else
         IsWordFormat = False
+    End If
+    Exit Function
+IsWordFormatError:
+    Err.Source = Err.Source & strModule & "IsWordFormat"
+    If ErrorChecker(Err) = False Then
+        Resume
+    Else
+        Call genUtils.GeneralHelpers.GlobalCleanup
     End If
     
 End Function
@@ -438,6 +473,7 @@ IsLockedError:
 End Function
 
 Public Function IsItThere(Path As String) As Boolean
+  On Error GoTo IsItThereError
     ' Check if file or directory exists on PC or Mac.
     ' Dir() doesn't work on Mac 2011 if file is longer than 32 char
     'Debug.Print Path
@@ -463,6 +499,14 @@ Public Function IsItThere(Path As String) As Boolean
             IsItThere = True
         End If
     End If
+    Exit Function
+IsItThereError:
+    Err.Source = Err.Source & strModule & "IsItThere"
+    If ErrorChecker(Err) = False Then
+        Resume
+    Else
+        Call genUtils.GeneralHelpers.GlobalCleanup
+    End If
 End Function
 
 ' ===== ParentDirExists =======================================================
@@ -471,6 +515,7 @@ End Function
 ' to files before you create them.
 
 Public Function ParentDirExists(FilePath As String) As Boolean
+  On Error GoTo ParentDirExistsError
   Dim strDir As String
   Dim strFile As String
   Dim lngSep As Long
@@ -489,6 +534,14 @@ Public Function ParentDirExists(FilePath As String) As Boolean
       ParentDirExists = IsItThere(strDir)
       Exit Function
     End If
+  End If
+  Exit Function
+ParentDirExistsError:
+  Err.Source = Err.Source & strModule & "ParentDirExists"
+  If ErrorChecker(Err, FilePath) = False Then
+    Resume
+  Else
+     Call genUtils.GeneralHelpers.GlobalCleanup
   End If
 End Function
 
@@ -546,6 +599,7 @@ KillAllError:
 End Function
 
 Public Function IsInstalledAddIn(FileName As String) As Boolean
+  On Error GoTo IsInstalledAddInError
     ' Check if the file is currently loaded as an AddIn. Because we can't delete
     ' it if it is loaded (though we can delete it if it's just referenced but
     ' not loaded).
@@ -562,6 +616,14 @@ Public Function IsInstalledAddIn(FileName As String) As Boolean
             Exit For
         End If
     Next objAddIn
+  Exit Function
+IsInstalledAddInError:
+  Err.Source = Err.Source & strModule & "IsInstalledAddIn"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+     Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 ' ===== WriteToLog ============================================================
@@ -823,7 +885,7 @@ ParaInfoError:
 End Function
 
 Public Sub zz_clearFind()
-
+  On Error GoTo zz_clearFindError
     Dim clearRng As Range
     Set clearRng = ActiveDocument.Words.First
 
@@ -841,10 +903,18 @@ Public Sub zz_clearFind()
         .MatchAllWordForms = False
         .Execute
     End With
-    
+  Exit Sub
+zz_clearFindError:
+  Err.Source = strModule & "zz_clearFind"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call GlobalCleanup
+  End If
 End Sub
 
 Public Function StoryArray() As Variant
+  On Error GoTo StoryArrayError
     '------------check for endnotes and footnotes--------------------------
     Dim strStories() As Variant
     
@@ -862,6 +932,14 @@ Public Function StoryArray() As Variant
     End If
     
     StoryArray = strStories
+  Exit Function
+StoryArrayError:
+  Err.Source = strModule & "StoryArray"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call GlobalCleanup
+  End If
 End Function
 
 Function PatternMatch(SearchPattern As String, SearchText As String, WholeString As Boolean) As Boolean
@@ -994,19 +1072,7 @@ End Function
 
 
 Function IsArrayEmpty(Arr As Variant) As Boolean
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' By Chip Pearson, http://www.cpearson.com/excel/vbaarrays.htm
-'
-' IsArrayEmpty
-' This function tests whether the array is empty (unallocated). Returns TRUE or FALSE.
-'
-' The VBA IsArray function indicates whether a variable is an array, but it does not
-' distinguish between allocated and unallocated arrays. It will return TRUE for both
-' allocated and unallocated arrays. This function tests whether the array has actually
-' been allocated.
-'
-' This function is really the reverse of IsArrayAllocated.
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
 
     Dim LB As Long
     Dim UB As Long
@@ -1018,24 +1084,14 @@ Function IsArrayEmpty(Arr As Variant) As Boolean
         IsArrayEmpty = True
         Exit Function
     End If
-    
+
     ' Attempt to get the UBound of the array. If the array is
     ' unallocated, an error will occur.
     UB = UBound(Arr, 1)
     If (Err.Number <> 0) Then
         IsArrayEmpty = True
     Else
-        ''''''''''''''''''''''''''''''''''''''''''
-        ' On rare occassion, under circumstances I
-        ' cannot reliably replictate, Err.Number
-        ' will be 0 for an unallocated, empty array.
-        ' On these occassions, LBound is 0 and
-        ' UBoung is -1.
-        ' To accomodate the weird behavior, test to
-        ' see if LB > UB. If so, the array is not
-        ' allocated.
-        ''''''''''''''''''''''''''''''''''''''''''
-        Err.Clear
+  On Error GoTo IsArrayEmptyError
         LB = LBound(Arr)
         If LB > UB Then
             IsArrayEmpty = True
@@ -1043,7 +1099,14 @@ Function IsArrayEmpty(Arr As Variant) As Boolean
             IsArrayEmpty = False
         End If
     End If
-
+  Exit Function
+IsArrayEmptyError:
+  Err.Source = strModule & "IsArrayEmpty"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call GlobalCleanup
+  End If
 End Function
 
 
@@ -1115,9 +1178,7 @@ End Sub
 
 Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
   As Variant
-  If activeDoc Is Nothing Then
-    Set activeDoc = ActiveDocument
-  End If
+  On Error GoTo GetTextError
   
   Dim fCount As Integer
   Dim styleArray() As Variant
@@ -1126,8 +1187,7 @@ Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
   
   'Move selection to start of document
   Selection.HomeKey Unit:=wdStory
-  
-  On Error GoTo ErrHandler
+
       genUtils.zz_clearFind
       With Selection.Find
           .Text = ""
@@ -1174,7 +1234,7 @@ Function GetText(StyleName As String, Optional ReturnArray As Boolean = False) _
   End If
   Exit Function
   
-ErrHandler:
+GetTextError:
   Err.Source = strModule & "GetText"
   If Err.Number = 5941 Or Err.Number = 5834 Then   ' The style is not present in the document
       GetText = ""
@@ -1376,143 +1436,151 @@ End Sub
 
 
 Function StartupSettings(Optional StoriesUsed As Variant, Optional AcceptAll As Boolean = False) As Boolean
-    ' records/adjusts/checks settings and stuff before running the rest of the macro
-    ' returns TRUE if some check is bad and we can't run the macro
+  On Error GoTo StartupSettingsError
+' records/adjusts/checks settings and stuff before running the rest of the macro
+' returns TRUE if some check is bad and we can't run the macro
+  StartupSettings = False
+' mainDoc will only do stuff to main body text, not EN or FN stories. So
+' do all main-text-only stuff first, then loop through stories
+  Dim mainDoc As Document
+  Set mainDoc = activeDoc
+  
+' Section of registry/preferences file to store settings
+  Dim strSection As String
+  strSection = "MACMILLAN_MACROS"
+  
+' check if file has been saved
+  Dim iReply As Integer
+  
+  Dim docSaved As Boolean
+  docSaved = mainDoc.Saved
+
+' Commenting out MsgBox for now, return after writing wrapper function for
+' Bookmaker validator
+  If docSaved = False Then
+'        iReply = MsgBox("Your document '" & mainDoc & "' contains unsaved changes." & vbNewLine & vbNewLine & _
+'            "Click OK to save your document and run the macro." & vbNewLine & vbNewLine & "Click 'Cancel' to exit.", _
+'                vbOKCancel, "Error 1")
+'        If iReply = vbOK Then
+    mainDoc.Save
+'        Else
+'            StartupSettings = True
+'            Exit Function
+'        End If
+  End If
     
-    ' mainDoc will only do stuff to main body text, not EN or FN stories. So
-    ' do all main-text-only stuff first, then loop through stories
-    Dim mainDoc As Document
-    Set mainDoc = ActiveDocument
     
-    ' Section of registry/preferences file to store settings
-    Dim strSection As String
-    strSection = "MACMILLAN_MACROS"
+' check if file has doc protection on, prompt user and quit function if it does
+' For now Err.Raise should divert the code from the MsgBox call, But I'll rm anyway
+  If mainDoc.ProtectionType <> wdNoProtection Then
+    Err.Raise MacError.err_DocProtectionOn
+'    MsgBox "Uh oh ... protection is enabled on document '" & mainDoc & "'." & vbNewLine & _
+'      "Please unprotect the document and run the macro again." & vbNewLine & vbNewLine & _
+'      "TIP: If you don't know the protection password, try pasting contents of this file into " & _
+'      "a new file, and run the macro on that.", , "Error 2"
+    StartupSettings = True
+    Exit Function
+  Else
+    StartupSettings = False
+  End If
+  
+  ' ========== Turn off screen updating ==========
+  Application.ScreenUpdating = False
+  
+  ' ========== STATUS BAR: store current setting and display ==========
+  System.ProfileString(strSection, "Current_Status_Bar") = Application.DisplayStatusBar
+  Application.DisplayStatusBar = True
     
-    ' ========== check if file has been saved, if not prompt user; if canceled, quit function ==========
-    Dim iReply As Integer
+  ' ========== Remove bookmarks ==========
+  Dim bkm As Bookmark
+  
+  For Each bkm In mainDoc.Bookmarks
+    bkm.Delete
+  Next bkm
     
-    Dim docSaved As Boolean
-    docSaved = mainDoc.Saved
+  ' ========== Save current cursor location in a bookmark ==========
+  ' Store current story, so we can return to it before selecting bookmark in Cleanup
+  System.ProfileString(strSection, "Current_Story") = Selection.StoryType
+  ' next line required for Mac to prevent problem where original selection blinked repeatedly when reselected at end
+  Selection.Collapse Direction:=wdCollapseStart
+  mainDoc.Bookmarks.Add Name:="OriginalInsertionPoint", Range:=Selection.Range
     
-    If docSaved = False Then
-        iReply = MsgBox("Your document '" & mainDoc & "' contains unsaved changes." & vbNewLine & vbNewLine & _
-            "Click OK to save your document and run the macro." & vbNewLine & vbNewLine & "Click 'Cancel' to exit.", _
-                vbOKCancel, "Error 1")
-        If iReply = vbOK Then
-            StartupSettings = False
-            mainDoc.Save
-        Else
-            StartupSettings = True
-            Exit Function
-        End If
-    End If
-    
-    
-    ' ========== check if file has doc protection on, prompt user and quit function if it does ==========
-    If mainDoc.ProtectionType <> wdNoProtection Then
-        MsgBox "Uh oh ... protection is enabled on document '" & mainDoc & "'." & vbNewLine & _
-            "Please unprotect the document and run the macro again." & vbNewLine & vbNewLine & _
-            "TIP: If you don't know the protection password, try pasting contents of this file into " & _
-            "a new file, and run the macro on that.", , "Error 2"
+  ' ========== TRACK CHANGES: store current setting, turn off ==========
+  ' ==========   OPTIONAL: Check if changes present and offer to accept all ==========
+  System.ProfileString(strSection, "Current_Tracking") = mainDoc.TrackRevisions
+  mainDoc.TrackRevisions = False
+  
+'  If AcceptAll = True Then
+    If FixTrackChanges = False Then
         StartupSettings = True
-        Exit Function
-    Else
-        StartupSettings = False
     End If
+'  End If
     
     
-    ' ========== Turn off screen updating ==========
-    Application.ScreenUpdating = False
+' ========== Delete field codes ==========
+' Fields break cleanup and char styles, so we delete them (but retain their
+' result, if any). Furthermore, fields make no sense in a manuscript, so
+' even if they didn't break anything we don't want them.
+' Note, however, that even though linked endnotes and footnotes are
+' types of fields, this loop doesn't affect them.
     
-    
-    ' ========== STATUS BAR: store current setting and display ==========
-    System.ProfileString(strSection, "Current_Status_Bar") = Application.DisplayStatusBar
-    Application.DisplayStatusBar = True
-    
-    
-    ' ========== Remove bookmarks ==========
-    Dim bkm As Bookmark
-    
-    For Each bkm In mainDoc.Bookmarks
-        bkm.Delete
-    Next bkm
-    
-    
-    ' ========== Save current cursor location in a bookmark ==========
-    ' Store current story, so we can return to it before selecting bookmark in Cleanup
-    System.ProfileString(strSection, "Current_Story") = Selection.StoryType
-    ' next line required for Mac to prevent problem where original selection blinked repeatedly when reselected at end
-    Selection.Collapse Direction:=wdCollapseStart
-    mainDoc.Bookmarks.Add Name:="OriginalInsertionPoint", Range:=Selection.Range
-    
-    
-    ' ========== TRACK CHANGES: store current setting, turn off ==========
-    ' ==========   OPTIONAL: Check if changes present and offer to accept all ==========
-    System.ProfileString(strSection, "Current_Tracking") = mainDoc.TrackRevisions
-    mainDoc.TrackRevisions = False
-    
-    If AcceptAll = True Then
-        If FixTrackChanges = False Then
-            StartupSettings = True
-        End If
-    End If
-    
-    
-    ' ========== Delete field codes ==========
-    ' Fields break cleanup and char styles, so we delete them (but retain their
-    ' result, if any). Furthermore, fields make no sense in a manuscript, so
-    ' even if they didn't break anything we don't want them.
-    ' Note, however, that even though linked endnotes and footnotes are
-    ' types of fields, this loop doesn't affect them.
-    
-    Dim A As Long
-    Dim thisRange As Range
-    Dim objField As Field
-    Dim strContent As String
-    
-    ' StoriesUsed is optional; if an array of stories is not passed, just use the main text story here
-    If IsArrayEmpty(StoriesUsed) = True Then
-        ReDim StoriesUsed(1 To 1)
-        StoriesUsed(1) = wdMainTextStory
-    End If
+  Dim A As Long
+  Dim thisRange As Range
+  Dim objField As Field
+  Dim strContent As String
+  
+  ' StoriesUsed is optional; if an array of stories is not passed, just use the main text story here
+  If IsArrayEmpty(StoriesUsed) = True Then
+    ReDim StoriesUsed(1 To 1)
+    StoriesUsed(1) = wdMainTextStory
+  End If
 
-    For A = LBound(StoriesUsed) To UBound(StoriesUsed)
-        Set thisRange = ActiveDocument.StoryRanges(StoriesUsed(A))
-        For Each objField In thisRange.Fields
+  For A = LBound(StoriesUsed) To UBound(StoriesUsed)
+    Set thisRange = activeDoc.StoryRanges(StoriesUsed(A))
+    For Each objField In thisRange.Fields
 '            Debug.Print thisRange.Fields.Count
-            If thisRange.Fields.Count > 0 Then
-                With objField
+      If thisRange.Fields.Count > 0 Then
+        With objField
 '                    Debug.Print .Index & ": " & .Kind
-                    ' None or Cold means it has no result, so we just delete
-                    If .Kind = wdFieldKindNone Or .Kind = wdFieldKindCold Then
-                        .Delete
-                    Else ' It has a result, so we replace field w/ just its content
-                        strContent = .result
-                        .Select
-                        .Delete
-                        Selection.InsertAfter strContent
-                    End If
-                End With
-            End If
-        Next objField
+            ' None or Cold means it has no result, so we just delete
+          If .Kind = wdFieldKindNone Or .Kind = wdFieldKindCold Then
+            .Delete
+          Else ' It has a result, so we replace field w/ just its content
+            strContent = .result
+            .Select
+            .Delete
+            Selection.InsertAfter strContent
+          End If
+        End With
+      End If
+    Next objField
 
-    Next A
+  Next A
 
     
-    ' ========== Remove content controls ==========
-    ' Content controls also break character styles and cleanup
-    ' They are used by some imprints for frontmatter templates
-    ' for editorial, though.
-    ' Doesn't work at all for a Mac, so...
-    #If Win32 Then
-        ClearContentControls
-    #End If
-    
-    
+  ' ========== Remove content controls ==========
+  ' Content controls also break character styles and cleanup
+  ' They are used by some imprints for frontmatter templates
+  ' for editorial, though.
+  ' Doesn't work at all for a Mac, so...
+  #If Win32 Then
+      ClearContentControls
+  #End If
+  Exit Function
+  
+StartupSettingsError:
+  Err.Source = strModule & "StartupSettings"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Function
 
 
 Private Function FixTrackChanges() As Boolean
+' returns True if changes were fixed or not present, False if changes remain in doc
+  On Error GoTo FixTrackChangesError
     Dim N As Long
     Dim oComments As Comments
     Set oComments = ActiveDocument.Comments
@@ -1524,40 +1592,61 @@ Private Function FixTrackChanges() As Boolean
     Selection.HomeKey Unit:=wdStory   'start search at beginning of doc
     WordBasic.NextChangeOrComment       'search for a tracked change or comment. error if none are found.
     
-    'If there are changes, ask user if they want macro to accept changes or cancel
-    If Err = 0 Then
-        If MsgBox("Bookmaker doesn't like comments or tracked changes, but it appears that you have some in your document." _
-            & vbCr & vbCr & "Click OK to ACCEPT ALL CHANGES and DELETE ALL COMMENTS right now and continue with the Bookmaker Requirements Check." _
-            & vbCr & vbCr & "Click CANCEL to stop the Bookmaker Requirements Check and deal with the tracked changes and comments on your own.", _
-            273, "Are those tracked changes I see?") = vbCancel Then           '273 = vbOkCancel(1) + vbCritical(16) + vbDefaultButton2(256)
-                FixTrackChanges = False
-                Exit Function
-        Else 'User clicked OK, so accept all tracked changes and delete all comments
-            ActiveDocument.AcceptAllRevisions
+    ' Commenting out MsgBox for Bookmaker Validator right now
+    ' When have MsgBox wrapper function, can turn it back on.
+'    'If there are changes, ask user if they want macro to accept changes or cancel
+    If Err.Number = 0 Then
+'        If MsgBox("Bookmaker doesn't like comments or tracked changes, but it appears that you have some in your document." _
+'            & vbCr & vbCr & "Click OK to ACCEPT ALL CHANGES and DELETE ALL COMMENTS right now and continue with the Bookmaker Requirements Check." _
+'            & vbCr & vbCr & "Click CANCEL to stop the Bookmaker Requirements Check and deal with the tracked changes and comments on your own.", _
+'            273, "Are those tracked changes I see?") = vbCancel Then           '273 = vbOkCancel(1) + vbCritical(16) + vbDefaultButton2(256)
+'                FixTrackChanges = False
+'                Exit Function
+'        Else 'User clicked OK, so accept all tracked changes and delete all comments
+            activeDoc.AcceptAllRevisions
             For N = oComments.Count To 1 Step -1
                 oComments(N).Delete
             Next N
             Set oComments = Nothing
-        End If
+'        End If
+    Else
+      FixTrackChanges = True
     End If
+    Exit Function
+    
+FixTrackChangesError:
+  Err.Source = strModule & "FixTrackChanges"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
     
 End Function
 
 
 Private Sub ClearContentControls()
+  On Error GoTo ClearContentControlsError
     'This is it's own sub because doesn't exist in Mac Word, breaks whole sub if included
     Dim cc As ContentControl
     
     For Each cc In ActiveDocument.ContentControls
         cc.Delete
     Next
-
+  Exit Sub
+ClearContentControlsError:
+  Err.Source = strModule & "ClearContentControls"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 
 
-
 Sub CleanUp()
+  On Error GoTo CleanUpError
     ' resets everything from StartupSettings sub.
     Dim cleanupDoc As Document
     Set cleanupDoc = ActiveDocument
@@ -1607,7 +1696,14 @@ Sub CleanUp()
     ' Turn Screen Updating on and refresh screen
     Application.ScreenUpdating = True
     Application.ScreenRefresh
-    
+    Exit Sub
+CleanUpError:
+  Err.Source = strModule & "CleanUp"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 Function IsReadOnly(Path As String) As Boolean
@@ -1650,16 +1746,17 @@ IsReadOnlyFinish:
     Exit Function
 
 IsReadOnlyError:
-    Err.Source = Err.Source & strModule & "IsReadOnly"
-    If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
+    Err.Source = strModule & "IsReadOnly"
+    If ErrorChecker(Err) = False Then
         Resume
     Else
-        Resume IsReadOnly
+        genUtils.GeneralHelpers.GlobalCleanup
     End If
 End Function
 
 
 Public Function ReadTextFile(Path As String, Optional FirstLineOnly As Boolean = True) As String
+  On Error GoTo ReadTextFileError
 ' load string from text file
 
     Dim fnum As Long
@@ -1677,10 +1774,21 @@ Public Function ReadTextFile(Path As String, Optional FirstLineOnly As Boolean =
     Close fnum
     
     ReadTextFile = strTextWeWant
+  Exit Function
+  
+ReadTextFileError:
+    Err.Source = strModule & "ReadTextFile"
+    If ErrorChecker(Err) = False Then
+        Resume
+    Else
+        genUtils.GeneralHelpers.GlobalCleanup
+    End If
 End Function
 
 
-Function HiddenTextSucks(StoryType As WdStoryType) As Boolean                                             'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var
+Function HiddenTextSucks(StoryType As WdStoryType) As Boolean
+'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var
+  On Error GoTo HiddenTextSucksError
 '    Debug.Print StoryType
     Dim activeRng As Range
     Set activeRng = ActiveDocument.StoryRanges(StoryType)
@@ -1726,12 +1834,21 @@ Function HiddenTextSucks(StoryType As WdStoryType) As Boolean                   
     Loop
     
     ' Now restore Hidden Text view settings
-    ActiveDocument.ActiveWindow.View.ShowAll = blnCurrentHiddenView
+    activeDoc.ActiveWindow.View.ShowAll = blnCurrentHiddenView
+    Exit Function
+HiddenTextSucksError:
+    Err.Source = strModule & "HiddenTextSucks"
+    If ErrorChecker(Err) = False Then
+        Resume
+    Else
+        genUtils.GeneralHelpers.GlobalCleanup
+    End If
     
 End Function
 
 
 Sub ClearPilcrowFormat(StoryType As WdStoryType)
+ On Error GoTo ClearPilcrowFormatError
 ' A pilcrow is the paragraph mark symbol. This clears all formatting and styles from
 ' pilcrows as found via ^p
     ' Change to story ranges?
@@ -1762,10 +1879,18 @@ Sub ClearPilcrowFormat(StoryType As WdStoryType)
         .MatchAllWordForms = False
         .Execute Replace:=wdReplaceAll
     End With
-
+  Exit Sub
+ClearPilcrowFormatError:
+  Err.Source = strModule & "ClearPilcrowFormat"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 Sub StyleAllHyperlinks(StoriesInUse As Variant)
+  On Error GoTo StyleAllHyperlinksError
     ' StoriesInUse is an array of wdStoryTypes in use
     ' Clears active links and adds macmillan URL char styles
     ' to any proper URLs.
@@ -1786,10 +1911,18 @@ Sub StyleAllHyperlinks(StoriesInUse As Variant)
     For S = 1 To UBound(StoriesInUse)
         Call StyleHyperlinksB(StoryType:=(StoriesInUse(S)))
     Next S
-    
+ Exit Sub
+StyleAllHyperlinksError:
+  Err.Source = strModule & "StyleAllHyperlinks"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 Private Sub StyleHyperlinksA(StoryType As WdStoryType)
+ On Error GoTo StyleHyperlinksAError
     ' PRIVATE, if you want to style hyperlinks from another module,
     ' call StyleAllHyperlinks sub above.
     ' added by Erica 2014-10-07, v. 3.4
@@ -1810,8 +1943,6 @@ Private Sub StyleHyperlinksA(StoryType As WdStoryType)
     'removes all hyperlink styles
     Dim HyperlinkStyleArray(3) As String
     Dim P As Long
-    
-On Error GoTo LinksErrorHandler:
     
     HyperlinkStyleArray(1) = "Hyperlink"        'built-in style applied automatically to links
     HyperlinkStyleArray(2) = "FollowedHyperlink"    'built-in style applied automatically
@@ -1839,7 +1970,7 @@ On Error GoTo LinksErrorHandler:
     
     Exit Sub
     
-LinksErrorHandler:
+StyleHyperlinksAError:
         '5834 means item does not exist
         '5941 means style not present in collection
         If Err.Number = 5834 Or Err.Number = 5941 Then
@@ -1866,6 +1997,7 @@ LinksErrorHandler:
 End Sub
 
 Private Sub AutoFormatHyperlinks()
+  On Error GoTo AutoFormatHyperlinksError
     ' PRIVATE, if you want to style hyperlinks from another module,
     ' call StyleAllHyperlinks sub above.
     '--------------------------------------------------
@@ -1964,10 +2096,19 @@ Private Sub AutoFormatHyperlinks()
     Set oTemp = Nothing
     Set oRng = Nothing
     Set oNote = Nothing
-    
+  Exit Sub
+  
+AutoFormatHyperlinksError:
+  Err.Source = strModule & "AutoFormatHyperlinks"
+  If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 
 Private Sub StyleHyperlinksB(StoryType As WdStoryType)
+  On Error GoTo StyleHyperlinksBError
     ' PRIVATE, if you want to style hyperlinks from another module,
     ' call StyleAllHyperlinks sub above.
     '--------------------------------------------------
@@ -2000,6 +2141,13 @@ Private Sub StyleHyperlinksB(StoryType As WdStoryType)
             .Hyperlinks(1).Delete
         Wend
     End With
-    
+  Exit Sub
+StyleHyperlinksBError:
+  Err.Source = strModule & "StyleHyperlinksB"
+  If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
 End Sub
 

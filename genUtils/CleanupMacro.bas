@@ -35,14 +35,12 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   ' ======= Run startup checks ========
   ' True means a check failed (e.g., doc protection on)
   If StartupSettings(StoriesUsed:=stStories) = True Then
-    Call genUtils.GeneralHelpers.CleanUp
-    Exit Function
+    Err.Raise MacError.err_MacErrGeneral
   End If
   
   ' Change to just check for backtick characters
   If zz_errorChecks = True Then
-    Call genUtils.GeneralHelpers.CleanUp
-    Exit Function
+    Err.Raise MacError.err_MacErrGeneral
   End If
       
   '--------Progress Bar--------------------------------------------------------
@@ -426,7 +424,7 @@ Private Sub RmWhiteSpaceB(StoryType As WdStoryType)
   
 RmWhiteSpaceBError:
   Err.Source = strCleanup & "RmWhiteSpaceBError"
-  If ErrorChecker(Err, preserveCharStyle) = False Then
+  If ErrorChecker(Err) = False Then
     Resume
   Else
     Call genUtils.GeneralHelpers.GlobalCleanup
@@ -476,7 +474,7 @@ Private Sub PreserveStyledCharactersB(StoryType As WdStoryType)
 
 PreserveStyledCharactersBError:
   Err.Source = strCleanup & "PreserveStyledCharactersB"
-  If ErrorChecker(Err, keyStyle) = False Then
+  If ErrorChecker(Err, keyStyle.NameLocal) = False Then
     Resume
   Else
     Call genUtils.GeneralHelpers.GlobalCleanup

@@ -328,7 +328,7 @@ NextLoop:
   Next
   Exit Sub
     
-PreserveWhiteSpaceinBrkStylesA:
+PreserveWhiteSpaceinBrkStylesAError:
   ' skips tagging that style if it's missing from doc; if missing, obv nothing has that style
   'Debug.Print StylePreserveArray(e)
   '5834 "Item with specified name does not exist" i.e. style not present in doc
@@ -539,17 +539,27 @@ Private Sub LocalStyleTag(StoryType As WdStoryType)
   
     tagStyleFindArray(G) = True
     
-    If tagStyleFindArray(8) = True Then tagStyleFindArray(1) = True
-    tagStyleFindArray(2) = True     'bold and italic
-    If tagStyleFindArray(9) = True Then tagStyleFindArray(1) = True
-    tagStyleFindArray(4) = True
-    tagStyleFindArray(2) = False  'bold and smallcaps
-    If tagStyleFindArray(10) = True Then tagStyleFindArray(2) = True
-    tagStyleFindArray(4) = True
-    tagStyleFindArray(1) = False 'smallcaps and italic
-    If tagStyleFindArray(11) = True Then tagStyleFindArray(2) = False
-    tagStyleFindArray(4) = False ' reset tags for strikethrough
+    If tagStyleFindArray(8) = True Then
+      tagStyleFindArray(1) = True
+      tagStyleFindArray(2) = True     'bold and italic
+    End If
     
+    If tagStyleFindArray(9) = True Then
+      tagStyleFindArray(1) = True
+      tagStyleFindArray(4) = True
+      tagStyleFindArray(2) = False  'bold and smallcaps
+    End If
+    
+    If tagStyleFindArray(10) = True Then
+      tagStyleFindArray(2) = True
+      tagStyleFindArray(4) = True
+      tagStyleFindArray(1) = False 'smallcaps and italic
+    End If
+    
+    If tagStyleFindArray(11) = True Then
+      tagStyleFindArray(2) = False
+      tagStyleFindArray(4) = False ' reset tags for strikethrough
+    End If
     With activeRng.Find
       .Replacement.Text = tagStyleReplaceArray(G)
       .Wrap = wdFindContinue

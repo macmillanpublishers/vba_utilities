@@ -1,4 +1,4 @@
 .DS_Store
 ~$*.doc*
 ~$*.dot*
-dependencies/**
+genUtils/dependencies/**

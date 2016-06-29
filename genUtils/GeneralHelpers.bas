@@ -1889,7 +1889,7 @@ ClearPilcrowFormatError:
   End If
 End Sub
 
-Sub StyleAllHyperlinks(StoriesInUse As Variant)
+Sub StyleAllHyperlinks(Optional StoriesInUse As Variant)
   On Error GoTo StyleAllHyperlinksError
     ' StoriesInUse is an array of wdStoryTypes in use
     ' Clears active links and adds macmillan URL char styles
@@ -1932,7 +1932,7 @@ Private Sub StyleHyperlinksA(StoryType As WdStoryType)
     ' this first bit removes all live hyperlinks from document
     ' we want to remove these from urls AND text; will add back to just urls later
     Dim activeRng As Range
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
     ' remove all embedded hyperlinks regardless of character style
     With activeRng
         While .Hyperlinks.Count > 0
@@ -2037,7 +2037,7 @@ Private Sub AutoFormatHyperlinks()
         .AutoFormatReplacePlainTextEmphasis = False
         .AutoFormatReplaceHyperlinks = True
         ' Perform AutoFormat
-        ActiveDocument.Content.AutoFormat
+        activeDoc.Content.AutoFormat
         ' Restore original AutoFormat settings
         .AutoFormatApplyHeadings = f1
         .AutoFormatApplyLists = f2
@@ -2053,18 +2053,15 @@ Private Sub AutoFormatHyperlinks()
     
     'This bit autoformats hyperlinks in endnotes and footnotes
     ' from http://www.vbaexpress.com/forum/showthread.php?52466-applying-hyperlink-styles-in-footnotes-and-endnotes
-    Dim oDoc As Document
     Dim oTemp As Document
     Dim oNote As Range
     Dim oRng As Range
+
+    Set oTemp = Documents.Add(Template:=activeDoc.FullName, Visible:=False)
     
-    'oDoc.Save      ' Already saved active doc?
-    Set oDoc = ActiveDocument
-    Set oTemp = Documents.Add(Template:=oDoc.FullName, Visible:=False)
-    
-    If oDoc.Footnotes.Count >= 1 Then
+    If activeDoc.Footnotes.Count >= 1 Then
         Dim oFN As Footnote
-        For Each oFN In oDoc.Footnotes
+        For Each oFN In activeDoc.Footnotes
             Set oNote = oFN.Range
             Set oRng = oTemp.Range
             oRng.FormattedText = oNote.FormattedText
@@ -2077,9 +2074,9 @@ Private Sub AutoFormatHyperlinks()
         Set oFN = Nothing
     End If
     
-    If oDoc.Endnotes.Count >= 1 Then
+    If activeDoc.Endnotes.Count >= 1 Then
         Dim oEN As Endnote
-        For Each oEN In oDoc.Endnotes
+        For Each oEN In activeDoc.Endnotes
             Set oNote = oEN.Range
             Set oRng = oTemp.Range
             oRng.FormattedText = oNote.FormattedText
@@ -2114,7 +2111,7 @@ Private Sub StyleHyperlinksB(StoryType As WdStoryType)
     '--------------------------------------------------
     ' apply macmillan URL style to hyperlinks we just tagged in Autoformat
     Dim activeRng As Range
-    Set activeRng = ActiveDocument.StoryRanges(StoryType)
+    Set activeRng = activeDoc.StoryRanges(StoryType)
     With activeRng.Find
         .ClearFormatting
         .Replacement.ClearFormatting

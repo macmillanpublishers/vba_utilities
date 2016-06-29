@@ -295,33 +295,30 @@ End Function
 
 
 ' ===== IsbnCheck =============================================================
-' Call this to run ISBN checks.
+' Call this to run ISBN checks from the main Validator function. Optional param
+' to determine if we should add the ISBN from the `book_info.json` file if not
+' found.
 
-Public Function IsbnCheck() As genUtils.Dictionary
+Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
+  genUtils.Dictionary
   On Error GoTo IsbnCheckError
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
   
-' If no styled ISBN exists...
+' If no styled ISBN exists, try to find or add
   Dim blnStyledIsbn As Boolean
   blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
   dictReturn.Add "styledIsbn", blnStyledIsbn
   If blnStyledIsbn = False Then
   
-  ' Search for unstyled ISBN (returns tagged with bookmarks)
+  ' Search for unstyled ISBN (if true, they are bookmarked)
     Dim blnUnstyled As Boolean
-    Dim arrISBN() As String
-    arrISBN = IsbnSearch(ReturnString:=False)
-    If genUtils.IsArrayEmpty(arrISBN) = True Then
-      blnUnstyled = False
-    Else
-      blnUnstyled = True
-    End If
+    blnUnstyled = UnstyledIsbn()
     dictReturn.Add "unstyledIsbn", blnUnstyled
 
   ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
-    If blnUnstyled = False Then
+    If blnUnstyled = False And AddFromJson = True Then
     ' If not found: Add Isbn
       Dim blnAddIsbn As Boolean
       blnAddIsbn = AddBookInfo(bk_ISBN)
@@ -329,24 +326,21 @@ Public Function IsbnCheck() As genUtils.Dictionary
     End If
     
   ' convert bookmarks to styles
-    Dim bkName As Bookmark
-    dictReturn.Add "taggedUnstyledIsbn", False
-    For Each bkName In activeDoc.Bookmarks
-      If Left(bkName.Name, 4) = "ISBN" Then
-        bkName.Select
-        Selection.Style = strIsbnStyle
-        ' Report that we made a change
-        dictReturn.Item("taggedUnstyledIsbn") = True
-        bkName.Delete
-      End If
-    Next
+    Dim blnTagged As Boolean
+    blnTagged = AddIsbnTags()
+    dictReturn.Add "tagUnstyledIsbn", blnTagged
   End If
 
-' Cleanup what ISBN tag is covering
+' Cleanup what ISBN tag is covering (should only be numerals, hyphens)
   Call genUtils.Reports.ISBNcleanup
   
+' Tag all URLs (to remove ISBN tag from ISBNs in URLs)
+  Dim stStories(1 To 1) As WdStoryType
+  stStories = wdMainTextStory
+  Call genUtils.GeneralHelpers.StyleAllHyperlinks(stStories)
+  
 ' Read tagged isbns
-  Dim isbnArray() As Variant  ' Even though they ARE numbers, keep as string
+  Dim isbnArray() As Variant
   isbnArray = genUtils.GeneralHelpers.GetText(strIsbnStyle, True)
 
 ' Add that this completed successfully
@@ -371,34 +365,17 @@ IsbnCheckError:
 End Function
 
 
-' ===== IsbnSearch ============================================================
+' ===== UnstyledIsbn ============================================================
 ' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
-' tags as bookmarks and returns array or string.
+' tags as bookmarks and returns True.
 
-' PUBLIC because needs to be called independently from powershell if file name
-' doesn't include ISBN. Optional FilePath is for passing doc path from PS.
-' ReturnString is True by default also cuz powershell.
-
-' Don't actually need to log anything with LogFile param, but powershell expects
-' to pass that argument so we'll make it optional.
-
-Public Function IsbnSearch(Optional FilePath As String, _
-  Optional LogFile As String, _
-  Optional ReturnString As Boolean = True) As Variant
-  On Error GoTo IsbnSearchError
+Private Function UnstyledIsbn() As Boolean
+  On Error GoTo UnstyledIsbnError
   Dim lngCounter As Long
   Dim strSearchPattern As String
-  Dim ReturnArray() As String
-
-  ' Make sure our document is open and active
-  ' If not passing file path, will ref. activeDoc global var
-  If FilePath <> vbNullString Then
-    If genUtils.IsOpen(FilePath) = False Then
-      Documents.Open (FilePath)
-    End If
-    Set activeDoc = Documents(FilePath)
-  End If
+  
   activeDoc.Range.Select
+  UnstyledIsbn = False
   ' ISBN rules:
   ' * First 3 digits: 978 or 979
   ' * 4th digit: 0 or 1 (for English language)
@@ -420,18 +397,17 @@ Public Function IsbnSearch(Optional FilePath As String, _
   Selection.HomeKey Unit:=wdStory
   
   With Selection.Find
-    .ClearFormatting
     .Text = strSearchPattern
     .Forward = True
     .Wrap = wdFindStop
     .Format = False
-    .MatchWholeWord = False
     .MatchCase = True
     .MatchWildcards = True
-    .MatchSoundsLike = False
   End With
 
+  ' If ISBNs are found, tag with a Bookmark
   Do While Selection.Find.Execute = True And lngCounter < 100
+    UnstyledIsbn = True
     lngCounter = lngCounter + 1
 
     ' Delete if bookmark already exists
@@ -445,16 +421,9 @@ Public Function IsbnSearch(Optional FilePath As String, _
     ReDim Preserve ReturnArray(0 To lngCounter)
     ReturnArray(lngCounter) = Selection.Text
   Loop
-  
-  If ReturnString = False Then
-    IsbnSearch = ReturnArray
-  Else
-    ' Default is comma-delimited string
-    IsbnSearch = genUtils.Reduce(ReturnArray, ",")
-  End If
   Exit Function
 
-IsbnSearchError:
+UnstyledIsbnError:
   Err.Source = strReports & "UnstyledIsbn"
   If ErrorChecker(Err) = False Then
     Resume
@@ -537,6 +506,56 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
 AddBookInfoError:
   Err.Source = strReports & "AddBookInfo"
   If ErrorChecker(Err, strInfoStyle) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Function
+
+
+' ===== AddIsbnTags ===========================================================
+' Converts bookmarked ISBNs to styles. UnstyledIsbn function adds a bookmark
+' that starts with "ISBN" in name to each. May catch ISBNs in URLs.
+
+Private Function AddIsbnTags() As Boolean
+  Dim bkName As Bookmark
+  AddIsbnTags = False
+
+  For Each bkName In activeDoc.Bookmarks
+    If Left(bkName.Name, 4) = "ISBN" Then
+      AddIsbnTags = True
+      bkName.Select
+      Selection.Style = strIsbnStyle
+      bkName.Delete
+    End If
+  Next
+End Function
+
+
+' ===== IsbnSearch ============================================================
+' Implementation of IsbnCheck that returns a string, for Powershell call.
+
+' PUBLIC because needs to be called independently from powershell if file name
+' doesn't include ISBN. Optional FilePath is for passing doc path from PS.
+
+' Don't actually need to log anything with LogFile param, but powershell expects
+' to pass that argument so we'll make it optional.
+
+Public Function IsbnSearch(FilePath As String, LogFile As String) As String
+  On Error GoTo IsbnSearchError
+  Dim dictIsbn As genUtils.Dictionary
+  Set dictIsbn = New Dictionary
+  dictIsbn = IsbnCheck(AddFromJson:=False)
+  If dictIsbn.Exists("list") = True Then
+    IsbnSearch = genUtils.Reduce(dictIsbn.Item("list"), ",")
+  Else
+    IsbnSearch = vbNullString
+  End If
+  Exit Function
+  
+IsbnSearchError:
+  Err.Source = strReports & "IsbnSearch"
+  If ErrorChecker(Err) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
@@ -1528,7 +1547,7 @@ End Function
 '                        vbCr & Status
 '
 '            'Debug.Print sglPercentComplete
-'            Call UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
+'            Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
 '        End If
 '
 '        For A = LBound(Stories()) To UBound(Stories())
@@ -1654,7 +1673,7 @@ End Function
 '        sglPercentComplete = (((M / UBound(styleNameM())) * 0.13) + 0.63)
 '        strStatus = "* Checking for " & styleNameM(M) & " styles..." & vbCr & Status
 '
-'        Call UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
+'        Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
 '
 '        On Error GoTo ErrHandler
 '
@@ -2240,7 +2259,7 @@ End Function
 '            sglPercentComplete = (((N / activeParaCount) * 0.1) + 0.76)
 '            strStatus = "* Checking paragraph " & N & " of " & activeParaCount & " for approved Bookmaker styles..." & vbCr & StatusBar
 '
-'            Call UpdateBarAndWait(Bar:=ProgressBar2, Status:=strStatus, Percent:=sglPercentComplete)
+'            Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=ProgressBar2, Status:=strStatus, Percent:=sglPercentComplete)
 '        End If
 '
 '        For A = LBound(Stories()) To UBound(Stories())
@@ -2810,7 +2829,7 @@ End Function
 '            sglPercentComplete = (((J / activeParaCount) * 0.12) + 0.86)
 '            strStatus = "* Checking paragraph " & J & " of " & activeParaCount & " for Macmillan styles..." & vbCr & Status
 '
-'            Call UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
+'            Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
 '
 '        End If
 '

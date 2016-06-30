@@ -561,6 +561,10 @@ Public Function IsbnSearch(FilePath As String, Optional LogFile As String) _
   Else
     IsbnSearch = vbNullString
   End If
+  
+  activeDoc.Close wdDoNotSaveChanges
+  Set activeDoc = Nothing
+  
   Exit Function
   
 IsbnSearchError:

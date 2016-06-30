@@ -336,7 +336,7 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   
 ' Tag all URLs (to remove ISBN tag from ISBNs in URLs)
   Dim stStories(1 To 1) As WdStoryType
-  stStories = wdMainTextStory
+  stStories(1) = wdMainTextStory
   Call genUtils.GeneralHelpers.StyleAllHyperlinks(stStories)
   
 ' Read tagged isbns
@@ -416,10 +416,6 @@ Private Function UnstyledIsbn() As Boolean
     End If
     ' Add bookmark for later procedures to pick up
     activeDoc.Bookmarks.Add "ISBN" & lngCounter, Selection
-    
-    ' Also add to array to return to calling procedure
-    ReDim Preserve ReturnArray(0 To lngCounter)
-    ReturnArray(lngCounter) = Selection.Text
   Loop
   Exit Function
 
@@ -541,12 +537,26 @@ End Function
 ' Don't actually need to log anything with LogFile param, but powershell expects
 ' to pass that argument so we'll make it optional.
 
-Public Function IsbnSearch(FilePath As String, LogFile As String) As String
+Public Function IsbnSearch(FilePath As String, Optional LogFile As String) _
+  As String
   On Error GoTo IsbnSearchError
+  
+' Make sure relevant file exists, is open
+  If genUtils.GeneralHelpers.IsOpen(FilePath) = False Then
+    Documents.Open FilePath
+  End If
+
+' Set reference to correct document
+  Set activeDoc = Documents(FilePath)
+
+' Create dictionary object to receive from IsbnCheck function
   Dim dictIsbn As genUtils.Dictionary
   Set dictIsbn = New Dictionary
-  dictIsbn = IsbnCheck(AddFromJson:=False)
+  Set dictIsbn = IsbnCheck(AddFromJson:=False)
+  
+' If ISBNs were found, they will be in the "list" element
   If dictIsbn.Exists("list") = True Then
+  ' Reduce array elements to a comma-delimited string
     IsbnSearch = genUtils.Reduce(dictIsbn.Item("list"), ",")
   Else
     IsbnSearch = vbNullString
@@ -555,7 +565,7 @@ Public Function IsbnSearch(FilePath As String, LogFile As String) As String
   
 IsbnSearchError:
   Err.Source = strReports & "IsbnSearch"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, FilePath) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate

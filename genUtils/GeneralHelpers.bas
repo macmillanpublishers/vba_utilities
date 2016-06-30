@@ -53,6 +53,7 @@ Public Enum MacError
     err_ParaIndexInvalid = 20023
     err_BacktickCharFound = 20024
     err_DocProtectionOn = 20025
+    err_NotArray = 20026
 End Enum
 
 ' ===== ErrorChecker ==========================================================
@@ -246,6 +247,9 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     Case MacError.err_DocProtectionOn
       strErrDescription = "Document protection is enabled. Ask original user" _
         & " to unlock the file and try again."
+      strErrMessage = strErrDescription
+    Case MacError.err_NotArray
+      strErrDescription = "Variable is not an array."
       strErrMessage = strErrDescription
     Case Else
       strErrDescription = "Undocumented error - " & strErrDescription
@@ -1252,6 +1256,7 @@ End Function
 ' Iterates through item passed to it (currently only an Array, but in future
 ' add support for Dictionary or Collection) and returns a string of all of the
 ' elements. Add handling in future to return other summaries (add all numbers?)
+
 Public Function Reduce(StartGroup As Variant, Optional Delimiter As String = _
   vbNewLine) As Variant
   On Error GoTo ReduceError
@@ -1260,11 +1265,15 @@ Public Function Reduce(StartGroup As Variant, Optional Delimiter As String = _
     Dim A As Long
     
     For A = LBound(StartGroup) To UBound(StartGroup)
-      strReturn = strReturn & StartGroup(A) & Delimiter
+      strReturn = strReturn & StartGroup(A)
+      If A < UBound(StartGroup) Then
+        strReturn = strReturn & Delimiter
+      End If
     Next A
     
   Else
-    ' Error if not passed an array.
+    ' Error if not passed an array
+    Err.Raise MacError.err_NotArray
   End If
   Reduce = strReturn
 

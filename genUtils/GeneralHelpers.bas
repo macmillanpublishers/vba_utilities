@@ -304,6 +304,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
 '      MsgBox Prompt:=strErrMessage, Buttons:=vbExclamation, Title:= _
 '          "Macmillan Tools Error"
 '  End If
+  Debug.Print "ErrorChecker: " & ErrorChecker
   Exit Function
 
 ErrorCheckerError:
@@ -708,6 +709,33 @@ Public Function IsStyleInUse(StyleName As String) As Boolean
   Exit Function
 IsStyleInUseError:
   Err.Source = strModule & "IsStyleInUse"
+  If ErrorChecker(Err, StyleName) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
+
+
+Public Function IsStyleInDoc(StyleName As String) As Boolean
+  On Error GoTo IsStyleInDocError
+  Dim blnResult As Boolean: blnResult = True
+  Dim TestStyle As Style
+  
+' Try to access this style. If not present in doc, will error
+  Set TestStyle = activeDoc.Styles.Item(StyleName)
+  IsStyleInDoc = blnResult
+  Exit Function
+  
+IsStyleInDocError:
+' 5941 = "Style not present in collection."
+' Have to test here, ErrorChecker tries to create style if missing
+  If Err.Number = 5941 Then
+    blnResult = False
+    Resume Next
+  End If
+' Otherwise, usual error stuff:
+  Err.Source = strModule & "IsStyleInDoc"
   If ErrorChecker(Err, StyleName) = False Then
     Resume
   Else

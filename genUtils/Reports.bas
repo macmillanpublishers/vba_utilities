@@ -210,7 +210,16 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
-  dictReturn.Add "unstyledCount", 0    ' for now, just a count. can add more data later
+
+' First test if our body style is even available in the doc (if not, not styled)
+  If genUtils.GeneralHelpers.IsStyleInDoc(strBodyStyle) = False Then
+    dictReturn.Add "body_style_present", False
+    Set StyleCheck = dictReturn
+    Exit Function
+  Else
+    dictReturn.Add "body_style_present", True
+    dictReturn.Add "unstyledCount", 0    ' for now, just a count. can add more data later
+  End If
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
 '  Debug.Print "Total paragraphs: " & lngParaCt

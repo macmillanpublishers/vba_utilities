@@ -316,12 +316,13 @@ ErrorCheckerError:
 End Function
 
 ' ===== GlobalCleanup =========================================================
-' Right now just ends all execution. To be called from ErrorChecker. May expand
-' to cover a variety of resetting/cleanup functions, so can be called at the
-' end of every macro?
+' A variety of resetting/cleanup functions
 
 Sub GlobalCleanup()
   On Error GoTo GlobalCleanupError
+  If Not activeDoc Is Nothing Then
+    Set activeDoc = Nothing
+  End If
   Application.DisplayAlerts = wdAlertsAll
   Application.ScreenUpdating = True
   Application.ScreenRefresh
@@ -1435,8 +1436,8 @@ Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeader
  
 End Function
 
-Sub CloseOpenDocs()
-
+Public Function CloseOpenDocs() As Boolean
+  On Error GoTo CloseOpenDocsError
     '-------------Check for/close open documents-------------------------------
     Dim strInstallerName As String
     Dim strSaveWarning As String
@@ -1452,7 +1453,7 @@ Sub CloseOpenDocs()
         "Click Cancel to exit without running the macro and close the documents yourself."
       If MsgBox(strSaveWarning, vbOKCancel, "Close documents?") = vbCancel Then
           ActiveDocument.Close
-          Exit Sub
+          Exit Function
       Else
         For Each Doc In Documents
             'Debug.Print doc.Name
@@ -1465,8 +1466,16 @@ Sub CloseOpenDocs()
         Next Doc
       End If
     End If
-    
-End Sub
+  Exit Function
+  
+CloseOpenDocsError:
+  Err.Source = strModule & "CloseOpenDocs"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
 
 
 

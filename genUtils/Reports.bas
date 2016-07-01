@@ -218,7 +218,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     Exit Function
   Else
     dictReturn.Add "body_style_present", True
-    dictReturn.Add "unstyledCount", 0    ' for now, just a count. can add more data later
+    dictReturn.Add "unstyled_count", 0    ' for now, just a count. can add more data later
   End If
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
@@ -250,18 +250,18 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
       ' ...create sub-dictionary
         Set dictInfo = New genUtils.Dictionary
         dictInfo.Add "count", 0
-        dictInfo.Add "startPara", 0
+        dictInfo.Add "start_paragraph", 0
         dictStyles.Add strStyle, dictInfo
         Set dictInfo = Nothing
       End If
     ' Increase style count and update start paragraph index
     ' .Item() method overwrites value for that key
       dictStyles(strStyle).Item("count") = dictStyles(strStyle)("count") + 1
-      dictStyles(strStyle).Item("startPara") = A
+      dictStyles(strStyle).Item("start_paragraph") = A
   ' Else (not Macmillan style)
     Else
     ' Increase unstyled count
-      dictReturn.Item("unstyledCount") = dictReturn.Item("unstyledCount") + 1
+      dictReturn.Item("unstyled_count") = dictReturn.Item("unstyled_count") + 1
       
     ' Change style, if requested
     ' To do: use logic to tag TX1, COTX1
@@ -287,8 +287,8 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   
 ' update values in test dictionary
   dictReturn.Item("pass") = blnPass
-  dictReturn.Item("uniqueStyles") = dictStyles.Count
-  dictReturn.Item("percentStyled") = lngPercent
+  dictReturn.Item("unique_styles") = dictStyles.Count
+  dictReturn.Item("percent_styled") = lngPercent
   
   Set StyleCheck = dictReturn
   Exit Function
@@ -318,26 +318,26 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
 ' If no styled ISBN exists, try to find or add
   Dim blnStyledIsbn As Boolean
   blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-  dictReturn.Add "styledIsbn", blnStyledIsbn
+  dictReturn.Add "styled_isbn", blnStyledIsbn
   If blnStyledIsbn = False Then
   
   ' Search for unstyled ISBN (if true, they are bookmarked)
     Dim blnUnstyled As Boolean
     blnUnstyled = UnstyledIsbn()
-    dictReturn.Add "unstyledIsbn", blnUnstyled
+    dictReturn.Add "unstyled_isbn", blnUnstyled
 
   ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
     If blnUnstyled = False And AddFromJson = True Then
     ' If not found: Add Isbn
       Dim blnAddIsbn As Boolean
       blnAddIsbn = AddBookInfo(bk_ISBN)
-      dictReturn.Add "isbnAdded", blnAddIsbn
+      dictReturn.Add "isbn_added", blnAddIsbn
     End If
     
   ' convert bookmarks to styles
     Dim blnTagged As Boolean
     blnTagged = AddIsbnTags()
-    dictReturn.Add "tagUnstyledIsbn", blnTagged
+    dictReturn.Add "tag_unstyled_isbn", blnTagged
   End If
 
 ' Cleanup what ISBN tag is covering (should only be numerals, hyphens)
@@ -479,7 +479,7 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   Dim lngStartPara As Long: lngStartPara = 1  ' Default if not found
   For Each key1 In dictStyles.Keys
     If InStr(key1, strInfoSection) > 0 Then
-      lngCurrentStart = dictStyles(key1).Item("startPara")
+      lngCurrentStart = dictStyles(key1).Item("start_paragraph")
       ' Should return LAST paragraph with that section's style.
       If lngCurrentStart > lngStartPara Then
         lngStartPara = lngCurrentStart
@@ -596,8 +596,8 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   Set dictReturn = New genUtils.Dictionary
   With dictReturn
     .Add "pass", False
-    .Add "bookTitleExists", False
-    .Add "authorNameExists", False
+    .Add "book_title_exists", False
+    .Add "author_name_exists", False
   End With
 
   Dim blnTitle As Boolean
@@ -608,9 +608,9 @@ Public Function TitlepageCheck() As genUtils.Dictionary
 
 ' Does Book Title exist?
   blnTitle = dictStyles.Exists(strBookTitle)
-  dictReturn.Item("bookTitleExists") = blnTitle
+  dictReturn.Item("book_title_exists") = blnTitle
   If blnTitle = False Then
-    dictReturn.Item("bookTitleAdded") = AddBookInfo(bk_Title)
+    dictReturn.Item("book_title_added") = AddBookInfo(bk_Title)
   Else
     ' Is it more than one line?
     lngTitleCount = dictStyles(strBookTitle)("count")
@@ -641,9 +641,9 @@ Public Function TitlepageCheck() As genUtils.Dictionary
 
 ' Does Author Name exist?
   blnAuthor = dictStyles.Exists(strAuthorName)
-  dictReturn.Item("authorNameExists") = blnAuthor
+  dictReturn.Item("author_name_exists") = blnAuthor
   If blnAuthor = False Then
-    dictReturn.Item("authorNameAdded") = AddBookInfo(bk_Authors)
+    dictReturn.Item("author_name_added") = AddBookInfo(bk_Authors)
   End If
 
 ' Did it all work?
@@ -730,7 +730,7 @@ Private Function StyleCleanup() As genUtils.Dictionary
       strNewStyle = VBA.LTrim(VBA.Replace(strFmEpis(X), "FM", "", _
         Compare:=vbTextCompare))
       blnSuccess = genUtils.GeneralHelpers.StyleReplace(strFmEpis(X), strNewStyle)
-      dictReturn.Add "convertFmEpi" & X, strNewStyle
+      dictReturn.Add "convert_fm_epigraph" & X, strNewStyle
     End If
   Next X
 
@@ -743,9 +743,9 @@ Private Function StyleCleanup() As genUtils.Dictionary
     .Execute Replace:=wdReplaceAll
   
     If .Found = True Then
-      dictReturn.Add "deleteSectionBrk", True
+      dictReturn.Add "delete_section_brk", True
     Else
-      dictReturn.Add "deleteSectionBrk", False
+      dictReturn.Add "delete_section_brk", False
     End If
   End With
 
@@ -756,7 +756,7 @@ Private Function StyleCleanup() As genUtils.Dictionary
   strOldStyle = strSectionBreak
   strNewStyle = strPageBreak
   blnSuccess = genUtils.GeneralHelpers.StyleReplace(strOldStyle, strNewStyle)
-  dictReturn.Add "deleteSectionBrkStyle", blnSuccess
+  dictReturn.Add "delete_section_brk_style", blnSuccess
 
 ' Remove any Half Title paras. (If want to keep in future, create a separate
 ' function to search for all half titles, add headings/breaks.) Note that any
@@ -772,9 +772,9 @@ Private Function StyleCleanup() As genUtils.Dictionary
     .Execute Replace:=wdReplaceAll
   
     If .Found = True Then
-      dictReturn.Add "deleteHalfTitle", True
+      dictReturn.Add "delete_half_title", True
     Else
-      dictReturn.Add "deleteHalfTitle", False
+      dictReturn.Add "delete_half_title", False
     End If
   End With
 
@@ -960,9 +960,9 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then
-      dictReturn.Add "pageBrkReplace", True
+      dictReturn.Add "page_brk_replace", True
     Else
-      dictReturn.Add "pageBrkReplace", False
+      dictReturn.Add "page_brk_replace", False
     End If
   End With
 
@@ -978,9 +978,9 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then
-      dictReturn.Add "pageBrkReplace2", True
+      dictReturn.Add "page_brk_replace2", True
     Else
-      dictReturn.Add "pageBrkReplace2", False
+      dictReturn.Add "page_brk_replace2", False
     End If
   End With
 
@@ -992,9 +992,9 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then
-      dictReturn.Add "pageBrkRemove", True
+      dictReturn.Add "page_brk_remove", True
     Else
-      dictReturn.Add "pageBrkRemove", False
+      dictReturn.Add "page_brk_remove", False
     End If
   End With
 
@@ -1009,9 +1009,9 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
     .Execute Replace:=wdReplaceAll
     
     If .Found = True Then
-      dictReturn.Add "rmMultipleParas", True
+      dictReturn.Add "rm_multiple_paras", True
     Else
-      dictReturn.Add "rmMultipleParas", False
+      dictReturn.Add "rm_multiple_paras", False
     End If
   End With
   
@@ -1066,7 +1066,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
         If IsHeading(strNextStyle) = False Then
           ' ... add a CTNP heading
           If AddHeading(lngParaInd + 1) = True Then
-            dictReturn.Item("addedHeadings") = dictReturn.Item("addedHeadings") + 1
+            dictReturn.Item("added_headings") = dictReturn.Item("added_headings") + 1
           End If
         End If
       End If
@@ -1081,9 +1081,9 @@ Private Function PageBreakCheck() As genUtils.Dictionary
 ' it's a placeholder) and the next section's heading.
 
   If genUtils.StyleReplace(strPageBreak, strBodyStyle) = True Then
-    dictReturn.Add "pgBrkStyleRemoved", True
+    dictReturn.Add "pg_brk_style_removed", True
   Else
-    dictReturn.Add "pgBrkStyleRemoved", False
+    dictReturn.Add "pg_brk_style_removed", False
   End If
 
   dictReturn.Item("pass") = True
@@ -1438,7 +1438,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
       strFirstText = "Chapter " & lngChapCount
       Selection.Text = strFirstText & vbNewLine
       Selection.Style = strChapNonprinting
-      dictReturn.Add "AddChapNum" & lngChapCount, strFirstText
+      dictReturn.Add "add_chap_num" & lngChapCount, strFirstText
       .Execute
     Loop
   End With
@@ -1473,9 +1473,9 @@ Public Function IllustrationCheck() As genUtils.Dictionary
   strPlaceholder = "TK.jpg" & vbNewLine
 
   If genUtils.GeneralHelpers.IsStyleInUse(strIllustrationHolder) = False Then
-    dictReturn.Add "illHolderExists", False
+    dictReturn.Add "ill_holder_exists", False
   Else
-    dictReturn.Add "illHolderExists", True
+    dictReturn.Add "ill_holder_exists", True
   ' Replace text of all paragraphs with that style
     genUtils.zz_clearFind
     With activeDoc.Range.Find
@@ -1491,9 +1491,9 @@ Public Function IllustrationCheck() As genUtils.Dictionary
       .Execute Replace:=wdReplaceAll
       
       If .Found = True Then
-        dictReturn.Add "replaceIllText", True
+        dictReturn.Add "replace_ill_text", True
       Else
-        dictReturn.Add "replaceIllText", False
+        dictReturn.Add "replace_ill_text", False
       End If
     
     End With

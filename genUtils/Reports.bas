@@ -66,6 +66,12 @@ End Enum
 Public Function ReportsStartup(DocPath As String, AlertPath As String) _
   As genUtils.Dictionary
   On Error GoTo ReportsStartupError
+  
+' Store test data
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New genUtils.Dictionary
+  dictReturn.Add "pass", False
+
 ' Get this first, in case we have an error early:
   strAlertFile = AlertPath
 
@@ -87,14 +93,17 @@ Public Function ReportsStartup(DocPath As String, AlertPath As String) _
     Err.Raise MacError.err_FileNotThere
   End If
 
-' Report success of initialize
-  Dim dictReturn As genUtils.Dictionary
-  Set dictReturn = New genUtils.Dictionary
+' Turn off Track Changes
+  activeDoc.TrackRevisions = False
   
-  If dictBookInfo Is Nothing Then
-    dictReturn.Add "pass", False
-  Else
-    dictReturn.Add "pass", True
+' Check that doc is not password protected
+  If activeDoc.ProtectionType <> wdNoProtection Then
+    Err.Raise MacError.err_DocProtectionOn
+  End If
+
+  
+  If Not dictBookInfo Is Nothing Then
+    dictReturn.Item("pass") = True
   End If
   
   Set ReportsStartup = dictReturn
@@ -102,7 +111,7 @@ Public Function ReportsStartup(DocPath As String, AlertPath As String) _
   Exit Function
 ReportsStartupError:
   Err.Source = strReports & "ReportsStartup"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strInfoPath) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate

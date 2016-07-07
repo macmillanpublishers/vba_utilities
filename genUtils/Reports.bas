@@ -320,14 +320,22 @@ End Function
 Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   genUtils.Dictionary
   On Error GoTo IsbnCheckError
+   
+ ' reset Error checker counter, so we can loop a few files
+  lngErrorCount = 0
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
   
 ' If no styled ISBN exists, try to find or add
   Dim blnStyledIsbn As Boolean
-  blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-  dictReturn.Add "styled_isbn", blnStyledIsbn
+  If genUtils.GeneralHelpers.IsStyleInDoc(strIsbnStyle) = False Then
+    dictReturn.Add "styled_isbn", False
+  Else
+    blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
+    dictReturn.Add "styled_isbn", blnStyledIsbn
+  End If
+
   If blnStyledIsbn = False Then
   
   ' Search for unstyled ISBN (if true, they are bookmarked)

@@ -7,7 +7,7 @@ Attribute VB_Name = "GeneralHelpers"
 ' *****************************************************************************
 Option Explicit
 Private Const strModule As String = "genUtils.GeneralHelpers."
-Private lngErrorCount As Long
+Public lngErrorCount As Long
 
 
 ' assign to actual document we're working on
@@ -70,13 +70,14 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     ' strValue - varies based on type of error passed. use for things like
     ' file name, path, whatever is being checked by that errored.
   lngErrorCount = lngErrorCount + 1
+  Debug.Print "ErrorChecker " & lngErrorCount & vbNewLine & _
+    "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
+    & objError.Description
+  
   If lngErrorCount > 5 Then
     Debug.Print "ERROR LOOP STOPPED"
     End
   End If
-
-  Debug.Print "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
-    & objError.Description
   
   ' New On Error statement RESETS the Err object, so get our values out before
   ' we set the ErrorChecker for this procedure.
@@ -133,6 +134,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       End If
       Set myStyle = activeDoc.Styles.Add(strValue, styleType)
       ErrorChecker = False
+      Debug.Print "ErrorChecker: False"
       Exit Function
     ' List all built-in errors we want to trap for before general sys error line
     Case 91 ' Object variable or With block variable not set.
@@ -687,9 +689,6 @@ End Function
 
 Public Function IsStyleInUse(StyleName As String) As Boolean
   On Error GoTo IsStyleInUseError
-  If activeDoc Is Nothing Then
-    Set activeDoc = ActiveDocument
-  End If
   
 '  ' If we need to do a Selection.Find use
 '  Selection.HomeKey Unit:=wdStory
@@ -919,8 +918,10 @@ End Function
 
 Public Sub zz_clearFind()
   On Error GoTo zz_clearFindError
+'  lngErrorCount = lngErrorCount + 1
+'  Debug.Print "zz_clearFind " & lngErrorCount
     Dim clearRng As Range
-    Set clearRng = ActiveDocument.Words.First
+    Set clearRng = activeDoc.Words.First
 
     With clearRng.Find
         .ClearFormatting
@@ -1947,14 +1948,14 @@ Sub StyleAllHyperlinks(Optional StoriesInUse As Variant)
     
     Call zz_clearFind
     
-    For S = 1 To UBound(StoriesInUse)
+    For S = LBound(StoriesInUse) To UBound(StoriesInUse)
         'Styles hyperlinks, must be performed after PreserveWhiteSpaceinBrkStylesA
         Call StyleHyperlinksA(StoryType:=(StoriesInUse(S)))
     Next S
     
     Call AutoFormatHyperlinks
     
-    For S = 1 To UBound(StoriesInUse)
+    For S = LBound(StoriesInUse) To UBound(StoriesInUse)
         Call StyleHyperlinksB(StoryType:=(StoriesInUse(S)))
     Next S
  Exit Sub
@@ -1978,13 +1979,28 @@ Private Sub StyleHyperlinksA(StoryType As WdStoryType)
     ' this first bit removes all live hyperlinks from document
     ' we want to remove these from urls AND text; will add back to just urls later
     Dim activeRng As Range
+
     Set activeRng = activeDoc.StoryRanges(StoryType)
     ' remove all embedded hyperlinks regardless of character style
-    With activeRng
-        While .Hyperlinks.Count > 0
-            .Hyperlinks(1).Delete
-        Wend
-    End With
+    ' Must use Fields obj not Hyperlink obj because if "empty" hyperlink is in
+    ' doc, it will return as part of the Hyperlinks collection but will error
+    ' when try to delete or access any properties.
+    Dim fld As Field
+    If activeRng.Fields.Count > 0 Then
+      For Each fld In activeRng.Fields
+      ' wdFieldKindNone = invalid field
+        If fld.Kind <> wdFieldKindNone And fld.Type = wdFieldHyperlink Then
+        ' If field is a link but no text appears in the document for it,
+        ' just delete the whole thing (otherwise replace link w/ display text)
+          If Len(fld.result.Text) = 0 Then
+            fld.Delete
+          Else
+            fld.Unlink
+          End If
+        End If
+      Next fld
+    End If
+
     '------------------------------------------
     'removes all hyperlink styles
     Dim HyperlinkStyleArray(3) As String

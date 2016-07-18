@@ -142,6 +142,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       If activeDoc Is Nothing Then
         Set activeDoc = ActiveDocument
         ErrorChecker = False
+        Debug.Print "ErrorChecker: False"
         Exit Function
       End If
       
@@ -696,7 +697,7 @@ Public Function IsStyleInUse(StyleName As String) As Boolean
   With activeDoc.Range.Find
     .Text = ""
     .Format = True
-    .Style = ActiveDocument.Styles(StyleName)
+    .Style = activeDoc.Styles(StyleName)
     .Execute
     
     If .Found = True Then
@@ -728,7 +729,7 @@ Public Function IsStyleInDoc(StyleName As String) As Boolean
   Exit Function
   
 IsStyleInDocError:
-' 5941 = "Style not present in collection."
+' 5941 = "The requested member of the collection does not exist."
 ' Have to test here, ErrorChecker tries to create style if missing
   If Err.Number = 5941 Then
     blnResult = False
@@ -930,6 +931,7 @@ Public Sub zz_clearFind()
         .Replacement.Text = ""
         .Wrap = wdFindStop
         .Format = False
+        .Forward = True
         .MatchCase = False
         .MatchWholeWord = False
         .MatchWildcards = False

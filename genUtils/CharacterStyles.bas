@@ -17,7 +17,7 @@ Option Explicit
 Option Base 1
 
 Private Const strCharStyles As String = "genUtils.CharacterStyles."
-Dim activeRng As Range
+Private activeRng As Range
 
 Public Function MacmillanCharStyles() As genUtils.Dictionary
   On Error GoTo MacmillanCharStylesError

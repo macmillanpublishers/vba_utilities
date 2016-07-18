@@ -330,12 +330,13 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
 ' If no styled ISBN exists, try to find or add
   Dim blnStyledIsbn As Boolean
   If genUtils.GeneralHelpers.IsStyleInDoc(strIsbnStyle) = False Then
-    dictReturn.Add "styled_isbn", False
+    blnStyledIsbn = False
   Else
     blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-    dictReturn.Add "styled_isbn", blnStyledIsbn
   End If
-
+  
+  dictReturn.Add "styled_isbn", blnStyledIsbn
+  
   If blnStyledIsbn = False Then
   
   ' Search for unstyled ISBN (if true, they are bookmarked)
@@ -540,9 +541,14 @@ End Function
 ' that starts with "ISBN" in name to each. May catch ISBNs in URLs.
 
 Private Function AddIsbnTags() As Boolean
+  On Error GoTo AddIsbnTagsError
   Dim bkName As Bookmark
   AddIsbnTags = False
 
+  If genUtils.GeneralHelpers.IsStyleInDoc(strIsbnStyle) = False Then
+    Dim myStyle As Style
+    Set myStyle = activeDoc.Styles.Add(strIsbnStyle, wdStyleTypeCharacter)
+  End If
   For Each bkName In activeDoc.Bookmarks
     If Left(bkName.Name, 4) = "ISBN" Then
       AddIsbnTags = True
@@ -551,6 +557,14 @@ Private Function AddIsbnTags() As Boolean
       bkName.Delete
     End If
   Next
+  Exit Function
+AddIsbnTagsError:
+  Err.Source = strReports & "AddIsbnTags"
+  If ErrorChecker(Err, strIsbnStyle) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
 End Function
 
 

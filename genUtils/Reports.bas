@@ -1462,7 +1462,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
   activeDoc.Select
   Selection.HomeKey Unit:=wdStory
   With Selection.Find
-    .Text = "Chapter^p"
+    .Text = "Chapter" & Chr(13)
     .Format = True
     .Style = strChapNonprinting
     .Forward = True

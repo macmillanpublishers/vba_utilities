@@ -7,7 +7,7 @@ Attribute VB_Name = "GeneralHelpers"
 ' *****************************************************************************
 Option Explicit
 Private Const strModule As String = "genUtils.GeneralHelpers."
-Private lngErrorCount As Long
+Public lngErrorCount As Long
 
 
 ' assign to actual document we're working on
@@ -70,13 +70,14 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     ' strValue - varies based on type of error passed. use for things like
     ' file name, path, whatever is being checked by that errored.
   lngErrorCount = lngErrorCount + 1
+  Debug.Print "ErrorChecker " & lngErrorCount & vbNewLine & _
+    "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
+    & objError.Description
+  
   If lngErrorCount > 5 Then
     Debug.Print "ERROR LOOP STOPPED"
     End
   End If
-
-  Debug.Print "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
-    & objError.Description
   
   ' New On Error statement RESETS the Err object, so get our values out before
   ' we set the ErrorChecker for this procedure.
@@ -133,6 +134,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       End If
       Set myStyle = activeDoc.Styles.Add(strValue, styleType)
       ErrorChecker = False
+      Debug.Print "ErrorChecker: False"
       Exit Function
     ' List all built-in errors we want to trap for before general sys error line
     Case 91 ' Object variable or With block variable not set.
@@ -140,6 +142,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       If activeDoc Is Nothing Then
         Set activeDoc = ActiveDocument
         ErrorChecker = False
+        Debug.Print "ErrorChecker: False"
         Exit Function
       End If
       
@@ -304,6 +307,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
 '      MsgBox Prompt:=strErrMessage, Buttons:=vbExclamation, Title:= _
 '          "Macmillan Tools Error"
 '  End If
+  Debug.Print "ErrorChecker: " & ErrorChecker
   Exit Function
 
 ErrorCheckerError:
@@ -315,12 +319,13 @@ ErrorCheckerError:
 End Function
 
 ' ===== GlobalCleanup =========================================================
-' Right now just ends all execution. To be called from ErrorChecker. May expand
-' to cover a variety of resetting/cleanup functions, so can be called at the
-' end of every macro?
+' A variety of resetting/cleanup functions
 
 Sub GlobalCleanup()
   On Error GoTo GlobalCleanupError
+  If Not activeDoc Is Nothing Then
+    Set activeDoc = Nothing
+  End If
   Application.DisplayAlerts = wdAlertsAll
   Application.ScreenUpdating = True
   Application.ScreenRefresh
@@ -685,9 +690,6 @@ End Function
 
 Public Function IsStyleInUse(StyleName As String) As Boolean
   On Error GoTo IsStyleInUseError
-  If activeDoc Is Nothing Then
-    Set activeDoc = ActiveDocument
-  End If
   
 '  ' If we need to do a Selection.Find use
 '  Selection.HomeKey Unit:=wdStory
@@ -695,7 +697,7 @@ Public Function IsStyleInUse(StyleName As String) As Boolean
   With activeDoc.Range.Find
     .Text = ""
     .Format = True
-    .Style = ActiveDocument.Styles(StyleName)
+    .Style = activeDoc.Styles(StyleName)
     .Execute
     
     If .Found = True Then
@@ -708,6 +710,33 @@ Public Function IsStyleInUse(StyleName As String) As Boolean
   Exit Function
 IsStyleInUseError:
   Err.Source = strModule & "IsStyleInUse"
+  If ErrorChecker(Err, StyleName) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
+
+
+Public Function IsStyleInDoc(StyleName As String) As Boolean
+  On Error GoTo IsStyleInDocError
+  Dim blnResult As Boolean: blnResult = True
+  Dim TestStyle As Style
+  
+' Try to access this style. If not present in doc, will error
+  Set TestStyle = activeDoc.Styles.Item(StyleName)
+  IsStyleInDoc = blnResult
+  Exit Function
+  
+IsStyleInDocError:
+' 5941 = "The requested member of the collection does not exist."
+' Have to test here, ErrorChecker tries to create style if missing
+  If Err.Number = 5941 Then
+    blnResult = False
+    Resume Next
+  End If
+' Otherwise, usual error stuff:
+  Err.Source = strModule & "IsStyleInDoc"
   If ErrorChecker(Err, StyleName) = False Then
     Resume
   Else
@@ -890,8 +919,10 @@ End Function
 
 Public Sub zz_clearFind()
   On Error GoTo zz_clearFindError
+'  lngErrorCount = lngErrorCount + 1
+'  Debug.Print "zz_clearFind " & lngErrorCount
     Dim clearRng As Range
-    Set clearRng = ActiveDocument.Words.First
+    Set clearRng = activeDoc.Words.First
 
     With clearRng.Find
         .ClearFormatting
@@ -900,6 +931,7 @@ Public Sub zz_clearFind()
         .Replacement.Text = ""
         .Wrap = wdFindStop
         .Format = False
+        .Forward = True
         .MatchCase = False
         .MatchWholeWord = False
         .MatchWildcards = False
@@ -1265,10 +1297,7 @@ Public Function Reduce(StartGroup As Variant, Optional Delimiter As String = _
     Dim A As Long
     
     For A = LBound(StartGroup) To UBound(StartGroup)
-      strReturn = strReturn & StartGroup(A)
-      If A < UBound(StartGroup) Then
-        strReturn = strReturn & Delimiter
-      End If
+      strReturn = strReturn & StartGroup(A) & Delimiter
     Next A
     
   Else
@@ -1407,8 +1436,8 @@ Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeader
  
 End Function
 
-Sub CloseOpenDocs()
-
+Public Function CloseOpenDocs() As Boolean
+  On Error GoTo CloseOpenDocsError
     '-------------Check for/close open documents-------------------------------
     Dim strInstallerName As String
     Dim strSaveWarning As String
@@ -1424,7 +1453,7 @@ Sub CloseOpenDocs()
         "Click Cancel to exit without running the macro and close the documents yourself."
       If MsgBox(strSaveWarning, vbOKCancel, "Close documents?") = vbCancel Then
           ActiveDocument.Close
-          Exit Sub
+          Exit Function
       Else
         For Each Doc In Documents
             'Debug.Print doc.Name
@@ -1437,8 +1466,16 @@ Sub CloseOpenDocs()
         Next Doc
       End If
     End If
-    
-End Sub
+  Exit Function
+  
+CloseOpenDocsError:
+  Err.Source = strModule & "CloseOpenDocs"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GlobalCleanup
+  End If
+End Function
 
 
 
@@ -1910,14 +1947,14 @@ Sub StyleAllHyperlinks(Optional StoriesInUse As Variant)
     
     Call zz_clearFind
     
-    For S = 1 To UBound(StoriesInUse)
+    For S = LBound(StoriesInUse) To UBound(StoriesInUse)
         'Styles hyperlinks, must be performed after PreserveWhiteSpaceinBrkStylesA
         Call StyleHyperlinksA(StoryType:=(StoriesInUse(S)))
     Next S
     
     Call AutoFormatHyperlinks
     
-    For S = 1 To UBound(StoriesInUse)
+    For S = LBound(StoriesInUse) To UBound(StoriesInUse)
         Call StyleHyperlinksB(StoryType:=(StoriesInUse(S)))
     Next S
  Exit Sub
@@ -1941,13 +1978,28 @@ Private Sub StyleHyperlinksA(StoryType As WdStoryType)
     ' this first bit removes all live hyperlinks from document
     ' we want to remove these from urls AND text; will add back to just urls later
     Dim activeRng As Range
+
     Set activeRng = activeDoc.StoryRanges(StoryType)
     ' remove all embedded hyperlinks regardless of character style
-    With activeRng
-        While .Hyperlinks.Count > 0
-            .Hyperlinks(1).Delete
-        Wend
-    End With
+    ' Must use Fields obj not Hyperlink obj because if "empty" hyperlink is in
+    ' doc, it will return as part of the Hyperlinks collection but will error
+    ' when try to delete or access any properties.
+    Dim fld As Field
+    If activeRng.Fields.Count > 0 Then
+      For Each fld In activeRng.Fields
+      ' wdFieldKindNone = invalid field
+        If fld.Kind <> wdFieldKindNone And fld.Type = wdFieldHyperlink Then
+        ' If field is a link but no text appears in the document for it,
+        ' just delete the whole thing (otherwise replace link w/ display text)
+          If Len(fld.result.Text) = 0 Then
+            fld.Delete
+          Else
+            fld.Unlink
+          End If
+        End If
+      Next fld
+    End If
+
     '------------------------------------------
     'removes all hyperlink styles
     Dim HyperlinkStyleArray(3) As String

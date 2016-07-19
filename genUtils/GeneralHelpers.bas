@@ -1297,10 +1297,7 @@ Public Function Reduce(StartGroup As Variant, Optional Delimiter As String = _
     Dim A As Long
     
     For A = LBound(StartGroup) To UBound(StartGroup)
-      strReturn = strReturn & StartGroup(A)
-      If A < UBound(StartGroup) Then
-        strReturn = strReturn & Delimiter
-      End If
+      strReturn = strReturn & StartGroup(A) & Delimiter
     Next A
     
   Else

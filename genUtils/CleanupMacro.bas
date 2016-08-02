@@ -72,7 +72,7 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   Randomize           'Sets seed for Rnd below to value of system timer
   X = Int(UBound(funArray()) * Rnd()) + 1
   
-  'Debug.Print x
+  'DebugPrint x
   
   strTitle = "Macmillan Manuscript Cleanup Macro"
   sglPercentComplete = 0.05
@@ -201,7 +201,7 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
     '  SecondsElapsed = Round(Timer - StartTime, 2)
     
     'Notify user in seconds
-    '  Debug.Print "This code ran successfully in " & SecondsElapsed & " seconds"
+    '  DebugPrint "This code ran successfully in " & SecondsElapsed & " seconds"
   dictReturn.Item("pass") = True
   Set MacmillanManuscriptCleanup = dictReturn
   Exit Function

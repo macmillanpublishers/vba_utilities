@@ -167,7 +167,7 @@ Public Sub ReportsTerminate()
     Close #FileNum
   Else
     ' just in case it stays...
-    Debug.Print strAlert
+    DebugPrint strAlert
   End If
   
 ' Kill global objects
@@ -235,7 +235,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   End If
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
-'  Debug.Print "Total paragraphs: " & lngParaCt
+'  DebugPrint "Total paragraphs: " & lngParaCt
   Dim strStyle As String
   Dim A As Long
   
@@ -245,12 +245,12 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   ' To break infinite loops.
   ' To do: increase? Add actual Err.Raise
     If A = 10000 Then
-      Debug.Print "A = " & A
+      DebugPrint "A = " & A
       Exit For
     End If
     
     If A Mod 200 = 0 Then
-      Debug.Print "Paragraph " & A
+      DebugPrint "Paragraph " & A
     End If
 
   ' Get style name
@@ -1093,7 +1093,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Loop counter
       lngCount = lngCount + 1
       lngParaInd = genUtils.GeneralHelpers.ParaIndex
-'      Debug.Print "Section start: " & lngParaInd
+'      DebugPrint "Section start: " & lngParaInd
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
@@ -1153,13 +1153,13 @@ Private Function SectionHeadInd() As Variant
   Q = 0
   Do Until P > lngParaCount
     strCurrentStyle = activeDoc.Paragraphs(P).Style
-'    Debug.Print strCurrentStyle
+'    DebugPrint strCurrentStyle
     If IsHeading(strCurrentStyle) = True Then
     ' This is the FIRST heading paragraph in a row, add to output array
       Q = Q + 1
       ReDim Preserve paraInd(1 To Q)
       paraInd(Q) = P
-'      Debug.Print "Heading index: " & P
+'      DebugPrint "Heading index: " & P
     ' Loop until we find the next paragraph that is NOT a heading (assumes that
     ' allowable heading sections are all grouped together. Would get confused
     ' if someone throws in a non-heading style between headings!
@@ -1213,13 +1213,13 @@ Private Function SectionRange(ParaIndexArray() As Variant) As Variant
   For G = lngLBound To lngUBound
   ' Determine start and end section index numbers
     lngStart = ParaIndexArray(G)
-'    Debug.Print lngStart
+'    DebugPrint lngStart
     If G < lngUBound Then
       lngEnd = ParaIndexArray(G + 1) - 1
     Else
       lngEnd = lngParaCount
     End If
-'    Debug.Print lngEnd
+'    DebugPrint lngEnd
     Dim lngColor As Long
   ' Set range based on those start/end points
     With activeDoc
@@ -1266,15 +1266,15 @@ Public Function HeadingCheck() As genUtils.Dictionary
 
 ' Get paragraph indices of section start paragraphs
   Dim rngParaInd() As Variant
-'  Debug.Print "SectionHeadInd start"
+'  DebugPrint "SectionHeadInd start"
   rngParaInd = SectionHeadInd
-'  Debug.Print "SectionHeadInd stop"
+'  DebugPrint "SectionHeadInd stop"
 
 ' Create array of ranges of each section
   Dim rngSections() As Variant
-'  Debug.Print "SectionRange start"
+'  DebugPrint "SectionRange start"
   rngSections = SectionRange(rngParaInd)
-'  Debug.Print "SectionRange end"
+'  DebugPrint "SectionRange end"
   
 ' Loop through section ranges
   Dim D As Long
@@ -1293,11 +1293,11 @@ Public Function HeadingCheck() As genUtils.Dictionary
   For D = UBound(rngSections) To LBound(rngSections) Step -1
     ' Replace with error message for infinite loop
     If D > 200 Then
-      Debug.Print "Section loop exit!"
+      DebugPrint "Section loop exit!"
     End If
 
     strSectionKey = "section" & D
-'    Debug.Print strSectionKey
+'    DebugPrint strSectionKey
     
     Set rngSect = rngSections(D)
     
@@ -1318,8 +1318,8 @@ Public Function HeadingCheck() As genUtils.Dictionary
   ' Get style of first and second paragraphs
     strFirstStyle = rngFirst.ParagraphStyle
     strSecondStyle = rngSecond.ParagraphStyle
-'    Debug.Print strFirstStyle
-'    Debug.Print strSecondStyle
+'    DebugPrint strFirstStyle
+'    DebugPrint strSecondStyle
 
   ' Get text of first and second paragraphs, without final paragraph return
     strFirstText = Left(rngFirst.Text, Len(rngFirst.Text) - 1)
@@ -1604,7 +1604,7 @@ End Function
 '            strStatus = "* Checking paragraph " & J & " of " & activeParaCount & " for Macmillan styles..." & _
 '                        vbCr & Status
 '
-'            'Debug.Print sglPercentComplete
+'            'DebugPrint sglPercentComplete
 '            Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=ProgressBar, Status:=strStatus, Percent:=sglPercentComplete)
 '        End If
 '
@@ -1618,7 +1618,7 @@ End Function
 '                If Right(paraStyle, 1) = ")" Then
 'CheckGoodStyles:
 '                    For K = 1 To styleGoodCount
-'                        'Debug.Print Left(stylesGood(K), InStrRev(stylesGood(K), " --") - 1)
+'                        'DebugPrint Left(stylesGood(K), InStrRev(stylesGood(K), " --") - 1)
 '                        ' "Left" function because now stylesGood includes page number, so won't match paraStyle
 '                        If paraStyle = Left(stylesGood(K), InStrRev(stylesGood(K), " --") - 1) Then
 '                        K = styleGoodCount                              'stylereport bug fix #1    v. 3.1
@@ -1680,7 +1680,7 @@ End Function
 '        Next K
 '    End If
 '
-'    'Debug.Print strGoodStyles
+'    'DebugPrint strGoodStyles
 '
 '    If styleBadCount > 0 Then
 '        'Create single string for bad styles
@@ -1693,7 +1693,7 @@ End Function
 '        strBadStyles = ""
 '    End If
 '
-'    'Debug.Print strBadStyles
+'    'DebugPrint strBadStyles
 '
 '    '-------------------get list of good character styles--------------
 '
@@ -1793,7 +1793,7 @@ End Function
 'NextLoop:
 '    Next M
 '
-'    'Debug.Print charStyles
+'    'DebugPrint charStyles
 '
 '    Status = "* Checking character styles..." & vbCr & Status
 '
@@ -1807,8 +1807,8 @@ End Function
 '        strBadStyles = strBadStyles & strTorBadStyles
 '    End If
 '
-'    'Debug.Print strGoodStyles
-'    'Debug.Print strBadStyles
+'    'DebugPrint strGoodStyles
+'    'DebugPrint strBadStyles
 '
 '    'If only good styles are Endnote Text and Footnote text, then the template is not being used
 '
@@ -1825,7 +1825,7 @@ End Function
 '    Exit Function
 '
 'ErrHandler:
-'    'Debug.Print Err.Number & " : " & Err.Description
+'    'DebugPrint Err.Number & " : " & Err.Description
 '    If Err.Number = 5834 Or Err.Number = 5941 Then
 '        Resume NextLoop
 '    End If
@@ -1982,7 +1982,7 @@ End Function
 '            "please contact workflows@macmillan.com." & vbNewLine
 '    End If
 '
-'    'Debug.Print errorList
+'    'DebugPrint errorList
 '
 '    CreateErrorList = errorList
 '
@@ -2038,7 +2038,7 @@ End Function
 '        Set rParagraphs = ActiveDocument.Range(Start:=0, End:=CurPos)
 '        intCurrentPara = rParagraphs.Paragraphs.Count
 '
-'        'Debug.Print intCurrentPara
+'        'DebugPrint intCurrentPara
 '
 '        If intCurrentPara > 1 Then
 '            'select preceding paragraph
@@ -2059,7 +2059,7 @@ End Function
 '                    End If
 '                End If
 '
-'                'Debug.Print jString
+'                'DebugPrint jString
 '
 '            'move the selection back to original paragraph, so it won't be
 '            'selected again on next search
@@ -2068,7 +2068,7 @@ End Function
 '
 '    Loop
 '
-'    'Debug.Print jString
+'    'DebugPrint jString
 '
 '    CheckPrevStyle = jString
 '
@@ -2184,7 +2184,7 @@ End Function
 '                    & " cannot follow Page Break (pb) style." & vbNewLine & vbNewLine
 '            End If
 '
-'        'Debug.Print kString
+'        'DebugPrint kString
 '
 'Err2Resume:
 '
@@ -2193,7 +2193,7 @@ End Function
 '        Selection.Previous(Unit:=wdParagraph, Count:=1).Select
 '    Loop
 '
-'    'Debug.Print kString
+'    'DebugPrint kString
 '
 '    CheckAfterPB = kString
 '
@@ -2323,16 +2323,16 @@ End Function
 '        For A = LBound(Stories()) To UBound(Stories())
 '            If N <= ActiveDocument.StoryRanges(Stories(A)).Paragraphs.Count Then
 '                paraStyle = ActiveDocument.StoryRanges(Stories(A)).Paragraphs(N).Style
-'                'Debug.Print paraStyle
+'                'DebugPrint paraStyle
 '
 '                If Right(paraStyle, 1) = ")" Then
-'                    'Debug.Print "Current paragraph is: " & paraStyle
+'                    'DebugPrint "Current paragraph is: " & paraStyle
 '                    On Error GoTo ErrHandler
 '
 '                    intBadCount = -1        ' -1 because the array is base 0
 '
 '                    For M = LBound(arrTorStyles()) To UBound(arrTorStyles())
-'                        'Debug.Print arrTorStyles(M, 0)
+'                        'DebugPrint arrTorStyles(M, 0)
 '
 '                        If paraStyle <> arrTorStyles(M, 0) Then
 '                            intBadCount = intBadCount + 1
@@ -2341,13 +2341,13 @@ End Function
 '                        End If
 '                    Next M
 '
-'                    'Debug.Print intBadCount
+'                    'DebugPrint intBadCount
 '                    If intBadCount = UBound(arrTorStyles()) Then
 '                        Set activeParaRange = ActiveDocument.StoryRanges(A).Paragraphs(N).Range
 '                        pageNumber = activeParaRange.Information(wdActiveEndPageNumber)
 '                        strBadStyles = strBadStyles & "** ERROR: Non-Bookmaker style on page " & pageNumber _
 '                            & " (Paragraph " & N & "):  " & paraStyle & vbNewLine & vbNewLine
-'                            'Debug.Print strBadStyles
+'                            'DebugPrint strBadStyles
 '                    End If
 '
 '                End If
@@ -2359,13 +2359,13 @@ End Function
 '
 '    StatusBar = "* Checking paragraphs for approved Bookmaker styles..." & vbCr & StatusBar
 '
-'    'Debug.Print strBadStyles
+'    'DebugPrint strBadStyles
 '
 '    BadTorStyles = strBadStyles
 '    Exit Function
 '
 'ErrHandler:
-'    Debug.Print Err.Number & " " & Err.Description & " | " & Err.HelpContext
+'    DebugPrint Err.Number & " " & Err.Description & " | " & Err.HelpContext
 '    If Err.Number = 5941 Or Err.Number = 5834 Then       'style is not in document
 '        Resume ErrResume
 '    End If
@@ -2432,7 +2432,7 @@ End Function
 '    End If
 '
 '    'For A = 1 To UBound(arrStyleName())
-'    '    Debug.Print arrStyleName(A) & ": " & intStyleCount(A) & vbNewLine
+'    '    DebugPrint arrStyleName(A) & ": " & intStyleCount(A) & vbNewLine
 '    'Next A
 '
 '    CountReqdStyles = intStyleCount()
@@ -2511,7 +2511,7 @@ End Function
 '
 '    Next B
 '
-'    'Debug.Print strTitleData
+'    'DebugPrint strTitleData
 '
 '    GetMetadata = strTitleData
 '
@@ -2588,7 +2588,7 @@ End Function
 '        strFullList = strFullList & cString(N)
 '    Next N
 '
-'    'Debug.Print strFullList
+'    'DebugPrint strFullList
 '
 '    IllustrationsList = strFullList
 '
@@ -2652,7 +2652,7 @@ End Function
 '
 '        intCurrentPara = ActiveDocument.Range(0, Selection.Paragraphs(1).Range.End).Paragraphs.Count
 '
-'        'Debug.Print intCurrentPara
+'        'DebugPrint intCurrentPara
 '
 '        'Also determine if selection is the LAST paragraph of the document, for later
 '        Dim SelectionIncludesFinalParagraphMark As Boolean
@@ -2662,7 +2662,7 @@ End Function
 '            SelectionIncludesFinalParagraphMark = False
 '        End If
 '
-'        'Debug.Print intCurrentPara
+'        'DebugPrint intCurrentPara
 '
 '        If intCurrentPara > 1 Then      'NOT first paragraph of document
 '            'select preceding paragraph
@@ -2722,7 +2722,7 @@ End Function
 '                    End If
 '                End If
 '
-'                'Debug.Print strErrors
+'                'DebugPrint strErrors
 '
 '            'move the selection back to original paragraph, so it won't be
 '            'selected again on next search
@@ -2777,7 +2777,7 @@ End Function
 '        End If
 '    Loop
 '
-'    'Debug.Print strErrors
+'    'DebugPrint strErrors
 '
 '    CheckPrev2Paras = strErrors
 '
@@ -2924,7 +2924,7 @@ End Function
 '        strGoodStyles = strGoodStyles & stylesGood(K) & vbNewLine
 '    Next K
 '
-'    'Debug.Print strGoodStyles
+'    'DebugPrint strGoodStyles
 '
 '    StylesInUse = strGoodStyles
 '
@@ -3064,7 +3064,7 @@ End Sub
 '
 '    End With
 '
-'    'Debug.Print strErrors
+'    'DebugPrint strErrors
 '    BookTypeCheck = strErrors
 '    Exit Function
 '
@@ -3140,7 +3140,7 @@ End Sub
 '    Exit Function
 '
 'ErrHandler:
-'        'Debug.Print Err.Number & ": " & Err.Description
+'        'DebugPrint Err.Number & ": " & Err.Description
 '    If Err.Number = 5941 Or Err.Number = 5834 Then      ' style doesn't exist in document
 '        Exit Function
 '    End If
@@ -3158,7 +3158,7 @@ Private Function ChapNumCleanUp(Optional StyleName As String = strChapNumber, _
     activeDoc.Select
   Else
     SearchRange.Select
-'    Debug.Print SearchRange.Paragraphs.Count
+'    DebugPrint SearchRange.Paragraphs.Count
   End If
 
 ' Move selection back to start of RANGE

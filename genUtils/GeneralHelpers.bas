@@ -70,12 +70,12 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     ' strValue - varies based on type of error passed. use for things like
     ' file name, path, whatever is being checked by that errored.
   lngErrorCount = lngErrorCount + 1
-  Debug.Print "ErrorChecker " & lngErrorCount & vbNewLine & _
+  DebugPrint "ErrorChecker " & lngErrorCount & vbNewLine & _
     "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
     & objError.Description
   
   If lngErrorCount > 5 Then
-    Debug.Print "ERROR LOOP STOPPED"
+    DebugPrint "ERROR LOOP STOPPED"
     End
   End If
   
@@ -134,7 +134,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       End If
       Set myStyle = activeDoc.Styles.Add(strValue, styleType)
       ErrorChecker = False
-      Debug.Print "ErrorChecker: False"
+      DebugPrint "ErrorChecker: False"
       Exit Function
     ' List all built-in errors we want to trap for before general sys error line
     Case 91 ' Object variable or With block variable not set.
@@ -142,7 +142,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
       If activeDoc Is Nothing Then
         Set activeDoc = ActiveDocument
         ErrorChecker = False
-        Debug.Print "ErrorChecker: False"
+        DebugPrint "ErrorChecker: False"
         Exit Function
       End If
       
@@ -288,7 +288,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     ".") - 1), " ", "")
   strErrLog = ActiveDocument.Path & Application.PathSeparator & "ALERT_" & _
     strFileName & "_" & Format(Date, "yyyy-mm-dd") & ".txt"
-'    Debug.Print strErrLog
+'    DebugPrint strErrLog
   ' build error message, including timestamp
   strErrMsg = Format(Time, "hh:mm:ss - ") & strErrSource & vbNewLine & _
       lngErrNumber & ": " & strErrDescription & vbNewLine
@@ -307,14 +307,14 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
 '      MsgBox Prompt:=strErrMessage, Buttons:=vbExclamation, Title:= _
 '          "Macmillan Tools Error"
 '  End If
-  Debug.Print "ErrorChecker: " & ErrorChecker
+  DebugPrint "ErrorChecker: " & ErrorChecker
   Exit Function
 
 ErrorCheckerError:
   ' Important note: Recursive error checking is perhaps a bad idea -- if the
   ' same error gets triggered, procedure will get called too many times and
   ' cause an "out of stack space" error and crash.
-  Debug.Print Err.Number & ": " & Err.Description
+  DebugPrint Err.Number & ": " & Err.Description
   ErrorChecker = True
 End Function
 
@@ -334,6 +334,36 @@ Sub GlobalCleanup()
 GlobalCleanupError:
   ' Halts ALL execution, resets all variables, unloads all userforms, etc.
   End
+End Sub
+
+
+
+' ===== DebugPrint =============================================================
+' Use instead of `Debug.Print`. Print to Immediate Window AND write to a file.
+' Immediate Window has a small buffer and isn't very useful if you are debugging
+' something that ends up crashing the app.
+
+' Actual `Debug.Print` can take more complex arguments but here we'll just take
+' anything that can evaluate to a string.
+
+Public Sub DebugPrint(Optional StringExpression As Variant)
+' First just DebugPrint:
+' Get the string we'll write
+  Dim strMessage As String
+  strMessage = Now & ": " & StringExpression
+  Debug.Print strMessage
+
+' Second, write to file
+' Create file name in same dir as file
+  Dim strOutputFile As String
+  strOutputFile = ActiveDocument.Path & Application.PathSeparator & "immediate_window.txt"
+
+  Dim FileNum As Integer
+  FileNum = FreeFile ' next file number
+  Open strOutputFile For Append As #FileNum
+  Print #FileNum, strMessage
+  Close #FileNum ' close the file
+ 
 End Sub
 
 
@@ -485,7 +515,7 @@ Public Function IsItThere(Path As String) As Boolean
   On Error GoTo IsItThereError
     ' Check if file or directory exists on PC or Mac.
     ' Dir() doesn't work on Mac 2011 if file is longer than 32 char
-    'Debug.Print Path
+    'DebugPrint Path
     
     'Remove trailing path separator from dir if it's there
     If Right(Path, 1) = Application.PathSeparator Then
@@ -535,7 +565,7 @@ Public Function ParentDirExists(FilePath As String) As Boolean
   If lngSep > 0 Then
     strDir = VBA.Left(FilePath, lngSep - 1)  ' NO trailing separator
     strFile = VBA.Right(FilePath, Len(FilePath) - lngSep)
-'    Debug.Print strDir & " | " & strFile
+'    DebugPrint strDir & " | " & strFile
 
     ' Verify file name string is in fact plausibly a file name
     If InStr(strFile, ".") > 0 Then
@@ -683,7 +713,7 @@ Public Function ShellAndWaitMac(cmd As String) As String
     #If Mac Then
         scriptCmd = "do shell script " & Chr(34) & cmd & Chr(34) & Chr(34)
         result = MacScript(scriptCmd) ' result contains stdout, should you care
-        'Debug.Print result
+        'DebugPrint result
         ShellAndWaitMac = result
     #End If
 End Function
@@ -920,7 +950,7 @@ End Function
 Public Sub zz_clearFind()
   On Error GoTo zz_clearFindError
 '  lngErrorCount = lngErrorCount + 1
-'  Debug.Print "zz_clearFind " & lngErrorCount
+'  DebugPrint "zz_clearFind " & lngErrorCount
     Dim clearRng As Range
     Set clearRng = activeDoc.Words.First
 
@@ -1372,7 +1402,7 @@ Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeader
             MsgBox "There was a problem with your Castoff.", vbCritical, "Error: CSV not available"
             Exit Function
         End If
-        'Debug.Print Path
+        'DebugPrint Path
         
         ' Do we need to remove a header row?
         Dim lngHeaderRow As Long
@@ -1418,22 +1448,22 @@ Function LoadCSVtoArray(Path As String, RemoveHeaderRow As Boolean, RemoveHeader
             If Len(lines(R)) > 0 Then
                 one_line = Split(lines(R), ",")
                 For C = lngHeaderCol To num_cols   ' start at 1 (not 0) if we are not using the header column
-                    'Debug.Print one_line(c)
+                    'DebugPrint one_line(c)
                     the_array((R - lngHeaderRow), (C - lngHeaderCol)) = one_line(C)   ' -1 because if are not using header row/column from CSV
                 Next C
             End If
         Next R
     
         ' Prove we have the data loaded.
-'         Debug.Print LBound(the_array)
-'         Debug.Print UBound(the_array)
+'         DebugPrint LBound(the_array)
+'         DebugPrint UBound(the_array)
 '         For R = 0 To (num_rows - 1)          ' -1 again if we removed the header row
 '             For c = 0 To num_cols      ' -1 again if we removed the header column
-'                 Debug.Print the_array(R, c) & " | ";
+'                 DebugPrint the_array(R, c) & " | ";
 '             Next c
-'             Debug.Print
+'             DebugPrint
 '         Next R
-'         Debug.Print "======="
+'         DebugPrint "======="
     
     LoadCSVtoArray = the_array
  
@@ -1459,7 +1489,7 @@ Public Function CloseOpenDocs() As Boolean
           Exit Function
       Else
         For Each Doc In Documents
-            'Debug.Print doc.Name
+            'DebugPrint doc.Name
           'But don't close THIS document
           If Doc.Name <> strInstallerName Then
               'separate step to trigger Save As prompt for previously unsaved docs
@@ -1587,10 +1617,10 @@ Function StartupSettings(Optional StoriesUsed As Variant, Optional AcceptAll As 
   For A = LBound(StoriesUsed) To UBound(StoriesUsed)
     Set thisRange = activeDoc.StoryRanges(StoriesUsed(A))
     For Each objField In thisRange.Fields
-'            Debug.Print thisRange.Fields.Count
+'            DebugPrint thisRange.Fields.Count
       If thisRange.Fields.Count > 0 Then
         With objField
-'                    Debug.Print .Index & ": " & .Kind
+'                    DebugPrint .Index & ": " & .Kind
             ' None or Cold means it has no result, so we just delete
           If .Kind = wdFieldKindNone Or .Kind = wdFieldKindCold Then
             .Delete
@@ -1838,7 +1868,7 @@ End Function
 Function HiddenTextSucks(StoryType As WdStoryType) As Boolean
 'v. 3.1 patch : redid this whole thing as an array, addedsmart quotes, wrap toggle var
   On Error GoTo HiddenTextSucksError
-'    Debug.Print StoryType
+'    DebugPrint StoryType
     Dim activeRng As Range
     Set activeRng = ActiveDocument.StoryRanges(StoryType)
     ' No, really, it does. Why is that even an option?

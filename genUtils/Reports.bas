@@ -42,7 +42,7 @@ Public Const strChapNonprinting As String = "Chap Title Nonprinting (ctnp)"
 Public Const strIsbnStyle As String = "span isbn (ISBN)"
 Public Const strBookTitle As String = "Titlepage Book Title (tit)"
 Public Const strAuthorName As String = "Titlepage Author Name (au)"
-Public Const strCopyright As String = "Copyright page single space (crtx)"
+Public Const strCopyright As String = "Copyright Text single space (crtx)"
 Public Const strBodyStyle As String = "Text - Standard (tx)"
 Public Const strFmEpiText As String = "FM Epigraph - non-verse (fmepi)"
 Public Const strFmEpiVerse As String = "FM Epigraph - verse (fmepiv)"
@@ -496,7 +496,7 @@ Private Function DeleteIsbns() As Boolean
 
   Exit Function
   
-DeleteIsbnError:
+DeleteIsbnsError:
   Err.Source = strReports & "DeleteIsbns"
   If ErrorChecker(Err, strIsbnStyle) = False Then
     Resume

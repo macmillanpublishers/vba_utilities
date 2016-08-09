@@ -354,15 +354,18 @@ Public Sub DebugPrint(Optional StringExpression As Variant)
   Debug.Print strMessage
 
 ' Second, write to file
-' Create file name in same dir as file
-  Dim strOutputFile As String
-  strOutputFile = ActiveDocument.Path & Application.PathSeparator & "immediate_window.txt"
+' Create file name
+'' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
+' with Folder Actions (like Validator), new file in dir will error
+' How to write to a static location?
+'  Dim strOutputFile As String
+'  strOutputFile = ActiveDocument.Path & Application.PathSeparator & "immediate_window.txt"
 
-  Dim FileNum As Integer
-  FileNum = FreeFile ' next file number
-  Open strOutputFile For Append As #FileNum
-  Print #FileNum, strMessage
-  Close #FileNum ' close the file
+'  Dim FileNum As Integer
+'  FileNum = FreeFile ' next file number
+'  Open strOutputFile For Append As #FileNum
+'  Print #FileNum, strMessage
+'  Close #FileNum ' close the file
  
 End Sub
 

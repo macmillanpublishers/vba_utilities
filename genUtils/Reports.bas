@@ -341,20 +341,12 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   
   dictReturn.Add "styled_isbn", blnStyledIsbn
   
-  If blnStyledIsbn = False Then
+  If blnStyledIsbn = False Or AddFromJson = True Then
   
   ' Search for unstyled ISBN (if true, they are bookmarked)
     Dim blnUnstyled As Boolean
     blnUnstyled = UnstyledIsbn()
     dictReturn.Add "unstyled_isbn", blnUnstyled
-
-  ' If no unstyled ISBNs, add from `book_info.json`, tag w/ bookmark
-    If blnUnstyled = False And AddFromJson = True Then
-    ' If not found: Add Isbn
-      Dim blnAddIsbn As Boolean
-      blnAddIsbn = AddBookInfo(bk_ISBN)
-      dictReturn.Add "isbn_added", blnAddIsbn
-    End If
     
   ' convert bookmarks to styles
     Dim blnTagged As Boolean
@@ -381,14 +373,33 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   Else
     dictReturn.Item("pass") = False
   End If
-  
+
+
+' If we want to replace the given ISBNs with the one in book_info.json
+  If AddFromJson = True Then
+  ' Delete all tagged ISBNs
+    Dim blnDeleteIsbns As Boolean
+    blnDeleteIsbns = DeleteIsbns()
+    dictReturn.Add "isbns_deleted", blnDeleteIsbns
+    
+  ' Add correct ISBN from JSON file
+    Dim blnAddIsbn As Boolean
+    blnAddIsbn = AddBookInfo(bk_ISBN)
+    dictReturn.Add "isbn_added", blnAddIsbn
+    
+  ' Update `pass` key in test dictionary
+    Dim blnPassed As Boolean
+    blnPassed = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
+    dictReturn.Item("pass") = blnPassed
+  End If
+
   Set IsbnCheck = dictReturn
 
   Exit Function
   
 IsbnCheckError:
   Err.Source = strReports & "IsbnCheck"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strIsbnStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
@@ -459,6 +470,40 @@ UnstyledIsbnError:
   End If
 End Function
 
+
+' ===== DeleteIsbns ===========================================================
+' Deletes all text with the ISBN style applied. Should expand at some point to
+' use input style.
+
+Private Function DeleteIsbns() As Boolean
+  On Error GoTo DeleteIsbnsError
+' Find all text with this style, replace with nothing
+  genUtils.GeneralHelpers.zz_clearFind
+  
+  With activeDoc.Range.Find
+    .Format = True
+    .MatchWildcards = True
+    .Style = strIsbnStyle
+    .Text = "*"
+    .Replacement.Text = vbNullString
+    .Execute Replace:=wdReplaceAll
+  End With
+  
+  Dim blnSuccess As Boolean
+  blnSuccess = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
+  blnSuccess = Not blnSuccess
+  DeleteIsbns = blnSuccess
+
+  Exit Function
+  
+DeleteIsbnError:
+  Err.Source = strReports & "DeleteIsbns"
+  If ErrorChecker(Err, strIsbnStyle) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Function
 
 ' ===== AddBookInfo ===========================================================
 ' Add info from `book_info.json` to manuscript. Assume already know that it's
@@ -542,7 +587,7 @@ End Function
 
 ' ===== AddIsbnTags ===========================================================
 ' Converts bookmarked ISBNs to styles. UnstyledIsbn function adds a bookmark
-' that starts with "ISBN" in name to each. May catch ISBNs in URLs.
+' that starts with "ISBN" in name to each.
 
 Private Function AddIsbnTags() As Boolean
   On Error GoTo AddIsbnTagsError
@@ -581,44 +626,44 @@ End Function
 ' Don't actually need to log anything with LogFile param, but powershell expects
 ' to pass that argument so we'll make it optional.
 
-Public Function IsbnSearch(FilePath As String, Optional LogFile As String) _
-  As String
-  On Error GoTo IsbnSearchError
-  
-' Make sure relevant file exists, is open
-  If genUtils.GeneralHelpers.IsOpen(FilePath) = False Then
-    Documents.Open FilePath
-  End If
-
-' Set reference to correct document
-  Set activeDoc = Documents(FilePath)
-
-' Create dictionary object to receive from IsbnCheck function
-  Dim dictIsbn As genUtils.Dictionary
-  Set dictIsbn = New Dictionary
-  Set dictIsbn = IsbnCheck(AddFromJson:=False)
-  
-' If ISBNs were found, they will be in the "list" element
-  If dictIsbn.Exists("list") = True Then
-  ' Reduce array elements to a comma-delimited string
-    IsbnSearch = genUtils.Reduce(dictIsbn.Item("list"), ",")
-  Else
-    IsbnSearch = vbNullString
-  End If
-  
-  activeDoc.Close wdDoNotSaveChanges
-  Set activeDoc = Nothing
-  
-  Exit Function
-  
-IsbnSearchError:
-  Err.Source = strReports & "IsbnSearch"
-  If ErrorChecker(Err, FilePath) = False Then
-    Resume
-  Else
-    Call genUtils.Reports.ReportsTerminate
-  End If
-End Function
+'Public Function IsbnSearch(FilePath As String, Optional LogFile As String) _
+'  As String
+'  On Error GoTo IsbnSearchError
+'
+'' Make sure relevant file exists, is open
+'  If genUtils.GeneralHelpers.IsOpen(FilePath) = False Then
+'    Documents.Open FilePath
+'  End If
+'
+'' Set reference to correct document
+'  Set activeDoc = Documents(FilePath)
+'
+'' Create dictionary object to receive from IsbnCheck function
+'  Dim dictIsbn As genUtils.Dictionary
+'  Set dictIsbn = New Dictionary
+'  Set dictIsbn = IsbnCheck(AddFromJson:=False)
+'
+'' If ISBNs were found, they will be in the "list" element
+'  If dictIsbn.Exists("list") = True Then
+'  ' Reduce array elements to a comma-delimited string
+'    IsbnSearch = genUtils.Reduce(dictIsbn.Item("list"), ",")
+'  Else
+'    IsbnSearch = vbNullString
+'  End If
+'
+'  activeDoc.Close wdDoNotSaveChanges
+'  Set activeDoc = Nothing
+'
+'  Exit Function
+'
+'IsbnSearchError:
+'  Err.Source = strReports & "IsbnSearch"
+'  If ErrorChecker(Err, FilePath) = False Then
+'    Resume
+'  Else
+'    Call genUtils.Reports.ReportsTerminate
+'  End If
+'End Function
 
 
 ' ===== TitlepageCheck ========================================================

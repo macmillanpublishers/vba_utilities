@@ -264,7 +264,7 @@ Sub ActualCharStyles(oProgressChar As ProgressBar, StartPercent As Single, _
 ' SecondsElapsed = Round(Timer - StartTime, 2)
   
 ' Notify user in seconds
-'  Debug.Print "This code ran successfully in " & SecondsElapsed & " seconds"
+'  DebugPrint "This code ran successfully in " & SecondsElapsed & " seconds"
   Exit Sub
 
 ActualCharStylesError:
@@ -330,7 +330,7 @@ NextLoop:
     
 PreserveWhiteSpaceinBrkStylesAError:
   ' skips tagging that style if it's missing from doc; if missing, obv nothing has that style
-  'Debug.Print StylePreserveArray(e)
+  'DebugPrint StylePreserveArray(e)
   '5834 "Item with specified name does not exist" i.e. style not present in doc
   '5941 item not available in collection
   If Err.Number = 5834 Or Err.Number = 5941 Then
@@ -873,9 +873,9 @@ ErrorHandler:
   Exit Sub
 
 LocalStyleReplaceError:
-'    Debug.Print Err.Number & ": " & Err.Description
-'    Debug.Print "New name: " & strNewName
-'    Debug.Print "Old name: " & tagReplaceArray(h)
+'    DebugPrint Err.Number & ": " & Err.Description
+'    DebugPrint "New name: " & strNewName
+'    DebugPrint "Old name: " & tagReplaceArray(h)
   
   Dim myStyle2 As Style
   
@@ -929,7 +929,7 @@ Private Function TagBkmkrCharStyles(StoryType As Variant) As Variant
     ' which we don't want to mess with.
     If InStr(1, objStyle.NameLocal, "bookmaker", vbBinaryCompare) <> 0 And _
       objStyle.Type = wdStyleTypeCharacter Then
-      Debug.Print StoryType & ": " & objStyle.NameLocal
+      DebugPrint StoryType & ": " & objStyle.NameLocal
       Selection.HomeKey Unit:=wdStory
       ' Now see if it's being used ...
       With Selection.Find
@@ -966,7 +966,7 @@ Dim X As Long
 
   For X = LBound(strBkmkrNames) To UBound(strBkmkrNames)
     strTag = "bk" & Format(X, "0000")
-'        Debug.Print strTag
+'        DebugPrint strTag
     
     With activeRng.Find
       .ClearFormatting

@@ -27,6 +27,8 @@ Private dictBookInfo As genUtils.Dictionary
 Private dictStyles As genUtils.Dictionary
 ' store acceptable heading styles
 Private dictHeadings As genUtils.Dictionary
+' store macmillan styles based on other mac styles
+Private c_dictBaseStyle As genUtils.Dictionary
 ' store style-to-section conversion
 Private dictSections As genUtils.Dictionary
 ' also path to write alerts to
@@ -179,6 +181,9 @@ Public Sub ReportsTerminate()
   End If
   If Not dictHeadings Is Nothing Then
     Set dictHeadings = Nothing
+  End If
+  If Not c_dictBaseStyle Is Nothing Then
+    Set c_dictBaseStyle = Nothing
   End If
   If Not dictSections Is Nothing Then
     Set dictSections = Nothing
@@ -919,6 +924,63 @@ Private Function IsHeading(StyleName As String) As Boolean
 
 IsHeadingError:
   Err.Source = strReports & "IsHeading"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Function
+
+
+' ===== RevertToBaseStyle =====================================================
+' Is this paragraph style a Macmillan heading style? Eventually store style
+' names externally.
+
+Private Function RevertToBaseStyle(StyleName As String) As Boolean
+  On Error GoTo RevertToBaseStyleError
+' Hard code for now. `c_dictBaseStyle` is global scope so only have to create once
+  If c_dictBaseStyle Is Nothing Then
+    Set c_dictBaseStyle = New Dictionary
+  ' Value arg is the style key is based on, tho we don't need it yet
+      .Add "Titlepage Logo (logo)", "Bookmaker Processing Instruction (bpi)"
+      .Add "About Author Text Head (atah)", "BOB Ad Title (bobt)"
+      .Add "BM Title (bmt)", "BM Head (bmh)"
+      .Add "bookmaker loosen (bkl)", "bookmaker keep together (kt)"
+      .Add "Bookmaker Page Break (br)", "Page Break (pb)"
+      .Add "Bookmaker Processing Instruction (bpi)", "Design Note (dn)"
+      .Add "bookmaker tighten (bkt)", "bookmaker keep together (kt)"
+      .Add "Chap Title Nonprinting (ctnp)", "Chap Number (cn)"
+      .Add "Column Break (cbr)", "Column Head (ch)"
+      .Add "Extract - Bullet List (extbl)", "Extract-No Indent (ext1)"
+      .Add "Extract - Diary (extd)", "Extract (ext)"
+      .Add "Extract - Inscription (ins)", "Extract (ext)"
+      .Add "Extract - Newspaper (news)", "Extract (ext)"
+      .Add "Extract - Num List (extnl)", "Extract - Bullet List (extbl)"
+      .Add "Extract - Telegram (tel)", "Extract - Email (extem)"
+      .Add "Extract - Transcript (trans)", "Extract (ext)"
+      .Add "Extract Source (exts)", "Extract - Website (extws)"
+      .Add "FM Head ALT (afmh)", "FM Head (fmh)"
+      .Add "FM Text ALT (afmtx)", "FM Text (fmtx)"
+      .Add "FM Text No-Indent ALT (afmtx1)", "FM Text (fmtx)"
+      .Add "FM Title (fmt)", "FM Head (fmh)"
+      .Add "Part Epigraph - non-verse (pepi)", "Part Epigraph - verse (pepiv)"
+      .Add "Part Opening Text (potx)", "Text - Standard (tx)"
+      .Add "Part Opening Text No-Indent (potx1)", "Text - Std No-Indent (tx1)"
+      .Add "Teaser Opening Text No-Indent (totx1)", "Teaser Opening Text (totx)"
+      .Add "Titlepage Logo (logo)", "Bookmaker Processing Instruction (bpi)"
+      .Add "TOC Author (cau)", "TOC Frontmatter Head (cfmh)"
+      .Add "TOC Page Number (cnum)", "TOC Backmatter Head (cbmh)"
+    End With
+  End If
+  
+' So if our style is here, we DON'T want to revert, so we reverse it
+  Dim blnResult As Boolean
+  blnResult = c_dictBaseStyle.Exists(StyleName)
+  RevertToBaseStyle = Not blnResult
+  Exit Function
+
+RevertToBaseStyleError:
+  Err.Source = strReports & "RevertToBaseStyle"
   If ErrorChecker(Err) = False Then
     Resume
   Else

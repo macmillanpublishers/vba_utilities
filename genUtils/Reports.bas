@@ -241,7 +241,9 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
 '  DebugPrint "Total paragraphs: " & lngParaCt
+  Dim rngPara As Paragraph
   Dim strStyle As String
+  Dim strBaseStyle As String
   Dim A As Long
   
 ' Loop through all paragraphs in document from END to START so we end up with
@@ -257,12 +259,25 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     If A Mod 200 = 0 Then
       DebugPrint "Paragraph " & A
     End If
-
+  ' Set Range object for this paragraph
+    Set rngPara = activeDoc.Paragraphs(A).Range
   ' Get style name
-    strStyle = activeDoc.Paragraphs(A).Style
+    strStyle = rngPara.Style
     
   ' If style name = Macmillan style...
     If Right(strStyle, 1) = ")" Then
+    ' Is it a custom style? Assuming custom styles created correctly, should be
+    ' based-on a Macmillan style we can revert to...
+      strBaseStyle = activeDoc.Styles(strStyle).BaseStyle
+      If Right(strBaseStyle, 1) = ")" Then
+      ' ... though some good styles are based on other styles, so filter 'em
+        If RevertToBaseStyle(strStyle) = True Then
+          rngPara.Style = strBaseStyle
+          strStyle = strBaseStyle
+        End If
+      End If
+      
+      
     ' If style does not exist in dict yet...
       If Not dictStyles.Exists(strStyle) Then
       ' ...create sub-dictionary
@@ -285,7 +300,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     ' To do: use logic to tag TX1, COTX1
     '        store style name externally
       If FixUnstyled = True Then
-        activeDoc.Paragraphs(A).Style = strBodyStyle
+        rngPara.Style = strBodyStyle
       End If
     End If
   Next A

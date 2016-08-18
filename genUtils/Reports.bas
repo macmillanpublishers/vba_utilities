@@ -925,6 +925,7 @@ Private Function IsHeading(StyleName As String) As Boolean
       .Add "Recipe Var Head (rvh)", False
       .Add "Poem Subtitle (vst)", False
       .Add "Poem Title (vt)", False
+      .Add "Titlepage Book Title (tit)", False
     End With
   End If
   

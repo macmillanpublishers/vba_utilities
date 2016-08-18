@@ -353,14 +353,14 @@ Public Sub DebugPrint(Optional StringExpression As Variant)
   strMessage = Now & ": " & StringExpression
   Debug.Print strMessage
 
-' Second, write to file
-' Create file name
-'' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
-' with Folder Actions (like Validator), new file in dir will error
-' How to write to a static location?
+'' Second, write to file
+'' Create file name
+''' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
+'' with Folder Actions (like Validator), new file in dir will error
+'' How to write to a static location?
 '  Dim strOutputFile As String
 '  strOutputFile = ActiveDocument.Path & Application.PathSeparator & "immediate_window.txt"
-
+'
 '  Dim FileNum As Integer
 '  FileNum = FreeFile ' next file number
 '  Open strOutputFile For Append As #FileNum

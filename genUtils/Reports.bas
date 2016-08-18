@@ -27,6 +27,8 @@ Private dictBookInfo As genUtils.Dictionary
 Private dictStyles As genUtils.Dictionary
 ' store acceptable heading styles
 Private dictHeadings As genUtils.Dictionary
+' store macmillan styles based on other mac styles
+Private c_dictBaseStyle As genUtils.Dictionary
 ' store style-to-section conversion
 Private dictSections As genUtils.Dictionary
 ' also path to write alerts to
@@ -180,6 +182,9 @@ Public Sub ReportsTerminate()
   If Not dictHeadings Is Nothing Then
     Set dictHeadings = Nothing
   End If
+  If Not c_dictBaseStyle Is Nothing Then
+    Set c_dictBaseStyle = Nothing
+  End If
   If Not dictSections Is Nothing Then
     Set dictSections = Nothing
   End If
@@ -236,7 +241,9 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
 '  DebugPrint "Total paragraphs: " & lngParaCt
+  Dim rngPara As Range
   Dim strStyle As String
+  Dim strBaseStyle As String
   Dim A As Long
   
 ' Loop through all paragraphs in document from END to START so we end up with
@@ -252,12 +259,25 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     If A Mod 200 = 0 Then
       DebugPrint "Paragraph " & A
     End If
-
+  ' Set Range object for this paragraph
+    Set rngPara = activeDoc.Paragraphs(A).Range
   ' Get style name
-    strStyle = activeDoc.Paragraphs(A).Style
+    strStyle = rngPara.Style
     
   ' If style name = Macmillan style...
     If Right(strStyle, 1) = ")" Then
+    ' Is it a custom style? Assuming custom styles created correctly, should be
+    ' based-on a Macmillan style we can revert to...
+      strBaseStyle = activeDoc.Styles(strStyle).BaseStyle
+      If Right(strBaseStyle, 1) = ")" Then
+      ' ... though some good styles are based on other styles, so filter 'em
+        If RevertToBaseStyle(strStyle) = True Then
+          rngPara.Style = strBaseStyle
+          strStyle = strBaseStyle
+        End If
+      End If
+      
+      
     ' If style does not exist in dict yet...
       If Not dictStyles.Exists(strStyle) Then
       ' ...create sub-dictionary
@@ -280,7 +300,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     ' To do: use logic to tag TX1, COTX1
     '        store style name externally
       If FixUnstyled = True Then
-        activeDoc.Paragraphs(A).Style = strBodyStyle
+        rngPara.Style = strBodyStyle
       End If
     End If
   Next A
@@ -905,6 +925,7 @@ Private Function IsHeading(StyleName As String) As Boolean
       .Add "Recipe Var Head (rvh)", False
       .Add "Poem Subtitle (vst)", False
       .Add "Poem Title (vt)", False
+      .Add "Titlepage Book Title (tit)", False
     End With
   End If
   
@@ -919,6 +940,63 @@ Private Function IsHeading(StyleName As String) As Boolean
 
 IsHeadingError:
   Err.Source = strReports & "IsHeading"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Function
+
+
+' ===== RevertToBaseStyle =====================================================
+' Is this paragraph style a Macmillan heading style? Eventually store style
+' names externally.
+
+Private Function RevertToBaseStyle(StyleName As String) As Boolean
+  On Error GoTo RevertToBaseStyleError
+' Hard code for now. `c_dictBaseStyle` is global scope so only have to create once
+  If c_dictBaseStyle Is Nothing Then
+    Set c_dictBaseStyle = New Dictionary
+  ' Value arg is the style key is based on, tho we don't need it yet
+    With c_dictBaseStyle
+      .Add "Titlepage Logo (logo)", "Bookmaker Processing Instruction (bpi)"
+      .Add "About Author Text Head (atah)", "BOB Ad Title (bobt)"
+      .Add "BM Title (bmt)", "BM Head (bmh)"
+      .Add "bookmaker loosen (bkl)", "bookmaker keep together (kt)"
+      .Add "Bookmaker Page Break (br)", "Page Break (pb)"
+      .Add "Bookmaker Processing Instruction (bpi)", "Design Note (dn)"
+      .Add "bookmaker tighten (bkt)", "bookmaker keep together (kt)"
+      .Add "Chap Title Nonprinting (ctnp)", "Chap Number (cn)"
+      .Add "Column Break (cbr)", "Column Head (ch)"
+      .Add "Extract - Bullet List (extbl)", "Extract-No Indent (ext1)"
+      .Add "Extract - Diary (extd)", "Extract (ext)"
+      .Add "Extract - Inscription (ins)", "Extract (ext)"
+      .Add "Extract - Newspaper (news)", "Extract (ext)"
+      .Add "Extract - Num List (extnl)", "Extract - Bullet List (extbl)"
+      .Add "Extract - Telegram (tel)", "Extract - Email (extem)"
+      .Add "Extract - Transcript (trans)", "Extract (ext)"
+      .Add "Extract Source (exts)", "Extract - Website (extws)"
+      .Add "FM Head ALT (afmh)", "FM Head (fmh)"
+      .Add "FM Text ALT (afmtx)", "FM Text (fmtx)"
+      .Add "FM Text No-Indent ALT (afmtx1)", "FM Text (fmtx)"
+      .Add "FM Title (fmt)", "FM Head (fmh)"
+      .Add "Part Epigraph - non-verse (pepi)", "Part Epigraph - verse (pepiv)"
+      .Add "Part Opening Text (potx)", "Text - Standard (tx)"
+      .Add "Part Opening Text No-Indent (potx1)", "Text - Std No-Indent (tx1)"
+      .Add "Teaser Opening Text No-Indent (totx1)", "Teaser Opening Text (totx)"
+      .Add "TOC Author (cau)", "TOC Frontmatter Head (cfmh)"
+      .Add "TOC Page Number (cnum)", "TOC Backmatter Head (cbmh)"
+    End With
+  End If
+  
+' So if our style is here, we DON'T want to revert, so we reverse it
+  Dim blnResult As Boolean
+  blnResult = c_dictBaseStyle.Exists(StyleName)
+  RevertToBaseStyle = Not blnResult
+  Exit Function
+
+RevertToBaseStyleError:
+  Err.Source = strReports & "RevertToBaseStyle"
   If ErrorChecker(Err) = False Then
     Resume
   Else
@@ -1233,6 +1311,7 @@ SectionHeadIndError:
   End If
 End Function
 
+
 ' ===== SectionRanges =========================================================
 ' Create an array of range objects, one for each section of the manuscript.
 ' Pass the array generated by SectionHeadInd() as an argument.
@@ -1356,19 +1435,31 @@ Public Function HeadingCheck() As genUtils.Dictionary
 '
 '    rngSect.Shading.BackgroundPatternColor = lngColor
 '    '' DEBUGGING
-    
+  
+  ' Get style name and text (w/o new line) of first paragraph in range.
     Set rngFirst = rngSect.Paragraphs(1).Range
-    Set rngSecond = rngSect.Paragraphs(2).Range
-
-  ' Get style of first and second paragraphs
     strFirstStyle = rngFirst.ParagraphStyle
-    strSecondStyle = rngSecond.ParagraphStyle
-'    DebugPrint strFirstStyle
-'    DebugPrint strSecondStyle
-
-  ' Get text of first and second paragraphs, without final paragraph return
     strFirstText = Left(rngFirst.Text, Len(rngFirst.Text) - 1)
-    strSecondText = Left(rngSecond.Text, Len(rngSecond.Text) - 1)
+    
+  ' Test if range is more than 1 paragraph
+    Dim blnMultiPara As Boolean
+    If rngSect.Paragraphs.Count >= 2 Then
+      blnMultiPara = True
+    Else
+      blnMultiPara = False
+    End If
+    
+  ' If section only has 1 paragraph (e.g., backmatter section TK), trying to
+  ' get 2nd will result in an error. If more than 1, get style name and text
+  ' of 2nd paragraph.
+    If blnMultiPara = True Then
+      Set rngSecond = rngSect.Paragraphs(2).Range
+      strSecondStyle = rngSecond.ParagraphStyle
+      strSecondText = Left(rngSecond.Text, Len(rngSecond.Text) - 1)
+    Else
+      strSecondStyle = vbNullString
+      strSecondText = vbNullString
+    End If
     
     Select Case strFirstStyle
       Case strChapNonprinting
@@ -1404,7 +1495,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strPartNumber, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "PartNumCleanUp", blnRmCharFormat
         
-      ' Is next para a CT? (If no, change this to CT)
+      ' Is next para a PT? (If no, change this to CT)
         If strSecondStyle <> strPartTitle Then
           rngFirst.Style = strPartTitle
           dictReturn.Add strSectionKey & "PartNumToTitle", True

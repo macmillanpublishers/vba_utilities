@@ -241,7 +241,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 
   Dim lngParaCt As Long: lngParaCt = activeDoc.Paragraphs.Count
 '  DebugPrint "Total paragraphs: " & lngParaCt
-  Dim rngPara As Paragraph
+  Dim rngPara As Range
   Dim strStyle As String
   Dim strBaseStyle As String
   Dim A As Long
@@ -958,6 +958,7 @@ Private Function RevertToBaseStyle(StyleName As String) As Boolean
   If c_dictBaseStyle Is Nothing Then
     Set c_dictBaseStyle = New Dictionary
   ' Value arg is the style key is based on, tho we don't need it yet
+    With c_dictBaseStyle
       .Add "Titlepage Logo (logo)", "Bookmaker Processing Instruction (bpi)"
       .Add "About Author Text Head (atah)", "BOB Ad Title (bobt)"
       .Add "BM Title (bmt)", "BM Head (bmh)"
@@ -983,7 +984,6 @@ Private Function RevertToBaseStyle(StyleName As String) As Boolean
       .Add "Part Opening Text (potx)", "Text - Standard (tx)"
       .Add "Part Opening Text No-Indent (potx1)", "Text - Std No-Indent (tx1)"
       .Add "Teaser Opening Text No-Indent (totx1)", "Teaser Opening Text (totx)"
-      .Add "Titlepage Logo (logo)", "Bookmaker Processing Instruction (bpi)"
       .Add "TOC Author (cau)", "TOC Frontmatter Head (cfmh)"
       .Add "TOC Page Number (cnum)", "TOC Backmatter Head (cbmh)"
     End With

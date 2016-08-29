@@ -45,6 +45,7 @@ Public Const strIsbnStyle As String = "span isbn (ISBN)"
 Public Const strBookTitle As String = "Titlepage Book Title (tit)"
 Public Const strAuthorName As String = "Titlepage Author Name (au)"
 Public Const strCopyright As String = "Copyright Text single space (crtx)"
+Public Const strCopyright2 As String = "Copyright Text double space (crtxd)"
 Public Const strBodyStyle As String = "Text - Standard (tx)"
 Public Const strFmEpiText As String = "FM Epigraph - non-verse (fmepi)"
 Public Const strFmEpiVerse As String = "FM Epigraph - verse (fmepiv)"
@@ -53,10 +54,23 @@ Public Const strHalftitle As String = "Halftitle Book Title (htit)"
 Public Const strPartTitle As String = "Part Title (pt)"
 Public Const strPartNumber As String = "Part Number (pn)"
 Public Const strFmHead As String = "FM Head (fmh)"
+Public Const strFmHeadAlt As String = "Fm Head ALT (afmh)"
 Public Const strFmTitle As String = "FM Title (fmt)"
 Public Const strBmHead As String = "BM Head (bmh)"
+Public Const strBmHeadAlt As String = "BM Head ALT (abmh)"
 Public Const strBmTitle As String = "BM Title (bmt)"
 Public Const strIllustrationHolder As String = "Illustration holder (ill)"
+Public Const c_strFsqHead As String = "Front Sales Quote Head (fsqh)"
+Public Const c_strAppHead As String = "Appendix Head (aph)"
+Public Const c_strAtaHead As String = "About Author Text Head (atah)"
+Public Const c_strSeriesHead As String = "Series Page Heading (sh)"
+Public Const c_strAdCardHead As String = "Ad Card Main Head (acmh)"
+Public Const c_strRecipeHead As String = "Recipe Head (rh)"
+Public Const c_strSubRecipeHead As String = "Sub-Recipe Head (srh)"
+Public Const c_strRecipeVarHead As String = "Recipe Var Head (rvh)"
+Public Const c_strPoemTitle As String = "Poem Title (vt)"
+
+
 
 Private Enum BookInfo
   bk_Title = 1
@@ -904,28 +918,29 @@ Private Function IsHeading(StyleName As String) As Boolean
     Set dictHeadings = New Dictionary
   ' Value arg not optional. Change to True if found (maybe helpful in future).
     With dictHeadings
-      .Add "Front Sales Quote Head (fsqh)", False
-      .Add "FM Head (fmh)", False
-      .Add "FM Title (fmt)", False
-      .Add "Fm Head ALT (afmh)", False
-      .Add "Chap Title (ct)", False
-      .Add "Chap Number (cn)", False
-      .Add "Chap Title Nonprinting (ctnp)", False
-      .Add "Part Title (pt)", False
-      .Add "Part Number (pn)", False
-      .Add "BM Head (bmh)", False
-      .Add "BM Title (bmt)", False
-      .Add "BM Head ALT (abmh)", False
-      .Add "Appendix Head (aph)", False
-      .Add "About Author Text Head (atah)", False
-      .Add "Series Page Heading (sh)", False
-      .Add "Ad Card Main Head (acmh)", False
-      .Add "Recipe Head (rh)", False
-      .Add "Sub-Recipe Head (srh)", False
-      .Add "Recipe Var Head (rvh)", False
-      .Add "Poem Subtitle (vst)", False
-      .Add "Poem Title (vt)", False
-      .Add "Titlepage Book Title (tit)", False
+      .Add c_strFsqHead, False
+      .Add strFmHead, False
+      .Add strFmTitle, False
+      .Add strFmHeadAlt, False
+      .Add strChapTitle, False
+      .Add strChapNumber, False
+      .Add strChapNonprinting, False
+      .Add strPartTitle, False
+      .Add strPartNumber, False
+      .Add strBmHead, False
+      .Add strBmTitle, False
+      .Add strBmHeadAlt, False
+      .Add c_strAppHead, False
+      .Add c_strAtaHead, False
+      .Add c_strSeriesHead, False
+      .Add c_strAdCardHead, False
+      .Add c_strRecipeHead, False
+      .Add c_strSubRecipeHead, False
+      .Add c_strRecipeVarHead, False
+      .Add c_strPoemTitle, False
+      .Add strBookTitle, False
+      .Add strCopyright, False
+      .Add strCopyright2, False
     End With
   End If
   

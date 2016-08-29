@@ -1093,19 +1093,32 @@ Private Function AddHeading(paraInd As Long) As Boolean
   Dim strParaStyle As String
   strParaStyle = rngPara.Style
 
-'
-' Look up section name of that style
+' Use style name to get text and style for heading
+  Dim dictHeading As genUtils.Dictionary
+  Set dictHeading = SectionName(strParaStyle)
+
+' Pull out heading text and style
   Dim strSectionName As String
   Dim strHeadingStyle As String
-  strSectionName = Reports.SectionName(strParaStyle)
-  strHeadingStyle = strChapNonprinting
-  ' add line ending ('cuz new paragraph)
-  strSectionName = strSectionName & vbNewLine
+' Don't forget to double check the dictionary!
+  If dictHeading.Exists("text") Then
+    strSectionName = dictHeading.Item("text")
+  Else
+    strSectionName = "Chapter"
+  End If
   
-' Insert new paragraph
+  If dictHeading.Exists("headingStyle") Then
+    strHeadingStyle = dictHeading.Item("headingStyle")
+  Else
+    strHeadingStyle = strChapNonprinting
+  End If
+
+' add line ending ('cuz new paragraph), insert as new paragraph
+  strSectionName = strSectionName & vbNewLine
   rngPara.InsertBefore (strSectionName)
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
+' ErrorChecker will add style if it doesn't exist
   rngPara.Paragraphs(1).Style = strHeadingStyle
 
 ' Verify we added a paragraph

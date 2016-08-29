@@ -69,8 +69,8 @@ Public Const c_strRecipeHead As String = "Recipe Head (rh)"
 Public Const c_strSubRecipeHead As String = "Sub-Recipe Head (srh)"
 Public Const c_strRecipeVarHead As String = "Recipe Var Head (rvh)"
 Public Const c_strPoemTitle As String = "Poem Title (vt)"
-
-
+Public Const c_strFmHeadNonprinting As String = "FM Head Nonprinting (fmhnp)"
+Public Const c_strBmHeadNonprinting As String = "BM Head Nonprinting (bmhnp)"
 
 Private Enum BookInfo
   bk_Title = 1
@@ -941,6 +941,8 @@ Private Function IsHeading(StyleName As String) As Boolean
       .Add strBookTitle, False
       .Add strCopyright, False
       .Add strCopyright2, False
+      .Add c_strFmHeadNonprinting, False
+      .Add c_strBmHeadNonprinting, False
     End With
   End If
   

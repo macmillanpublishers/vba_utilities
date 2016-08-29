@@ -1023,13 +1023,21 @@ End Function
 
 
 ' ===== SectionName ===========================================================
-' Determines section name from style name. Reads from external JSON file. When
-' we get around to changing style names so the section is always the first word
-' we can make this much simpler.
+' Determines section heading text and style from original para's style name.
+' Reads from external JSON file. When we get around to changing style names so
+' the section is always the first word we can make this much simpler.
 
-Private Function SectionName(StyleName As String) As String
+' JSON Format:
+'    "Bibliography": {
+'      "text":"Bibliography",
+'      "headingStyle":"BM Head Nonprinting (bmhnp)"
+'      }
+
+Private Function SectionName(StyleName As String) As genUtils.Dictionary
   On Error GoTo SectionNameError
-' Create dictionary if it hasn't been yet
+  Dim dictReturn As genUtils.Dictionary
+
+' Create dictionary from JSON if it hasn't been created yet
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
     Dim strSections As String
@@ -1041,15 +1049,20 @@ Private Function SectionName(StyleName As String) As String
     End If
   End If
 
-' If first word is a key, section is value
+' JSON key = first word in style passed to us
   Dim strFirst As String
   strFirst = Left(StyleName, InStr(StyleName, " ") - 1)
+
+' If style is in JSON...
   If dictSections.Exists(strFirst) = True Then
-    SectionName = dictSections.Item(strFirst)
-' Else it's just a generic chapter section
+  ' ... get object for that style.
+    Set dictReturn = dictSections.Item(strFirst)
+' Else, just make it a generic chapter heading
   Else
-    SectionName = "Chapter"
+    Set dictReturn = dictSections.Item("Chap")
   End If
+  
+  Set SectionName = dictReturn
   Exit Function
 
 SectionNameError:
@@ -1063,7 +1076,7 @@ End Function
 
 
 ' ===== AddHeading ============================================================
-' Adds CTNP heading ABOVE the paragraph passed as arg, with section name text.
+' Adds *NP heading ABOVE the paragraph passed as arg, with section name text.
 ' Though each chapter is just "Chapter" -- will have to add numbers later.
 
 Private Function AddHeading(paraInd As Long) As Boolean
@@ -1080,9 +1093,12 @@ Private Function AddHeading(paraInd As Long) As Boolean
   Dim strParaStyle As String
   strParaStyle = rngPara.Style
 
+'
 ' Look up section name of that style
   Dim strSectionName As String
+  Dim strHeadingStyle As String
   strSectionName = Reports.SectionName(strParaStyle)
+  strHeadingStyle = strChapNonprinting
   ' add line ending ('cuz new paragraph)
   strSectionName = strSectionName & vbNewLine
   
@@ -1090,7 +1106,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   rngPara.InsertBefore (strSectionName)
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
-  rngPara.Paragraphs(1).Style = strChapNonprinting
+  rngPara.Paragraphs(1).Style = strHeadingStyle
 
 ' Verify we added a paragraph
   Dim lngNewParas As Long
@@ -1104,7 +1120,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   
 AddHeadingError:
   Err.Source = strReports & "AddHeading"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strHeadingStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate

@@ -1042,12 +1042,10 @@ End Function
 ' first select statement below
 
 Private Function SectionName(StyleName As String, Optional JsonString As _
-  SectionsJson = c_text) As String
+  SectionsJson = j_text) As String
   On Error GoTo SectionNameError
   Dim dictItem As genUtils.Dictionary
 
-
-  
 ' Create dictionary from JSON if it hasn't been created yet
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
@@ -1077,17 +1075,16 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
   Dim strJsonString As String
 
   Select Case JsonString
-    Case c_text
+    Case j_text
       strJsonString = "text"
-    Case c_style
+    Case j_style
       strJsonString = "headingStyle"
   End Select
 
 ' Retrieve value
   If dictItem.Exists(strJsonString) Then
     SectionName = dictItem.Item(strJsonString)
-  Else
-        
+  End If
   Exit Function
 
 SectionNameError:
@@ -1130,7 +1127,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
 ' ErrorChecker will add style if it doesn't exist
-  Debug.Print strHeadingStyle
+'  Debug.Print strHeadingStyle
   rngPara.Paragraphs(1).Style = strHeadingStyle
 
 ' Verify we added a paragraph

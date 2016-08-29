@@ -1,1 +1,102 @@
-{"About":"About the Author","Ad":"Ad Card","Appendix":"Appendix","Biblio":"Bibliography","Bibliography":"Bibliography","BOB":"Back Ad","Chap":"Chapter","Copyright":"Copyright","Dateline":"Dateline","Dedication":"Dedication","Endnote":"Notes","Epigraph":"Epigraph","Front":"Front Sales","Glossary":"Glossary","Halftitle":"Halftitle","Index":"Index","Note":"Notes","Part":"Part","Poem":"Poem","Recipe":"Recipe","Series":"Series","Sub-Recipe":"Sub-Recipe","Teaser":"Teaser","Titlepage":"Titlepage","TOC":"TOC"}
+{
+    "About": {
+      "text":"About the Author",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Ad": {
+      "text":"Ad Card",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Appendix": {
+      "text":"Appendix",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Biblio": {
+      "text":"Bibliography",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Bibliography": {
+      "text":"Bibliography",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "BOB": {
+      "text":"Back Ad",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Chap": {
+      "text":"Chapter",
+      "headingStyle":"Chap Title Nonprinting (ctnp)"
+      },
+    "Copyright": {
+      "text":"Copyright",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Dateline": {
+      "text":"Chapter",
+      "headingStyle":"Chap Title Nonprinting (ctnp)"
+      },
+    "Dedication": {
+      "text":"Dedication",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Endnote": {
+      "text":"Notes",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Epigraph": {
+      "text":"Epigraph",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Front": {
+      "text":"Front Sales",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Glossary": {
+      "text":"Glossary",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Halftitle": {
+      "text":"Halftitle",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Index": {
+      "text":"Index",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Note": {
+      "text":"Notes",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Part": {
+      "text":"Part",
+      "headingStyle":"Chap Title Nonprinting (ctnp)"
+      },
+    "Poem": {
+      "text":"Poem",
+      "headingStyle":"Chap Title Nonprinting (ctnp)"
+      },
+    "Recipe": {
+      "text":"Recipe",
+      "headingStyle":"Chap Title Nonprinting (ctnp)"
+      },
+    "Series": {
+      "text":"Series Page",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "Sub-Recipe": {
+      "text":"Sub-Recipe",
+      "headingStyle":"Chap Title Nonprinting (ctnp)"
+      },
+    "Teaser": {
+      "text":"Teaser",
+      "headingStyle":"BM Head Nonprinting (bmhnp)"
+      },
+    "Titlepage": {
+      "text":"Titlepage",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      },
+    "TOC": {
+      "text":"Contents",
+      "headingStyle":"FM Head Nonprinting (fmhnp)"
+      }
+}

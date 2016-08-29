@@ -123,7 +123,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
   '   strErrMessage = "Message for the user if we're notifying them."
   Select Case lngErrNumber
   
-    Case 5941 Or 5834 '
+    Case 5941, 5834
     ' 5941: Item not present in collection
     ' 5834: Item with the specified name does not exist
     ' Most common cause of these is referencing a style that doesn't exist.

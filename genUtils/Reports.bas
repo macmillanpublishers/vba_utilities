@@ -78,6 +78,11 @@ Private Enum BookInfo
   bk_ISBN = 3
 End Enum
 
+Private Enum SectionsJson
+  j_text = 1
+  j_style = 2
+End Enum
+
 
 ' ===== ReportsStartup ========================================================
 ' Set some global vars, check some things. Probably should be a class Initialize
@@ -1033,10 +1038,16 @@ End Function
 '      "headingStyle":"BM Head Nonprinting (bmhnp)"
 '      }
 
-Private Function SectionName(StyleName As String) As genUtils.Dictionary
-  On Error GoTo SectionNameError
-  Dim dictReturn As genUtils.Dictionary
+' Object names for each need to be added to (1) SectionsJson enumeration and (2)
+' first select statement below
 
+Private Function SectionName(StyleName As String, Optional JsonString As _
+  SectionsJson = c_text) As String
+  On Error GoTo SectionNameError
+  Dim dictItem As genUtils.Dictionary
+
+
+  
 ' Create dictionary from JSON if it hasn't been created yet
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
@@ -1056,13 +1067,27 @@ Private Function SectionName(StyleName As String) As genUtils.Dictionary
 ' If style is in JSON...
   If dictSections.Exists(strFirst) = True Then
   ' ... get object for that style.
-    Set dictReturn = dictSections.Item(strFirst)
+    Set dictItem = dictSections.Item(strFirst)
 ' Else, just make it a generic chapter heading
   Else
-    Set dictReturn = dictSections.Item("Chap")
+    Set dictItem = dictSections.Item("Chap")
   End If
   
-  Set SectionName = dictReturn
+' Convert enum to string. Default is "text"
+  Dim strJsonString As String
+
+  Select Case JsonString
+    Case c_text
+      strJsonString = "text"
+    Case c_style
+      strJsonString = "headingStyle"
+  End Select
+
+' Retrieve value
+  If dictItem.Exists(strJsonString) Then
+    SectionName = dictItem.Item(strJsonString)
+  Else
+        
   Exit Function
 
 SectionNameError:
@@ -1119,6 +1144,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
 ' ErrorChecker will add style if it doesn't exist
+  Debug.Print strHeadingStyle
   rngPara.Paragraphs(1).Style = strHeadingStyle
 
 ' Verify we added a paragraph

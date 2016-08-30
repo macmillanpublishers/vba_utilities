@@ -1516,9 +1516,9 @@ Public Function HeadingCheck() As genUtils.Dictionary
       strSecondText = vbNullString
     End If
     
+    dictReturn.Add strSectionKey & "FirstStyle", strFirstStyle
     Select Case strFirstStyle
-      Case strChapNonprinting
-        dictReturn.Add strSectionKey & "FirstStyle", strChapNonprinting
+      Case strChapNonprinting, c_strFmHeadNonprinting, c_strBmHeadNonprinting
       ' Does it have text?
         If strFirstText = vbNullString Then  ' No text (just paragraph return)
         ' Add section name to blank paragraph
@@ -1533,7 +1533,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
         
       Case strChapNumber
-        dictReturn.Add strSectionKey & "FirstStyle", strChapNumber
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strChapNumber, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "ChapNumCleanUp", blnRmCharFormat
@@ -1545,7 +1544,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
         
       Case strPartNumber
-        dictReturn.Add strSectionKey & "FirstStyle", strPartNumber
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strPartNumber, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "PartNumCleanUp", blnRmCharFormat
@@ -1557,19 +1555,16 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
 
       Case strFmHead
-        dictReturn.Add strSectionKey & "FirstStyle", strFmHead
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strFmHead, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "FmhCleanUp", blnRmCharFormat
       
       Case strBmHead
-        dictReturn.Add strSectionKey & "FirstStyle", strBmHead
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strBmHead, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "BmhCleanUp", blnRmCharFormat
 
       Case strChapTitle
-        dictReturn.Add strSectionKey & "FirstStyle", strChapTitle
       ' Is next para CN?
         If strSecondStyle = strChapNumber Then
         ' Remove any character styles
@@ -1583,7 +1578,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
   
       Case strPartTitle
-        dictReturn.Add strSectionKey & "FirstStyle", strPartTitle
         ' Is next para PN?
         If strSecondStyle = strPartNumber Then
         ' Remove any character styles
@@ -1597,7 +1591,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
 
       Case strFmTitle
-      dictReturn.Add strSectionKey & "FirstStyle", strFmTitle
       ' Is next para FMH?
         If strSecondStyle = strFmHead Then
         ' Remove any character styles
@@ -1614,7 +1607,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
       
       Case strBmTitle
-      dictReturn.Add strSectionKey & "FirstStyle", strBmTitle
       ' Is next para BMH?
         If strSecondStyle = strBmHead Then
         ' Remove any character styles

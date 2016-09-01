@@ -1257,6 +1257,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
   
   Dim lngParaCount As Long
   lngParaCount = activeDoc.Paragraphs.Count
+'  DebugPrint "Total paragraphs: " & lngParaCount
   Dim lngCount As Long
   lngCount = 0
   
@@ -1271,14 +1272,19 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Loop counter
       lngCount = lngCount + 1
       lngParaInd = genUtils.GeneralHelpers.ParaIndex
-'      DebugPrint "Section start: " & lngParaInd
+'      DebugPrint "Page break: " & lngParaInd
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
         strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Style
+'        DebugPrint "Next para style: " & strNextStyle
         If IsHeading(strNextStyle) = False Then
+'          DebugPrint "Next style is NOT heading"
           ' ... add a CTNP heading
           If AddHeading(lngParaInd + 1) = True Then
+'            DebugPrint "Heading added"
+          ' We added a paragraph, so increase count in whole doc
+            lngParaCount = lngParaCount + 1
             dictReturn.Item("added_headings") = dictReturn.Item("added_headings") + 1
           End If
         End If

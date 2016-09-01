@@ -45,6 +45,7 @@ Public Const strIsbnStyle As String = "span isbn (ISBN)"
 Public Const strBookTitle As String = "Titlepage Book Title (tit)"
 Public Const strAuthorName As String = "Titlepage Author Name (au)"
 Public Const strCopyright As String = "Copyright Text single space (crtx)"
+Public Const strCopyright2 As String = "Copyright Text double space (crtxd)"
 Public Const strBodyStyle As String = "Text - Standard (tx)"
 Public Const strFmEpiText As String = "FM Epigraph - non-verse (fmepi)"
 Public Const strFmEpiVerse As String = "FM Epigraph - verse (fmepiv)"
@@ -53,15 +54,33 @@ Public Const strHalftitle As String = "Halftitle Book Title (htit)"
 Public Const strPartTitle As String = "Part Title (pt)"
 Public Const strPartNumber As String = "Part Number (pn)"
 Public Const strFmHead As String = "FM Head (fmh)"
+Public Const strFmHeadAlt As String = "Fm Head ALT (afmh)"
 Public Const strFmTitle As String = "FM Title (fmt)"
 Public Const strBmHead As String = "BM Head (bmh)"
+Public Const strBmHeadAlt As String = "BM Head ALT (abmh)"
 Public Const strBmTitle As String = "BM Title (bmt)"
 Public Const strIllustrationHolder As String = "Illustration holder (ill)"
+Public Const c_strFsqHead As String = "Front Sales Quote Head (fsqh)"
+Public Const c_strAppHead As String = "Appendix Head (aph)"
+Public Const c_strAtaHead As String = "About Author Text Head (atah)"
+Public Const c_strSeriesHead As String = "Series Page Heading (sh)"
+Public Const c_strAdCardHead As String = "Ad Card Main Head (acmh)"
+Public Const c_strRecipeHead As String = "Recipe Head (rh)"
+Public Const c_strSubRecipeHead As String = "Sub-Recipe Head (srh)"
+Public Const c_strRecipeVarHead As String = "Recipe Var Head (rvh)"
+Public Const c_strPoemTitle As String = "Poem Title (vt)"
+Public Const c_strFmHeadNonprinting As String = "FM Head Nonprinting (fmhnp)"
+Public Const c_strBmHeadNonprinting As String = "BM Head Nonprinting (bmhnp)"
 
 Private Enum BookInfo
   bk_Title = 1
   bk_Authors = 2
   bk_ISBN = 3
+End Enum
+
+Private Enum SectionsJson
+  j_text = 1
+  j_style = 2
 End Enum
 
 
@@ -353,11 +372,7 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   
 ' If no styled ISBN exists, try to find or add
   Dim blnStyledIsbn As Boolean
-  If genUtils.GeneralHelpers.IsStyleInDoc(strIsbnStyle) = False Then
-    blnStyledIsbn = False
-  Else
-    blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-  End If
+  blnStyledIsbn = FindIsbn(StyledOnly:=True)
   
   dictReturn.Add "styled_isbn", blnStyledIsbn
   
@@ -365,7 +380,7 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   
   ' Search for unstyled ISBN (if true, they are bookmarked)
     Dim blnUnstyled As Boolean
-    blnUnstyled = UnstyledIsbn()
+    blnUnstyled = FindIsbn()
     dictReturn.Add "unstyled_isbn", blnUnstyled
     
   ' convert bookmarks to styles
@@ -427,17 +442,25 @@ IsbnCheckError:
 End Function
 
 
-' ===== UnstyledIsbn ============================================================
-' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
-' tags as bookmarks and returns True.
+' ===== FindIsbn ============================================================
+' Searches for ISBNs (13-digits with or without hyphens). If found, tags with
+' bookmarks and returns True. Default finds all ISBNs, StyledOnly:=True finds
+' only those tagged with ISBN character style.
 
-Private Function UnstyledIsbn() As Boolean
-  On Error GoTo UnstyledIsbnError
+Private Function FindIsbn(Optional StyledOnly As Boolean = False) As Boolean
+  On Error GoTo FindIsbnError
   Dim lngCounter As Long
   Dim strSearchPattern As String
   
+  FindIsbn = False
+
+' If looking for styled only, check that it's in use first (else not found)
+  If StyledOnly = True Then
+    If genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle) = False Then Exit Function
+  End If
+  
   activeDoc.Range.Select
-  UnstyledIsbn = False
+  FindIsbn = False
   ' ISBN rules:
   ' * First 3 digits: 978 or 979
   ' * 4th digit: 0 or 1 (for English language)
@@ -462,14 +485,21 @@ Private Function UnstyledIsbn() As Boolean
     .Text = strSearchPattern
     .Forward = True
     .Wrap = wdFindStop
-    .Format = False
     .MatchCase = True
     .MatchWildcards = True
+    
+    If StyledOnly = True Then
+      .Format = False
+      .Style = strIsbnStyle
+    Else
+      .Format = False
+    End If
+
   End With
 
   ' If ISBNs are found, tag with a Bookmark
   Do While Selection.Find.Execute = True And lngCounter < 100
-    UnstyledIsbn = True
+    FindIsbn = True
     lngCounter = lngCounter + 1
 
     ' Delete if bookmark already exists
@@ -481,9 +511,9 @@ Private Function UnstyledIsbn() As Boolean
   Loop
   Exit Function
 
-UnstyledIsbnError:
-  Err.Source = strReports & "UnstyledIsbn"
-  If ErrorChecker(Err) = False Then
+FindIsbnError:
+  Err.Source = strReports & "FindIsbn"
+  If ErrorChecker(Err, strIsbnStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
@@ -511,8 +541,7 @@ Private Function DeleteIsbns() As Boolean
   
   Dim blnSuccess As Boolean
   blnSuccess = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-  blnSuccess = Not blnSuccess
-  DeleteIsbns = blnSuccess
+  DeleteIsbns = Not blnSuccess
 
   Exit Function
   
@@ -589,9 +618,17 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   End If
   
   ' ISBN also needs character style
+  ' Search pattern copied from FindIsbn function. Maybe combine at some point.
   If InfoType = bk_ISBN Then
-    strInfoStyle = "span ISBN (isbn)"
-    rngNew.Style = strInfoStyle
+    GeneralHelpers.zz_clearFind
+    With rngNew.Find
+      .MatchWildcards = True
+      .Format = True
+      .Text = "(97[89][0-9\-]{10,14})"
+      .Replacement.Text = "\1"
+      .Replacement.Style = strIsbnStyle
+      .Execute Replace:=wdReplaceAll
+    End With
   End If
   
   Exit Function
@@ -606,7 +643,7 @@ End Function
 
 
 ' ===== AddIsbnTags ===========================================================
-' Converts bookmarked ISBNs to styles. UnstyledIsbn function adds a bookmark
+' Converts bookmarked ISBNs to styles. FindIsbn function adds a bookmark
 ' that starts with "ISBN" in name to each.
 
 Private Function AddIsbnTags() As Boolean
@@ -904,28 +941,31 @@ Private Function IsHeading(StyleName As String) As Boolean
     Set dictHeadings = New Dictionary
   ' Value arg not optional. Change to True if found (maybe helpful in future).
     With dictHeadings
-      .Add "Front Sales Quote Head (fsqh)", False
-      .Add "FM Head (fmh)", False
-      .Add "FM Title (fmt)", False
-      .Add "Fm Head ALT (afmh)", False
-      .Add "Chap Title (ct)", False
-      .Add "Chap Number (cn)", False
-      .Add "Chap Title Nonprinting (ctnp)", False
-      .Add "Part Title (pt)", False
-      .Add "Part Number (pn)", False
-      .Add "BM Head (bmh)", False
-      .Add "BM Title (bmt)", False
-      .Add "BM Head ALT (abmh)", False
-      .Add "Appendix Head (aph)", False
-      .Add "About Author Text Head (atah)", False
-      .Add "Series Page Heading (sh)", False
-      .Add "Ad Card Main Head (acmh)", False
-      .Add "Recipe Head (rh)", False
-      .Add "Sub-Recipe Head (srh)", False
-      .Add "Recipe Var Head (rvh)", False
-      .Add "Poem Subtitle (vst)", False
-      .Add "Poem Title (vt)", False
-      .Add "Titlepage Book Title (tit)", False
+      .Add c_strFsqHead, False
+      .Add strFmHead, False
+      .Add strFmTitle, False
+      .Add strFmHeadAlt, False
+      .Add strChapTitle, False
+      .Add strChapNumber, False
+      .Add strChapNonprinting, False
+      .Add strPartTitle, False
+      .Add strPartNumber, False
+      .Add strBmHead, False
+      .Add strBmTitle, False
+      .Add strBmHeadAlt, False
+      .Add c_strAppHead, False
+      .Add c_strAtaHead, False
+      .Add c_strSeriesHead, False
+      .Add c_strAdCardHead, False
+      .Add c_strRecipeHead, False
+      .Add c_strSubRecipeHead, False
+      .Add c_strRecipeVarHead, False
+      .Add c_strPoemTitle, False
+      .Add strBookTitle, False
+      .Add strCopyright, False
+      .Add strCopyright2, False
+      .Add c_strFmHeadNonprinting, False
+      .Add c_strBmHeadNonprinting, False
     End With
   End If
   
@@ -1006,13 +1046,25 @@ End Function
 
 
 ' ===== SectionName ===========================================================
-' Determines section name from style name. Reads from external JSON file. When
-' we get around to changing style names so the section is always the first word
-' we can make this much simpler.
+' Determines section heading text and style from original para's style name.
+' Reads from external JSON file. When we get around to changing style names so
+' the section is always the first word we can make this much simpler.
 
-Private Function SectionName(StyleName As String) As String
+' JSON Format:
+'    "Bibliography": {
+'      "text":"Bibliography",
+'      "headingStyle":"BM Head Nonprinting (bmhnp)"
+'      }
+
+' Object names for each need to be added to (1) SectionsJson enumeration and (2)
+' first select statement below
+
+Private Function SectionName(StyleName As String, Optional JsonString As _
+  SectionsJson = j_text) As String
   On Error GoTo SectionNameError
-' Create dictionary if it hasn't been yet
+  Dim dictItem As genUtils.Dictionary
+
+' Create dictionary from JSON if it hasn't been created yet
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
     Dim strSections As String
@@ -1024,14 +1076,32 @@ Private Function SectionName(StyleName As String) As String
     End If
   End If
 
-' If first word is a key, section is value
+' JSON key = first word in style passed to us
   Dim strFirst As String
   strFirst = Left(StyleName, InStr(StyleName, " ") - 1)
+
+' If style is in JSON...
   If dictSections.Exists(strFirst) = True Then
-    SectionName = dictSections.Item(strFirst)
-' Else it's just a generic chapter section
+  ' ... get object for that style.
+    Set dictItem = dictSections.Item(strFirst)
+' Else, just make it a generic chapter heading
   Else
-    SectionName = "Chapter"
+    Set dictItem = dictSections.Item("Chap")
+  End If
+  
+' Convert enum to string. Default is "text"
+  Dim strJsonString As String
+
+  Select Case JsonString
+    Case j_text
+      strJsonString = "text"
+    Case j_style
+      strJsonString = "headingStyle"
+  End Select
+
+' Retrieve value
+  If dictItem.Exists(strJsonString) Then
+    SectionName = dictItem.Item(strJsonString)
   End If
   Exit Function
 
@@ -1046,7 +1116,7 @@ End Function
 
 
 ' ===== AddHeading ============================================================
-' Adds CTNP heading ABOVE the paragraph passed as arg, with section name text.
+' Adds *NP heading ABOVE the paragraph passed as arg, with section name text.
 ' Though each chapter is just "Chapter" -- will have to add numbers later.
 
 Private Function AddHeading(paraInd As Long) As Boolean
@@ -1063,17 +1133,20 @@ Private Function AddHeading(paraInd As Long) As Boolean
   Dim strParaStyle As String
   strParaStyle = rngPara.Style
 
-' Look up section name of that style
+' Use style name to get text and style for heading
   Dim strSectionName As String
-  strSectionName = Reports.SectionName(strParaStyle)
-  ' add line ending ('cuz new paragraph)
+  Dim strHeadingStyle As String
+  strSectionName = SectionName(strParaStyle, j_text)
+  strHeadingStyle = SectionName(strParaStyle, j_style)
+
+' add line ending ('cuz new paragraph), insert as new paragraph
   strSectionName = strSectionName & vbNewLine
-  
-' Insert new paragraph
   rngPara.InsertBefore (strSectionName)
   
 ' Add correct style (inserted paragraph now part of `rngPara` object)
-  rngPara.Paragraphs(1).Style = strChapNonprinting
+' ErrorChecker will add style if it doesn't exist
+'  Debug.Print strHeadingStyle
+  rngPara.Paragraphs(1).Style = strHeadingStyle
 
 ' Verify we added a paragraph
   Dim lngNewParas As Long
@@ -1087,7 +1160,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   
 AddHeadingError:
   Err.Source = strReports & "AddHeading"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strHeadingStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
@@ -1202,6 +1275,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
   
   Dim lngParaCount As Long
   lngParaCount = activeDoc.Paragraphs.Count
+'  DebugPrint "Total paragraphs: " & lngParaCount
   Dim lngCount As Long
   lngCount = 0
   
@@ -1216,14 +1290,19 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Loop counter
       lngCount = lngCount + 1
       lngParaInd = genUtils.GeneralHelpers.ParaIndex
-'      DebugPrint "Section start: " & lngParaInd
+'      DebugPrint "Page break: " & lngParaInd
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
         strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Style
+'        DebugPrint "Next para style: " & strNextStyle
         If IsHeading(strNextStyle) = False Then
+'          DebugPrint "Next style is NOT heading"
           ' ... add a CTNP heading
           If AddHeading(lngParaInd + 1) = True Then
+'            DebugPrint "Heading added"
+          ' We added a paragraph, so increase count in whole doc
+            lngParaCount = lngParaCount + 1
             dictReturn.Item("added_headings") = dictReturn.Item("added_headings") + 1
           End If
         End If
@@ -1461,9 +1540,9 @@ Public Function HeadingCheck() As genUtils.Dictionary
       strSecondText = vbNullString
     End If
     
+    dictReturn.Add strSectionKey & "FirstStyle", strFirstStyle
     Select Case strFirstStyle
-      Case strChapNonprinting
-        dictReturn.Add strSectionKey & "FirstStyle", strChapNonprinting
+      Case strChapNonprinting, c_strFmHeadNonprinting, c_strBmHeadNonprinting
       ' Does it have text?
         If strFirstText = vbNullString Then  ' No text (just paragraph return)
         ' Add section name to blank paragraph
@@ -1478,7 +1557,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
         
       Case strChapNumber
-        dictReturn.Add strSectionKey & "FirstStyle", strChapNumber
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strChapNumber, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "ChapNumCleanUp", blnRmCharFormat
@@ -1490,7 +1568,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
         
       Case strPartNumber
-        dictReturn.Add strSectionKey & "FirstStyle", strPartNumber
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strPartNumber, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "PartNumCleanUp", blnRmCharFormat
@@ -1502,19 +1579,16 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
 
       Case strFmHead
-        dictReturn.Add strSectionKey & "FirstStyle", strFmHead
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strFmHead, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "FmhCleanUp", blnRmCharFormat
       
       Case strBmHead
-        dictReturn.Add strSectionKey & "FirstStyle", strBmHead
       ' Remove any character styles
         blnRmCharFormat = ChapNumCleanUp(StyleName:=strBmHead, SearchRange:=rngFirst)
         dictReturn.Add strSectionKey & "BmhCleanUp", blnRmCharFormat
 
       Case strChapTitle
-        dictReturn.Add strSectionKey & "FirstStyle", strChapTitle
       ' Is next para CN?
         If strSecondStyle = strChapNumber Then
         ' Remove any character styles
@@ -1528,7 +1602,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
   
       Case strPartTitle
-        dictReturn.Add strSectionKey & "FirstStyle", strPartTitle
         ' Is next para PN?
         If strSecondStyle = strPartNumber Then
         ' Remove any character styles
@@ -1542,7 +1615,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
 
       Case strFmTitle
-      dictReturn.Add strSectionKey & "FirstStyle", strFmTitle
       ' Is next para FMH?
         If strSecondStyle = strFmHead Then
         ' Remove any character styles
@@ -1559,7 +1631,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
       
       Case strBmTitle
-      dictReturn.Add strSectionKey & "FirstStyle", strBmTitle
       ' Is next para BMH?
         If strSecondStyle = strBmHead Then
         ' Remove any character styles

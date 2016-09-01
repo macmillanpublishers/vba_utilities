@@ -618,9 +618,17 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   End If
   
   ' ISBN also needs character style
+  ' Search pattern copied from FindIsbn function. Maybe combine at some point.
   If InfoType = bk_ISBN Then
-    strInfoStyle = "span ISBN (isbn)"
-    rngNew.Style = strInfoStyle
+    GeneralHelpers.zz_clearFind
+    With rngNew.Find
+      .MatchWildcards = True
+      .Format = True
+      .Text = "(97[89][0-9\-]{10,14})"
+      .Replacement.Text = "\1"
+      .Replacement.Style = strIsbnStyle
+      .Execute Replace:=wdReplaceAll
+    End With
   End If
   
   Exit Function

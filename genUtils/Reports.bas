@@ -372,11 +372,7 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   
 ' If no styled ISBN exists, try to find or add
   Dim blnStyledIsbn As Boolean
-  If genUtils.GeneralHelpers.IsStyleInDoc(strIsbnStyle) = False Then
-    blnStyledIsbn = False
-  Else
-    blnStyledIsbn = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-  End If
+  blnStyledIsbn = FindIsbn(StyledOnly:=True)
   
   dictReturn.Add "styled_isbn", blnStyledIsbn
   
@@ -384,7 +380,7 @@ Public Function IsbnCheck(Optional AddFromJson As Boolean = True) As _
   
   ' Search for unstyled ISBN (if true, they are bookmarked)
     Dim blnUnstyled As Boolean
-    blnUnstyled = UnstyledIsbn()
+    blnUnstyled = FindIsbn()
     dictReturn.Add "unstyled_isbn", blnUnstyled
     
   ' convert bookmarks to styles
@@ -446,17 +442,25 @@ IsbnCheckError:
 End Function
 
 
-' ===== UnstyledIsbn ============================================================
-' Searches for unstyled ISBNs (13-digits with or without hyphens). If found,
-' tags as bookmarks and returns True.
+' ===== FindIsbn ============================================================
+' Searches for ISBNs (13-digits with or without hyphens). If found, tags with
+' bookmarks and returns True. Default finds all ISBNs, StyledOnly:=True finds
+' only those tagged with ISBN character style.
 
-Private Function UnstyledIsbn() As Boolean
-  On Error GoTo UnstyledIsbnError
+Private Function FindIsbn(Optional StyledOnly As Boolean = False) As Boolean
+  On Error GoTo FindIsbnError
   Dim lngCounter As Long
   Dim strSearchPattern As String
   
+  FindIsbn = False
+
+' If looking for styled only, check that it's in use first (else not found)
+  If StyledOnly = True Then
+    If genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle) = False Then Exit Function
+  End If
+  
   activeDoc.Range.Select
-  UnstyledIsbn = False
+  FindIsbn = False
   ' ISBN rules:
   ' * First 3 digits: 978 or 979
   ' * 4th digit: 0 or 1 (for English language)
@@ -481,14 +485,21 @@ Private Function UnstyledIsbn() As Boolean
     .Text = strSearchPattern
     .Forward = True
     .Wrap = wdFindStop
-    .Format = False
     .MatchCase = True
     .MatchWildcards = True
+    
+    If StyledOnly = True Then
+      .Format = False
+      .Style = strIsbnStyle
+    Else
+      .Format = False
+    End If
+
   End With
 
   ' If ISBNs are found, tag with a Bookmark
   Do While Selection.Find.Execute = True And lngCounter < 100
-    UnstyledIsbn = True
+    FindIsbn = True
     lngCounter = lngCounter + 1
 
     ' Delete if bookmark already exists
@@ -500,9 +511,9 @@ Private Function UnstyledIsbn() As Boolean
   Loop
   Exit Function
 
-UnstyledIsbnError:
-  Err.Source = strReports & "UnstyledIsbn"
-  If ErrorChecker(Err) = False Then
+FindIsbnError:
+  Err.Source = strReports & "FindIsbn"
+  If ErrorChecker(Err, strIsbnStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
@@ -530,8 +541,7 @@ Private Function DeleteIsbns() As Boolean
   
   Dim blnSuccess As Boolean
   blnSuccess = genUtils.GeneralHelpers.IsStyleInUse(strIsbnStyle)
-  blnSuccess = Not blnSuccess
-  DeleteIsbns = blnSuccess
+  DeleteIsbns = Not blnSuccess
 
   Exit Function
   
@@ -625,7 +635,7 @@ End Function
 
 
 ' ===== AddIsbnTags ===========================================================
-' Converts bookmarked ISBNs to styles. UnstyledIsbn function adds a bookmark
+' Converts bookmarked ISBNs to styles. FindIsbn function adds a bookmark
 ' that starts with "ISBN" in name to each.
 
 Private Function AddIsbnTags() As Boolean

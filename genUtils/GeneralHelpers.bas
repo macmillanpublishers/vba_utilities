@@ -730,6 +730,12 @@ End Function
 Public Function IsStyleInUse(StyleName As String) As Boolean
   On Error GoTo IsStyleInUseError
   
+' First confirm style is even in document to begin with
+  If GeneralHelpers.IsStyleInDoc(StyleName) = False Then
+    IsStyleInUse = False
+    Exit Function
+  End If
+
 '  ' If we need to do a Selection.Find use
 '  Selection.HomeKey Unit:=wdStory
   Call genUtils.zz_clearFind

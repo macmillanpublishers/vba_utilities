@@ -349,7 +349,6 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   Exit Function
 
 StyleCheckError:
-  DebugPrint "error: " & Error.Number & " " & Error.Description
   Err.Source = strReports & "StyleCheck"
   If ErrorChecker(Err, strBodyStyle) = False Then
     Resume
@@ -1468,7 +1467,7 @@ End Function
 ' array of ranges (one for each section) returned from SectionRange function
 
 Public Function HeadingCheck() As genUtils.Dictionary
-yeah th  On Error GoTo HeadingCheckError
+  On Error GoTo HeadingCheckError
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
@@ -1545,7 +1544,12 @@ yeah th  On Error GoTo HeadingCheckError
       strSecondStyle = vbNullString
       strSecondText = vbNullString
     End If
-    
+
+'    DebugPrint "strFirstStyle: " & strFirstStyle
+'    DebugPrint "strFirstText: " & strFirstText
+'    DebugPrint "strSecondStyle: " & strSecondStyle
+'    DebugPrint "strSecondText: " & strSecondText
+'
     dictReturn.Add strSectionKey & "FirstStyle", strFirstStyle
     Select Case strFirstStyle
       Case strChapNonprinting, c_strFmHeadNonprinting, c_strBmHeadNonprinting
@@ -1664,7 +1668,7 @@ yeah th  On Error GoTo HeadingCheckError
   ' at end of loop, style all PB paragraphs as PB style
   '     .InsertBreak Type:=wdSectionBreakContinuous
   '     .InsertBreak Type:=wdPageBreak
-       .ParagraphStyle = strPageBreak
+       .Style = strPageBreak
        dictReturn.Add strSectionKey & "AddSectionBreak", True
       End With
     End If

@@ -359,13 +359,14 @@ Public Sub DebugPrint(Optional StringExpression As Variant)
   strMessage = Now & ": " & StringExpression
   Debug.Print strMessage
 
-'' Second, write to file
-'' Create file name
-''' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
+' Second, write to file
+' Create file name
+'' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
 '' with Folder Actions (like Validator), new file in dir will error
 '' How to write to a static location?
 '  Dim strOutputFile As String
-'  strOutputFile = ActiveDocument.Path & Application.PathSeparator & "immediate_window.txt"
+'  strOutputFile = Environ("USERPROFILE") & Application.PathSeparator & _
+'    "Desktop" & Application.PathSeparator & "immediate_window.txt"
 '
 '  Dim FileNum As Integer
 '  FileNum = FreeFile ' next file number
@@ -2174,7 +2175,7 @@ Private Sub AutoFormatHyperlinks()
             Set oNote = oFN.Range
             Set oRng = oTemp.Range
             oRng.FormattedText = oNote.FormattedText
-            'oRng.Style = "Footnote Text"
+            'oRng.ParagraphStyle= "Footnote Text"
             Options.AutoFormatReplaceHyperlinks = True
             oRng.AutoFormat
             oRng.End = oRng.End - 1
@@ -2189,7 +2190,7 @@ Private Sub AutoFormatHyperlinks()
             Set oNote = oEN.Range
             Set oRng = oTemp.Range
             oRng.FormattedText = oNote.FormattedText
-            'oRng.Style = "Endnote Text"
+            'oRng.ParagraphStyle= "Endnote Text"
             Options.AutoFormatReplaceHyperlinks = True
             oRng.AutoFormat
             oRng.End = oRng.End - 1

@@ -269,6 +269,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 ' FIRST page, and if we need to delete paras we don't mess up the count order
   For A = lngParaCt To 1 Step -1
   ' To break infinite loops.
+
   ' To do: increase? Add actual Err.Raise
     If A = 10000 Then
       DebugPrint "A = " & A
@@ -281,7 +282,8 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   ' Set Range object for this paragraph
     Set rngPara = activeDoc.Paragraphs(A).Range
   ' Get style name
-    strStyle = rngPara.Style
+    strStyle = rngPara.ParagraphStyle
+
     
   ' If style name = Macmillan style...
     If Right(strStyle, 1) = ")" Then
@@ -290,8 +292,9 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
       strBaseStyle = activeDoc.Styles(strStyle).BaseStyle
       If Right(strBaseStyle, 1) = ")" Then
       ' ... though some good styles are based on other styles, so filter 'em
+
         If RevertToBaseStyle(strStyle) = True Then
-          rngPara.Style = strBaseStyle
+          rngPara.ParagraphStyle = strBaseStyle
           strStyle = strBaseStyle
         End If
       End If
@@ -319,7 +322,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     ' To do: use logic to tag TX1, COTX1
     '        store style name externally
       If FixUnstyled = True Then
-        rngPara.Style = strBodyStyle
+        rngPara.ParagraphStyle = strBodyStyle
       End If
     End If
   Next A
@@ -346,6 +349,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   Exit Function
 
 StyleCheckError:
+  DebugPrint "error: " & Error.Number & " " & Error.Description
   Err.Source = strReports & "StyleCheck"
   If ErrorChecker(Err, strBodyStyle) = False Then
     Resume
@@ -608,7 +612,7 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   Dim rngNew As Range
   Set rngNew = activeDoc.Paragraphs(lngStartPara).Range
   rngNew.InsertBefore (strNewText)
-  rngNew.Style = strInfoStyle
+  rngNew.ParagraphStyle = strInfoStyle
   
   ' Test if it was successful
   If genUtils.GeneralHelpers.IsStyleInUse(strInfoStyle) = True Then
@@ -659,7 +663,7 @@ Private Function AddIsbnTags() As Boolean
     If Left(bkName.Name, 4) = "ISBN" Then
       AddIsbnTags = True
       bkName.Select
-      Selection.Style = strIsbnStyle
+      Selection.Range.CharacterStyle = strIsbnStyle
       bkName.Delete
     End If
   Next
@@ -1032,7 +1036,9 @@ Private Function RevertToBaseStyle(StyleName As String) As Boolean
 ' So if our style is here, we DON'T want to revert, so we reverse it
   Dim blnResult As Boolean
   blnResult = c_dictBaseStyle.Exists(StyleName)
+  DebugPrint blnResult
   RevertToBaseStyle = Not blnResult
+  
   Exit Function
 
 RevertToBaseStyleError:
@@ -1131,7 +1137,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
   
 ' Get style name of that paragraph
   Dim strParaStyle As String
-  strParaStyle = rngPara.Style
+  strParaStyle = rngPara.ParagraphStyle
 
 ' Use style name to get text and style for heading
   Dim strSectionName As String
@@ -1146,7 +1152,7 @@ Private Function AddHeading(paraInd As Long) As Boolean
 ' Add correct style (inserted paragraph now part of `rngPara` object)
 ' ErrorChecker will add style if it doesn't exist
 '  Debug.Print strHeadingStyle
-  rngPara.Paragraphs(1).Style = strHeadingStyle
+  rngPara.Paragraphs(1).Range.ParagraphStyle = strHeadingStyle
 
 ' Verify we added a paragraph
   Dim lngNewParas As Long
@@ -1294,7 +1300,7 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
-        strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Style
+        strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Range.ParagraphStyle
 '        DebugPrint "Next para style: " & strNextStyle
         If IsHeading(strNextStyle) = False Then
 '          DebugPrint "Next style is NOT heading"
@@ -1354,7 +1360,7 @@ Private Function SectionHeadInd() As Variant
   P = 1
   Q = 0
   Do Until P > lngParaCount
-    strCurrentStyle = activeDoc.Paragraphs(P).Style
+    strCurrentStyle = activeDoc.Paragraphs(P).Range.ParagraphStyle
 '    DebugPrint strCurrentStyle
     If IsHeading(strCurrentStyle) = True Then
     ' This is the FIRST heading paragraph in a row, add to output array
@@ -1368,7 +1374,7 @@ Private Function SectionHeadInd() As Variant
       Do
         P = P + 1
         If P < lngParaCount Then
-          strCurrentStyle = activeDoc.Paragraphs(P).Style
+          strCurrentStyle = activeDoc.Paragraphs(P).Range.ParagraphStyle
           blnIsHeading = IsHeading(strCurrentStyle)
         Else
           Exit Do
@@ -1462,7 +1468,7 @@ End Function
 ' array of ranges (one for each section) returned from SectionRange function
 
 Public Function HeadingCheck() As genUtils.Dictionary
-  On Error GoTo HeadingCheckError
+yeah th  On Error GoTo HeadingCheckError
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
@@ -1563,7 +1569,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
         
       ' Is next para a CT? (If no, change this to CT)
         If strSecondStyle <> strChapTitle Then
-          rngFirst.Style = strChapTitle
+          rngFirst.ParagraphStyle = strChapTitle
           dictReturn.Add strSectionKey & "ChapNumToTitle", True
         End If
         
@@ -1574,7 +1580,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
         
       ' Is next para a PT? (If no, change this to CT)
         If strSecondStyle <> strPartTitle Then
-          rngFirst.Style = strPartTitle
+          rngFirst.ParagraphStyle = strPartTitle
           dictReturn.Add strSectionKey & "PartNumToTitle", True
         End If
 
@@ -1626,7 +1632,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "FmTitleSwap", True
         Else
-          rngFirst.Style = strFmHead
+          rngFirst.ParagraphStyle = strFmHead
           dictReturn.Add strSectionKey & "FmtToFmh", True
         End If
       
@@ -1642,7 +1648,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "BmTitleSwap", True
         Else
-          rngFirst.Style = strBmHead
+          rngFirst.ParagraphStyle = strBmHead
           dictReturn.Add strSectionKey & "BmtToBmh", True
         End If
     End Select
@@ -1658,7 +1664,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
   ' at end of loop, style all PB paragraphs as PB style
   '     .InsertBreak Type:=wdSectionBreakContinuous
   '     .InsertBreak Type:=wdPageBreak
-       .Style = strPageBreak
+       .ParagraphStyle = strPageBreak
        dictReturn.Add strSectionKey & "AddSectionBreak", True
       End With
     End If
@@ -1679,7 +1685,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
       lngChapCount = lngChapCount + 1
       strFirstText = "Chapter " & lngChapCount
       Selection.Text = strFirstText & vbNewLine
-      Selection.Style = strChapNonprinting
+      Selection.Range.ParagraphStyle = strChapNonprinting
       dictReturn.Add "add_chap_num" & lngChapCount, strFirstText
       .Execute
     Loop
@@ -1817,7 +1823,7 @@ End Function
 '
 '        For A = LBound(Stories()) To UBound(Stories())
 '            If J <= ActiveDocument.StoryRanges(Stories(A)).Paragraphs.Count Then
-'                paraStyle = activeDoc.StoryRanges(Stories(A)).Paragraphs(J).Style
+'                paraStyle = activeDoc.StoryRanges(Stories(A)).Paragraphs(J).Range.ParagraphStyle
 '                Set activeParaRange = activeDoc.StoryRanges(Stories(A)).Paragraphs(J).Range
 '                pageNumber = activeParaRange.Information(wdActiveEndPageNumber)                 'alt: (wdActiveEndAdjustedPageNumber)
 '
@@ -2253,7 +2259,7 @@ End Function
 '            pageNum = Selection.Information(wdActiveEndPageNumber)
 '
 '                'Check if preceding paragraph style is correct
-'                If Selection.Style <> prevStyle Then
+'                If Selection.Range.ParagraphStyle<> prevStyle Then
 '                    jString = jString & "** ERROR: Missing or incorrect " & prevStyle & " style before " _
 '                        & findStyle & " style on page " & pageNum & "." & vbNewLine & vbNewLine
 '                End If
@@ -2529,7 +2535,7 @@ End Function
 '
 '        For A = LBound(Stories()) To UBound(Stories())
 '            If N <= ActiveDocument.StoryRanges(Stories(A)).Paragraphs.Count Then
-'                paraStyle = ActiveDocument.StoryRanges(Stories(A)).Paragraphs(N).Style
+'                paraStyle = ActiveDocument.StoryRanges(Stories(A)).Paragraphs(N).Range.ParagraphStyle
 '                'DebugPrint paraStyle
 '
 '                If Right(paraStyle, 1) = ")" Then
@@ -2877,14 +2883,14 @@ End Function
 '            pageNum = Selection.Information(wdActiveEndPageNumber)
 '
 '                'Check if preceding paragraph style is correct
-'                If Selection.Style <> StyleA Then
+'                If Selection.Range.ParagraphStyle<> StyleA Then
 '
-'                    If Selection.Style = StyleB Then
+'                    If Selection.Range.ParagraphStyle= StyleB Then
 '                        'select preceding paragraph again, see if it's prevStyle
 '                        Selection.Previous(Unit:=wdParagraph, Count:=1).Select
 '                        pageNum = Selection.Information(wdActiveEndPageNumber)
 '
-'                            If Selection.Style <> StyleA Then
+'                            If Selection.Range.ParagraphStyle<> StyleA Then
 '                                strErrors = strErrors & "** ERROR: " & StyleB & " followed by " & StyleC & "" _
 '                                    & " on" & vbNewLine & vbTab & "page " & pageNum & " must be preceded by " _
 '                                    & StyleA & "." & vbNewLine & vbNewLine
@@ -2913,7 +2919,7 @@ End Function
 '                        Selection.Next(Unit:=wdParagraph, Count:=2).Select
 '                        pageNum = Selection.Information(wdActiveEndPageNumber)
 '
-'                            If Selection.Style = StyleB Then
+'                            If Selection.Range.ParagraphStyle= StyleB Then
 '                                strErrors = strErrors & "** ERROR: " & StyleC & " style on page " & pageNum & " must" _
 '                                    & " come after " & StyleB & " style." & vbNewLine & vbNewLine
 '                            End If
@@ -2975,7 +2981,7 @@ End Function
 '            pageNum = Selection.Information(wdActiveEndPageNumber)
 '
 '                'Check if preceding paragraph style is a Caption, which is not allowed
-'                If Selection.Style = StyleB Then
+'                If Selection.Range.ParagraphStyle= StyleB Then
 '                    strErrors = strErrors & "** ERROR: " & StyleB & " on page " & pageNum & " must come after " _
 '                                    & StyleA & "." & vbNewLine & vbNewLine
 '                End If
@@ -3100,7 +3106,7 @@ End Function
 '
 '        For A = LBound(Stories()) To UBound(Stories())
 '            If J <= ActiveDocument.StoryRanges(Stories(A)).Paragraphs.Count Then
-'                paraStyle = activeDoc.StoryRanges(Stories(A)).Paragraphs(J).Style
+'                paraStyle = activeDoc.StoryRanges(Stories(A)).Paragraphs(J).Range.ParagraphStyle
 '                Set activeParaRange = activeDoc.StoryRanges(Stories(A)).Paragraphs(J).Range
 '                pageNumber = activeParaRange.Information(wdActiveEndPageNumber)                 'alt: (wdActiveEndAdjustedPageNumber)
 '

@@ -1061,7 +1061,7 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
 ' JSON key = first word in style passed to us
   Dim strFirst As String
   strFirst = Left(StyleName, InStr(StyleName, " ") - 1)
-
+'  Debug.Print strFirst
 ' If style is in JSON...
   If dictSections.Exists(strFirst) = True Then
   ' ... get object for that style.

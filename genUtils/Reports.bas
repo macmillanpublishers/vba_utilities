@@ -1016,7 +1016,8 @@ Private Function SectionName(StyleName As String) As String
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
     Dim strSections As String
-    strSections = ThisDocument.Path & Application.PathSeparator & "sections.json"
+    strSections = Environ("bkmkrScripts") & Application.PathSeparator & _
+      "Word-template_assets" & Application.PathSeparator & "sections.json"
     If genUtils.IsItThere(strSections) = True Then
       Set dictSections = genUtils.ClassHelpers.ReadJson(strSections)
     Else

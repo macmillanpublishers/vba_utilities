@@ -352,27 +352,32 @@ End Sub
 ' Actual `Debug.Print` can take more complex arguments but here we'll just take
 ' anything that can evaluate to a string.
 
-Public Sub DebugPrint(Optional StringExpression As Variant)
-' First just DebugPrint:
-' Get the string we'll write
-  Dim strMessage As String
-  strMessage = Now & ": " & StringExpression
-  Debug.Print strMessage
+' Need to set "VbaDebug" environment variable to True also
 
-' Second, write to file
-' Create file name
-'' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
-'' with Folder Actions (like Validator), new file in dir will error
-'' How to write to a static location?
-'  Dim strOutputFile As String
-'  strOutputFile = Environ("USERPROFILE") & Application.PathSeparator & _
-'    "Desktop" & Application.PathSeparator & "immediate_window.txt"
-'
-'  Dim FileNum As Integer
-'  FileNum = FreeFile ' next file number
-'  Open strOutputFile For Append As #FileNum
-'  Print #FileNum, strMessage
-'  Close #FileNum ' close the file
+Public Sub DebugPrint(Optional StringExpression As Variant)
+
+  If Environ("VbaDebug") = "True" Then
+  ' First just DebugPrint:
+  ' Get the string we'll write
+    Dim strMessage As String
+    strMessage = Now & ": " & StringExpression
+    Debug.Print strMessage
+  
+  ' Second, write to file
+  ' Create file name
+  ' !!! ActiveDocument.Path sometimes writes to STARTUP dir. Also if running
+  ' with Folder Actions (like Validator), new file in dir will error
+  ' How to write to a static location?
+    Dim strOutputFile As String
+    strOutputFile = Environ("USERPROFILE") & Application.PathSeparator & _
+      "Desktop" & Application.PathSeparator & "immediate_window.txt"
+  
+    Dim FileNum As Integer
+    FileNum = FreeFile ' next file number
+    Open strOutputFile For Append As #FileNum
+    Print #FileNum, strMessage
+    Close #FileNum ' close the file
+  End If
  
 End Sub
 
@@ -2175,7 +2180,7 @@ Private Sub AutoFormatHyperlinks()
             Set oNote = oFN.Range
             Set oRng = oTemp.Range
             oRng.FormattedText = oNote.FormattedText
-            'oRng.ParagraphStyle= "Footnote Text"
+            'oRng.Style= "Footnote Text"
             Options.AutoFormatReplaceHyperlinks = True
             oRng.AutoFormat
             oRng.End = oRng.End - 1
@@ -2190,7 +2195,7 @@ Private Sub AutoFormatHyperlinks()
             Set oNote = oEN.Range
             Set oRng = oTemp.Range
             oRng.FormattedText = oNote.FormattedText
-            'oRng.ParagraphStyle= "Endnote Text"
+            'oRng.Style= "Endnote Text"
             Options.AutoFormatReplaceHyperlinks = True
             oRng.AutoFormat
             oRng.End = oRng.End - 1
@@ -2258,3 +2263,25 @@ StyleHyperlinksBError:
   End If
 End Sub
 
+
+' ===== IsNewLine =============================================================
+' Returns True if the string parameter contains a new line and ONLY a new line.
+' Making a separate function to test all kinds of new lines, since sometimes
+' files contain mixed line ending characters. Also note that vbNewLine constant
+' returns different on Win vs. Mac 2011 vs. Mac 2016
+
+Public Function IsNewLine(strValue As String) As Boolean
+  On Error GoTo InNewLineError
+  If strValue = vbCr Or strValue = vbLf Or strValue = vbCr & vbLf Then
+    IsNewLine = True
+  End If
+  End Function
+  
+IsNewLineError:
+  Err.Source = strModule & "IsNewLine"
+  If genUtils.GeneralHelpers.ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Function

@@ -377,10 +377,14 @@ Private Sub RemoveBreaks(StoryType As WdStoryType)
   ''' the bit below to remove the first or last paragraph if it's blank
   Dim myRange As Range
   Set myRange = activeDoc.Paragraphs(1).Range
-  If myRange.Text = Chr(13) Then myRange.Delete
+  If GeneralHelpers.IsNewLine(myRange.Text) = True Then
+    myRange.Delete
+  End If
   
   Set myRange = activeDoc.Paragraphs.Last.Range
-  If myRange.Text = Chr(13) Then myRange.Delete
+  If GeneralHelpers.IsNewLine(myRange.Text) = True Then
+    myRange.Delete
+  End If
   Exit Sub
 
 RemoveBreaksError:
@@ -929,7 +933,7 @@ Private Function TagBkmkrCharStyles(StoryType As Variant) As Variant
     ' which we don't want to mess with.
     If InStr(1, objStyle.NameLocal, "bookmaker", vbBinaryCompare) <> 0 And _
       objStyle.Type = wdStyleTypeCharacter Then
-      DebugPrint StoryType & ": " & objStyle.NameLocal
+'      DebugPrint StoryType & ": " & objStyle.NameLocal
       Selection.HomeKey Unit:=wdStory
       ' Now see if it's being used ...
       With Selection.Find
@@ -1048,7 +1052,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
           Percent:=sglPercentComplete)
     End If
 
-    strCurrentStyle = thisDoc.Paragraphs(A).Style
+    strCurrentStyle = thisDoc.Paragraphs(A).Range.ParagraphStyle
 
   ' tag all non-Macmillan-style paragraphs with standard Macmillan styles
   ' Macmillan styles all end in close parens
@@ -1072,7 +1076,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
         InStr(strCurrentStyle, "(ct)") > 0 Or _
         InStr(strCurrentStyle, "(ctnp)") > 0 Then
 
-        strNextStyle = thisDoc.Paragraphs(A + 1).Style
+        strNextStyle = thisDoc.Paragraphs(A + 1).Range.ParagraphStyle
 
       ' is the next para non-Macmillan (and thus should be COTX1)
         If Right(strNextStyle, 1) <> ")" Then     ' it's not a Macmillan style
@@ -1086,7 +1090,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
             InStr(strNextStyle, "(ct)") > 0 Or _
             InStr(strNextStyle, "(ctnp)") > 0 Then
 
-            strNextNextStyle = thisDoc.Paragraphs(A + 2).Style
+            strNextNextStyle = thisDoc.Paragraphs(A + 2).Range.ParagraphStyle
 
             If Right(strNextNextStyle, 1) <> ")" Then ' it's not Macmillan
             ' so it should be COTX1

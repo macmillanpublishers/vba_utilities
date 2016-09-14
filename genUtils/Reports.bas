@@ -938,6 +938,17 @@ Private Function IsHeading(StyleName As String) As Boolean
   On Error GoTo IsHeadingError
 ' Hard code for now. `dictHeadings` is global scope so only have to create once
   If dictHeadings Is Nothing Then
+<<<<<<< HEAD
+  ' Check for `headings.json` file, read into global dictionary
+    Dim strHeadings As String
+    strHeadings = Environ("BkmkrScripts") & Application.PathSeparator & _
+      "Word-template_assets" & Application.PathSeparator & "headings.json"
+    If genUtils.IsItThere(strHeadings) = True Then
+      Set dictHeadings = genUtils.ClassHelpers.ReadJson(strHeadings)
+    Else
+      Err.Raise MacError.err_FileNotThere
+    End If
+=======
     Set dictHeadings = New Dictionary
   ' Value arg not optional. Change to True if found (maybe helpful in future).
     With dictHeadings
@@ -967,6 +978,7 @@ Private Function IsHeading(StyleName As String) As Boolean
       .Add c_strFmHeadNonprinting, False
       .Add c_strBmHeadNonprinting, False
     End With
+>>>>>>> master
   End If
   
 ' So just see if our style is one of these styles
@@ -1068,7 +1080,8 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
     Dim strSections As String
-    strSections = ThisDocument.Path & Application.PathSeparator & "sections.json"
+    strSections = Environ("BkmkrScripts") & Application.PathSeparator & _
+      "Word-template_assets" & Application.PathSeparator & "sections.json"
     If genUtils.IsItThere(strSections) = True Then
       Set dictSections = genUtils.ClassHelpers.ReadJson(strSections)
     Else

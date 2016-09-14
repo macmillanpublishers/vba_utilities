@@ -901,32 +901,15 @@ Private Function IsHeading(StyleName As String) As Boolean
   On Error GoTo IsHeadingError
 ' Hard code for now. `dictHeadings` is global scope so only have to create once
   If dictHeadings Is Nothing Then
-    Set dictHeadings = New Dictionary
-  ' Value arg not optional. Change to True if found (maybe helpful in future).
-    With dictHeadings
-      .Add "Front Sales Quote Head (fsqh)", False
-      .Add "FM Head (fmh)", False
-      .Add "FM Title (fmt)", False
-      .Add "Fm Head ALT (afmh)", False
-      .Add "Chap Title (ct)", False
-      .Add "Chap Number (cn)", False
-      .Add "Chap Title Nonprinting (ctnp)", False
-      .Add "Part Title (pt)", False
-      .Add "Part Number (pn)", False
-      .Add "BM Head (bmh)", False
-      .Add "BM Title (bmt)", False
-      .Add "BM Head ALT (abmh)", False
-      .Add "Appendix Head (aph)", False
-      .Add "About Author Text Head (atah)", False
-      .Add "Series Page Heading (sh)", False
-      .Add "Ad Card Main Head (acmh)", False
-      .Add "Recipe Head (rh)", False
-      .Add "Sub-Recipe Head (srh)", False
-      .Add "Recipe Var Head (rvh)", False
-      .Add "Poem Subtitle (vst)", False
-      .Add "Poem Title (vt)", False
-      .Add "Titlepage Book Title (tit)", False
-    End With
+  ' Check for `headings.json` file, read into global dictionary
+    Dim strHeadings As String
+    strHeadings = Environ("BkmkrScripts") & Application.PathSeparator & _
+      "Word-template_assets" & Application.PathSeparator & "headings.json"
+    If genUtils.IsItThere(strHeadings) = True Then
+      Set dictHeadings = genUtils.ClassHelpers.ReadJson(strHeadings)
+    Else
+      Err.Raise MacError.err_FileNotThere
+    End If
   End If
   
 ' So just see if our style is one of these styles
@@ -1016,7 +999,7 @@ Private Function SectionName(StyleName As String) As String
   If dictSections Is Nothing Then
   ' Check for `sections.json` file, read into global dictionary
     Dim strSections As String
-    strSections = Environ("bkmkrScripts") & Application.PathSeparator & _
+    strSections = Environ("BkmkrScripts") & Application.PathSeparator & _
       "Word-template_assets" & Application.PathSeparator & "sections.json"
     If genUtils.IsItThere(strSections) = True Then
       Set dictSections = genUtils.ClassHelpers.ReadJson(strSections)

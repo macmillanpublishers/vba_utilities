@@ -360,22 +360,22 @@ End Sub
 Private Sub RemoveBreaks(StoryType As WdStoryType)
   On Error GoTo RemoveBreaksError
   Set activeRng = activeDoc.StoryRanges(StoryType)
-
-
     
-  Dim wsFindArray(4) As String
-  Dim wsReplaceArray(4) As String
+  Dim wsFindArray(1 To 2) As String
+  Dim wsReplaceArray(1 To 2) As String
   Dim Q As Long
-  
-  wsFindArray(1) = "^m^13"              'manual page breaks
-  wsFindArray(2) = "^13{2,}"          '2 or more paragraphs
-  wsFindArray(3) = "(`[0-9]``)^13"    'remove para following a preserved break style                     v. 3.1 patch
-  wsFindArray(4) = "(^m`7`^13`7``)`7`^13`7``"  'remove blank para following page break
-                                                  ' even if styled.
-  wsReplaceArray(1) = "^p"
+
+' Find any page break characters (^m) that are followed by anything other than
+' the break-style tags, and remove the page break. Mostly this will just be a
+' paragraph return, but you can add characters after the page break, so this
+' preserves 'em while removing the un-styled page break.
+  wsFindArray(1) = "^m([!`0-9LNR]@)"
+  wsReplaceArray(1) = "\1"
+
+' Now that we've cleaned up errant page breaks, remove any blank paragraphs
+  wsFindArray(2) = "^13{2,}"               '2 or more paragraphs
   wsReplaceArray(2) = "^p"
-  wsReplaceArray(3) = "\1"
-  wsReplaceArray(4) = "\1"
+
 
   Call genUtils.GeneralHelpers.zz_clearFind
   For Q = 1 To UBound(wsFindArray())
@@ -387,18 +387,6 @@ Private Sub RemoveBreaks(StoryType As WdStoryType)
       .Execute Replace:=wdReplaceAll
     End With
   Next
-  
-  ''' the bit below to remove the first or last paragraph if it's blank
-  Dim myRange As Range
-  Set myRange = activeDoc.Paragraphs(1).Range
-  If GeneralHelpers.IsNewLine(myRange.Text) = True Then
-    myRange.Delete
-  End If
-  
-  Set myRange = activeDoc.Paragraphs.Last.Range
-  If GeneralHelpers.IsNewLine(myRange.Text) = True Then
-    myRange.Delete
-  End If
   Exit Sub
 
 RemoveBreaksError:
@@ -418,19 +406,19 @@ Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
   Dim tagArrayB(13) As String
   Dim F As Long
     
-  tagArrayB(1) = "`1`(^13)`1``"
-  tagArrayB(2) = "`2`(^13)`2``"
-  tagArrayB(3) = "`3`(^13)`3``"
-  tagArrayB(4) = "`4`(^13)`4``"
-  tagArrayB(5) = "`5`(^13)`5``"
-  tagArrayB(6) = "`6`(^13)`6``"
-  tagArrayB(7) = "`7`(^13)`7``"
-  tagArrayB(8) = "`8`(^13)`8``"
-  tagArrayB(9) = "`9`(^13)`9``"
-  tagArrayB(10) = "`0`(^13)`0``"
-  tagArrayB(11) = "`L`(^13)`L``"
-  tagArrayB(12) = "`R`(^13)`R``"
-  tagArrayB(13) = "`N`(^13)`N``"
+  tagArrayB(1) = "`1`(^13)"
+  tagArrayB(2) = "`2`(^13)"
+  tagArrayB(3) = "`3`(^13)"
+  tagArrayB(4) = "`4`(^13)"
+  tagArrayB(5) = "`5`(^13)"
+  tagArrayB(6) = "`6`(^13)"
+  tagArrayB(7) = "`7`(^13)"
+  tagArrayB(8) = "`8`(^13)"
+  tagArrayB(9) = "`9`(^13)"
+  tagArrayB(10) = "`0`(^13)"
+  tagArrayB(11) = "`L`(^13)"
+  tagArrayB(12) = "`R`(^13)"
+  tagArrayB(13) = "`N`(^13)"
 
   Call genUtils.GeneralHelpers.zz_clearFind
   For F = 1 To UBound(tagArrayB())
@@ -442,6 +430,18 @@ Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
       .Execute Replace:=wdReplaceAll
     End With
   Next
+
+' Now we need to remove our first/last dummy paragraphs
+  Dim myRange As Range
+  Set myRange = activeDoc.Paragraphs.First.Range
+  If myRange.Text = "``0``" & vbNewLine Then
+    myRange.Delete
+  End If
+  
+  Set myRange = activeDoc.Paragraphs.Last.Range
+  If myRange.Text = "``0``" & vbNewLine Then
+    myRange.Delete
+  End If
   Exit Sub
   
 PreserveWhiteSpaceinBrkStylesBError:

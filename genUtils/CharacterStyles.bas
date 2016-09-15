@@ -280,6 +280,13 @@ End Sub
 Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
  On Error GoTo PreserveWhiteSpaceinBrkStylesAError:
   Set activeRng = activeDoc.StoryRanges(StoryType)
+
+' Find/Replace (which we'll use later on) will not replace a paragraph mark
+' in the first or last paragraph, so add dummy paragraphs here (with tags)
+' that we can remove later on.
+
+  activeRng.InsertBefore "``0``" & vbNewLine
+  activeRng.InsertAfter "``0``" & vbNewLine
   
   Dim tagArray(13) As String
   Dim StylePreserveArray(13) As String
@@ -298,20 +305,25 @@ Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
   StylePreserveArray(11) = "Column Break (cbr)"
   StylePreserveArray(12) = "Design Note (dn)"
   StylePreserveArray(13) = "Bookmaker Page Break (br)"
-  
-  tagArray(1) = "`1`^&`1``"
-  tagArray(2) = "`2`^&`2``"
-  tagArray(3) = "`3`^&`3``"
-  tagArray(4) = "`4`^&`4``"
-  tagArray(5) = "`5`^&`5``"
-  tagArray(6) = "`6`^&`6``"
-  tagArray(7) = "`7`^&`7``"
-  tagArray(8) = "`8`^&`8``"
-  tagArray(9) = "`9`^&`9``"
-  tagArray(10) = "`0`^&`0``"
-  tagArray(11) = "`L`^&`L``"
-  tagArray(12) = "`R`^&`R``"
-  tagArray(13) = "`N`^&`N``"
+
+' Only tag left side: we're searching for paragraph styles below, so each result
+' will always end in ^13, which becomes our closing tag later. If we add a
+' closing tag of our own, it gets added to the *following* paragraph, which
+' complicates some later things we need to cleanup.
+
+  tagArray(1) = "`1`^&"
+  tagArray(2) = "`2`^&"
+  tagArray(3) = "`3`^&"
+  tagArray(4) = "`4`^&"
+  tagArray(5) = "`5`^&"
+  tagArray(6) = "`6`^&"
+  tagArray(7) = "`7`^&"
+  tagArray(8) = "`8`^&"
+  tagArray(9) = "`9`^&"
+  tagArray(10) = "`0`^&"
+  tagArray(11) = "`L`^&"
+  tagArray(12) = "`R`^&"
+  tagArray(13) = "`N`^&"
   
   Call genUtils.GeneralHelpers.zz_clearFind
   For E = 1 To UBound(StylePreserveArray())
@@ -348,6 +360,8 @@ End Sub
 Private Sub RemoveBreaks(StoryType As WdStoryType)
   On Error GoTo RemoveBreaksError
   Set activeRng = activeDoc.StoryRanges(StoryType)
+
+
     
   Dim wsFindArray(4) As String
   Dim wsReplaceArray(4) As String

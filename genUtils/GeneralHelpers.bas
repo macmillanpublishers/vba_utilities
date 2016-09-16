@@ -974,7 +974,8 @@ Public Sub zz_clearFind()
 '  DebugPrint "zz_clearFind " & lngErrorCount
     Dim clearRng As Range
     Set clearRng = activeDoc.Words.First
-
+'    DebugPrint activeDoc.FullName
+    
     With clearRng.Find
         .ClearFormatting
         .Replacement.ClearFormatting
@@ -988,7 +989,7 @@ Public Sub zz_clearFind()
         .MatchWildcards = False
         .MatchSoundsLike = False
         .MatchAllWordForms = False
-        .Execute
+        .Execute Replace:=wdReplaceNone
     End With
   Exit Sub
 zz_clearFindError:

@@ -481,7 +481,7 @@ Private Function FindIsbn(Optional StyledOnly As Boolean = False) As Boolean
   ' which we want to start at 0 because may pass back to powershell
   lngCounter = -1
   
-  genUtils.zz_clearFind
+  genUtils.GeneralHelpers.zz_clearFind
   
   ' Start search at beginning of doc
   Selection.HomeKey Unit:=wdStory
@@ -494,7 +494,7 @@ Private Function FindIsbn(Optional StyledOnly As Boolean = False) As Boolean
     .MatchWildcards = True
     
     If StyledOnly = True Then
-      .Format = False
+      .Format = True
       .Style = strIsbnStyle
     Else
       .Format = False

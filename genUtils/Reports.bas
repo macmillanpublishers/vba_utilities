@@ -664,7 +664,7 @@ Private Function AddIsbnTags() As Boolean
     If Left(bkName.Name, 4) = "ISBN" Then
       AddIsbnTags = True
       bkName.Select
-      Selection.Range.CharacterStyle = strIsbnStyle
+      Selection.Style = strIsbnStyle
       bkName.Delete
     End If
   Next
@@ -1673,7 +1673,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
       lngChapCount = lngChapCount + 1
       strFirstText = "Chapter " & lngChapCount
       Selection.Text = strFirstText & vbNewLine
-      Selection.Range.Style = strChapNonprinting
+      Selection.Style = strChapNonprinting
       dictReturn.Add "add_chap_num" & lngChapCount, strFirstText
       .Execute
     Loop

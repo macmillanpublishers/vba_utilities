@@ -286,7 +286,7 @@ Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
 ' that we can remove later on.
 
   activeRng.InsertBefore "``0``" & vbNewLine
-  activeRng.InsertAfter "``0``" & vbNewLine
+  activeRng.InsertAfter vbNewLine & "``0``"
   
   Dim tagArray(13) As String
   Dim StylePreserveArray(13) As String
@@ -402,7 +402,31 @@ Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
   On Error GoTo PreserveWhiteSpaceinBrkStylesBError
   
   Set activeRng = activeDoc.StoryRanges(StoryType)
-    
+
+' Now we need to remove our first/last dummy paragraphs
+  Dim myRange(1 To 2) As Range
+  Dim strText As String
+  Dim strTag As String
+  Dim strEnd As String
+  Dim A As Long
+  Set myRange(1) = activeDoc.Paragraphs.First.Range
+  Set myRange(2) = activeDoc.Paragraphs.Last.Range
+  
+  For A = LBound(myRange) To UBound(myRange)
+    strText = myRange(A).Text
+    ' Validate that it is in fact the paragraph we added
+    ' we added 5 chars, + new line char
+    If Len(strText) >= 6 Then
+    ' Separate our tag text from rest of para
+      strTag = Left(strText, 5)
+      strEnd = Right(strText, Len(strText) - 5)
+    ' To be our added para, needs our tag AND new line char and nothing else
+      If strTag = "``0``" And GeneralHelpers.IsNewLine(strEnd) = True Then
+        myRange(A).Delete
+      End If
+    End If
+  Next A
+
   Dim tagArrayB(13) As String
   Dim F As Long
     
@@ -431,17 +455,22 @@ Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
     End With
   Next
 
-' Now we need to remove our first/last dummy paragraphs
-  Dim myRange As Range
-  Set myRange = activeDoc.Paragraphs.First.Range
-  If myRange.Text = "``0``" & vbNewLine Then
-    myRange.Delete
-  End If
+' We also want to remove last para if it only contains a blank para, of any style
+' Loop until we find a paragraph with text.
+  Dim rngLast As Range
+  Dim lngCount As Long
   
-  Set myRange = activeDoc.Paragraphs.Last.Range
-  If myRange.Text = "``0``" & vbNewLine Then
-    myRange.Delete
-  End If
+  lngCount = 0
+  Do
+    ' counter to prevent runaway loops
+    lngCount = lngCount + 1
+    Set rngLast = activeDoc.Paragraphs.Last.Range
+    If GeneralHelpers.IsNewLine(rngLast.Text) = True Then
+      rngLast.Delete
+    Else
+      Exit Do
+    End If
+  Loop Until lngCount = 20
   Exit Sub
   
 PreserveWhiteSpaceinBrkStylesBError:
@@ -1067,6 +1096,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
     End If
 
     strCurrentStyle = thisDoc.Paragraphs(A).Range.ParagraphStyle
+    DebugPrint strCurrentStyle
 
   ' tag all non-Macmillan-style paragraphs with standard Macmillan styles
   ' Macmillan styles all end in close parens

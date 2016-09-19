@@ -979,8 +979,8 @@ Public Sub zz_clearFind()
     With clearRng.Find
         .ClearFormatting
         .Replacement.ClearFormatting
-        .Text = ""
-        .Replacement.Text = ""
+        .Text = " "
+        .Replacement.Text = " "
         .Wrap = wdFindStop
         .Format = False
         .Forward = True
@@ -989,7 +989,7 @@ Public Sub zz_clearFind()
         .MatchWildcards = False
         .MatchSoundsLike = False
         .MatchAllWordForms = False
-        .Execute Replace:=wdReplaceNone
+        .Execute Replace:=wdReplaceOne
     End With
   Exit Sub
 zz_clearFindError:
@@ -2272,11 +2272,11 @@ End Sub
 ' returns different on Win vs. Mac 2011 vs. Mac 2016
 
 Public Function IsNewLine(strValue As String) As Boolean
-  On Error GoTo InNewLineError
+  On Error GoTo IsNewLineError
   If strValue = vbCr Or strValue = vbLf Or strValue = vbCr & vbLf Then
     IsNewLine = True
   End If
-  End Function
+  Exit Function
   
 IsNewLineError:
   Err.Source = strModule & "IsNewLine"

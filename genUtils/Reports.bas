@@ -1234,6 +1234,24 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
       dictReturn.Add "rm_multiple_paras", False
     End If
   End With
+
+' Remove any first paragraphs until we get one with text
+  Dim lngCount As Long
+  Dim rngPara1 As Range
+  Dim strKey As String
+  
+  Do
+    lngCount = lngCount + 1
+    strKey = "firstParaPB" & lngCount
+    Set rngPara1 = activeDoc.Paragraphs.First.Range
+    If GeneralHelpers.IsNewLine(rngPara1.Text) = True Then
+      dictReturn.Add strKey, True
+      rngPara1.Delete
+    Else
+      dictReturn.Add strKey, False
+      Exit Do
+    End If
+  Loop Until lngCount > 20 ' For runaway loops
   
   dictReturn.Item("pass") = True
   Set PageBreakCleanup = dictReturn

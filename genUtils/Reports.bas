@@ -1456,6 +1456,11 @@ Public Function HeadingCheck() As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
 
+' Verify first paragraph is a heading
+  Dim dictStep As genUtils.Dictionary
+  Set dictStep = Reports.FirstParaCheck
+  Set dictReturn = ClassHelpers.MergeDictionary(dictReturn, dictStep)
+
 ' Get paragraph indices of section start paragraphs
   Dim rngParaInd() As Variant
 '  DebugPrint "SectionHeadInd start"
@@ -1693,6 +1698,46 @@ HeadingCheckError:
   End If
 End Function
 
+' ===== FirstParaCheck ========================================================
+' Make sure first paragraph is an acceptable heading style, or add new para.
+
+Private Function FirstParaCheck() As genUtils.Dictionary
+  On Error GoTo FirstParaCheckError
+    Dim dictReturn As genUtils.Dictionary
+    Set dictReturn = New Dictionary
+    dictReturn.Add "pass", False
+    
+    Dim rngPara1 As Range
+    Dim strStyle As String
+    Dim strHeadingText As String
+    Dim strHeadingStyle As String
+    Set rngPara1 = activeDoc.Paragraphs.First.Range
+    strStyle = rngPara1.ParagraphStyle
+    
+    If IsHeading(strStyle) = False Then
+      dictReturn.Add "headingStyle", False
+      strHeadingText = "Frontmatter" & vbNewLine
+      strHeadingStyle = c_strFmHeadNonprinting
+      rngPara1.InsertBefore (strHeadingText)
+      activeDoc.Paragraphs.First.Style = strHeadingStyle
+      dictReturn.Add "fmHeadAdded", True
+      dictReturn.Item("pass") = True
+    Else
+      dictReturn.Add "headingStyle", True
+      dictReturn.Item("pass") = True
+    End If
+    
+    Set FirstParaCheck = dictReturn
+  Exit Function
+  
+FirstParaCheckError:
+  Err.Source = strReports & "FirstParaCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Function
 
 ' ===== IllustrationCheck =====================================================
 ' Various illustration validation checks.

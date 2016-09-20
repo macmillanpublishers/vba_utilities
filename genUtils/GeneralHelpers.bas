@@ -1563,7 +1563,7 @@ Function StartupSettings(Optional StoriesUsed As Variant, Optional AcceptAll As 
 '            "Click OK to save your document and run the macro." & vbNewLine & vbNewLine & "Click 'Cancel' to exit.", _
 '                vbOKCancel, "Error 1")
 '        If iReply = vbOK Then
-    mainDoc.Save
+'    mainDoc.Save
 '        Else
 '            StartupSettings = True
 '            Exit Function

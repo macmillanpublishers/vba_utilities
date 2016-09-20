@@ -1096,7 +1096,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
     End If
 
     strCurrentStyle = thisDoc.Paragraphs(A).Range.ParagraphStyle
-    DebugPrint strCurrentStyle
+'    DebugPrint strCurrentStyle
 
   ' tag all non-Macmillan-style paragraphs with standard Macmillan styles
   ' Macmillan styles all end in close parens

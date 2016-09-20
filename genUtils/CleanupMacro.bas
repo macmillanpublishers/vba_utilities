@@ -183,6 +183,12 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   
   Call genUtils.GeneralHelpers.zz_clearFind
 
+  ' ----------- remove Shape objects
+  For S = 1 To UBound(stStories())
+    Call genUtils.CleanupMacro.ShapeDelete
+  Next S
+  
+  Call genUtils.GeneralHelpers.zz_clearFind
   
   '-----------------Restore original settings--------------------------------------
   sglPercentComplete = 1#
@@ -682,6 +688,52 @@ Private Sub CleanSomeSymbols(StoryTypes As WdStoryType)
   
 CleanSomeSymbolsError:
   Err.Source = strCleanup & "CleanSomeSymbols"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.GeneralHelpers.GlobalCleanup
+  End If
+End Sub
+
+' ===== ShapeDelete ===========================================================
+' Deletes shape objects other than Text Boxes, Comments, and Tables. Should
+' probably add more handling for text boxes before releasing to main cleanup
+' macro.
+
+Private Sub ShapeDelete()
+  On Error GoTo ShapeDeleteError
+  Dim objInlineShp As InlineShape
+  Dim lngCount As Long
+  Dim A As Long
+  Dim objShape As Shape
+  Dim typeShape As MsoShapeType
+
+' Convert any InlineShapes to regular Shapes
+  If activeDoc.InlineShapes.Count > 0 Then
+    For Each objInlineShp In activeDoc.InlineShapes
+      objInlineShp.ConvertToShape
+    Next objInlineShp
+  End If
+  
+' Note that TEXT BOXES are SHAPES!!
+  lngCount = activeDoc.Shapes.Count
+  If lngCount > 0 Then
+    For A = lngCount To 1 Step -1
+      Set objShape = activeDoc.Shapes(A)
+      typeShape = objShape.Type
+      DebugPrint typeShape
+      Select Case typeShape
+        Case msoTextBox
+          ' Do nothing for now, will need to find a solution eventually
+        Case Else
+          objShape.Delete
+      End Select
+    Next A
+  End If
+  Exit Sub
+  
+ShapeDeleteError:
+  Err.Source = strCleanup & "ShapeDelete"
   If ErrorChecker(Err) = False Then
     Resume
   Else

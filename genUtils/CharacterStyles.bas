@@ -280,6 +280,13 @@ End Sub
 Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
  On Error GoTo PreserveWhiteSpaceinBrkStylesAError:
   Set activeRng = activeDoc.StoryRanges(StoryType)
+
+' Find/Replace (which we'll use later on) will not replace a paragraph mark
+' in the first or last paragraph, so add dummy paragraphs here (with tags)
+' that we can remove later on.
+
+  activeRng.InsertBefore "``0``" & vbNewLine
+  activeRng.InsertAfter vbNewLine & "``0``"
   
   Dim tagArray(13) As String
   Dim StylePreserveArray(13) As String
@@ -298,20 +305,25 @@ Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
   StylePreserveArray(11) = "Column Break (cbr)"
   StylePreserveArray(12) = "Design Note (dn)"
   StylePreserveArray(13) = "Bookmaker Page Break (br)"
-  
-  tagArray(1) = "`1`^&`1``"
-  tagArray(2) = "`2`^&`2``"
-  tagArray(3) = "`3`^&`3``"
-  tagArray(4) = "`4`^&`4``"
-  tagArray(5) = "`5`^&`5``"
-  tagArray(6) = "`6`^&`6``"
-  tagArray(7) = "`7`^&`7``"
-  tagArray(8) = "`8`^&`8``"
-  tagArray(9) = "`9`^&`9``"
-  tagArray(10) = "`0`^&`0``"
-  tagArray(11) = "`L`^&`L``"
-  tagArray(12) = "`R`^&`R``"
-  tagArray(13) = "`N`^&`N``"
+
+' Only tag left side: we're searching for paragraph styles below, so each result
+' will always end in ^13, which becomes our closing tag later. If we add a
+' closing tag of our own, it gets added to the *following* paragraph, which
+' complicates some later things we need to cleanup.
+
+  tagArray(1) = "`1`^&"
+  tagArray(2) = "`2`^&"
+  tagArray(3) = "`3`^&"
+  tagArray(4) = "`4`^&"
+  tagArray(5) = "`5`^&"
+  tagArray(6) = "`6`^&"
+  tagArray(7) = "`7`^&"
+  tagArray(8) = "`8`^&"
+  tagArray(9) = "`9`^&"
+  tagArray(10) = "`0`^&"
+  tagArray(11) = "`L`^&"
+  tagArray(12) = "`R`^&"
+  tagArray(13) = "`N`^&"
   
   Call genUtils.GeneralHelpers.zz_clearFind
   For E = 1 To UBound(StylePreserveArray())
@@ -349,19 +361,21 @@ Private Sub RemoveBreaks(StoryType As WdStoryType)
   On Error GoTo RemoveBreaksError
   Set activeRng = activeDoc.StoryRanges(StoryType)
     
-  Dim wsFindArray(4) As String
-  Dim wsReplaceArray(4) As String
+  Dim wsFindArray(1 To 2) As String
+  Dim wsReplaceArray(1 To 2) As String
   Dim Q As Long
-  
-  wsFindArray(1) = "^m^13"              'manual page breaks
-  wsFindArray(2) = "^13{2,}"          '2 or more paragraphs
-  wsFindArray(3) = "(`[0-9]``)^13"    'remove para following a preserved break style                     v. 3.1 patch
-  wsFindArray(4) = "(^m`7`^13`7``)`7`^13`7``"  'remove blank para following page break
-                                                  ' even if styled.
-  wsReplaceArray(1) = "^p"
+
+' Find any page break characters (^m) that are followed by anything other than
+' the break-style tags, and remove the page break. Mostly this will just be a
+' paragraph return, but you can add characters after the page break, so this
+' preserves 'em while removing the un-styled page break.
+  wsFindArray(1) = "^m([!`0-9LNR]@)"
+  wsReplaceArray(1) = "\1"
+
+' Now that we've cleaned up errant page breaks, remove any blank paragraphs
+  wsFindArray(2) = "^13{2,}"               '2 or more paragraphs
   wsReplaceArray(2) = "^p"
-  wsReplaceArray(3) = "\1"
-  wsReplaceArray(4) = "\1"
+
 
   Call genUtils.GeneralHelpers.zz_clearFind
   For Q = 1 To UBound(wsFindArray())
@@ -373,14 +387,6 @@ Private Sub RemoveBreaks(StoryType As WdStoryType)
       .Execute Replace:=wdReplaceAll
     End With
   Next
-  
-  ''' the bit below to remove the first or last paragraph if it's blank
-  Dim myRange As Range
-  Set myRange = activeDoc.Paragraphs(1).Range
-  If myRange.Text = Chr(13) Then myRange.Delete
-  
-  Set myRange = activeDoc.Paragraphs.Last.Range
-  If myRange.Text = Chr(13) Then myRange.Delete
   Exit Sub
 
 RemoveBreaksError:
@@ -396,23 +402,47 @@ Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
   On Error GoTo PreserveWhiteSpaceinBrkStylesBError
   
   Set activeRng = activeDoc.StoryRanges(StoryType)
-    
+
+' Now we need to remove our first/last dummy paragraphs
+  Dim myRange(1 To 2) As Range
+  Dim strText As String
+  Dim strTag As String
+  Dim strEnd As String
+  Dim A As Long
+  Set myRange(1) = activeDoc.Paragraphs.First.Range
+  Set myRange(2) = activeDoc.Paragraphs.Last.Range
+  
+  For A = LBound(myRange) To UBound(myRange)
+    strText = myRange(A).Text
+    ' Validate that it is in fact the paragraph we added
+    ' we added 5 chars, + new line char
+    If Len(strText) >= 6 Then
+    ' Separate our tag text from rest of para
+      strTag = Left(strText, 5)
+      strEnd = Right(strText, Len(strText) - 5)
+    ' To be our added para, needs our tag AND new line char and nothing else
+      If strTag = "``0``" And GeneralHelpers.IsNewLine(strEnd) = True Then
+        myRange(A).Delete
+      End If
+    End If
+  Next A
+
   Dim tagArrayB(13) As String
   Dim F As Long
     
-  tagArrayB(1) = "`1`(^13)`1``"
-  tagArrayB(2) = "`2`(^13)`2``"
-  tagArrayB(3) = "`3`(^13)`3``"
-  tagArrayB(4) = "`4`(^13)`4``"
-  tagArrayB(5) = "`5`(^13)`5``"
-  tagArrayB(6) = "`6`(^13)`6``"
-  tagArrayB(7) = "`7`(^13)`7``"
-  tagArrayB(8) = "`8`(^13)`8``"
-  tagArrayB(9) = "`9`(^13)`9``"
-  tagArrayB(10) = "`0`(^13)`0``"
-  tagArrayB(11) = "`L`(^13)`L``"
-  tagArrayB(12) = "`R`(^13)`R``"
-  tagArrayB(13) = "`N`(^13)`N``"
+  tagArrayB(1) = "`1`(^13)"
+  tagArrayB(2) = "`2`(^13)"
+  tagArrayB(3) = "`3`(^13)"
+  tagArrayB(4) = "`4`(^13)"
+  tagArrayB(5) = "`5`(^13)"
+  tagArrayB(6) = "`6`(^13)"
+  tagArrayB(7) = "`7`(^13)"
+  tagArrayB(8) = "`8`(^13)"
+  tagArrayB(9) = "`9`(^13)"
+  tagArrayB(10) = "`0`(^13)"
+  tagArrayB(11) = "`L`(^13)"
+  tagArrayB(12) = "`R`(^13)"
+  tagArrayB(13) = "`N`(^13)"
 
   Call genUtils.GeneralHelpers.zz_clearFind
   For F = 1 To UBound(tagArrayB())
@@ -424,6 +454,23 @@ Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
       .Execute Replace:=wdReplaceAll
     End With
   Next
+
+' We also want to remove last para if it only contains a blank para, of any style
+' Loop until we find a paragraph with text.
+  Dim rngLast As Range
+  Dim lngCount As Long
+  
+  lngCount = 0
+  Do
+    ' counter to prevent runaway loops
+    lngCount = lngCount + 1
+    Set rngLast = activeDoc.Paragraphs.Last.Range
+    If GeneralHelpers.IsNewLine(rngLast.Text) = True Then
+      rngLast.Delete
+    Else
+      Exit Do
+    End If
+  Loop Until lngCount = 20
   Exit Sub
   
 PreserveWhiteSpaceinBrkStylesBError:
@@ -929,7 +976,7 @@ Private Function TagBkmkrCharStyles(StoryType As Variant) As Variant
     ' which we don't want to mess with.
     If InStr(1, objStyle.NameLocal, "bookmaker", vbBinaryCompare) <> 0 And _
       objStyle.Type = wdStyleTypeCharacter Then
-      DebugPrint StoryType & ": " & objStyle.NameLocal
+'      DebugPrint StoryType & ": " & objStyle.NameLocal
       Selection.HomeKey Unit:=wdStory
       ' Now see if it's being used ...
       With Selection.Find
@@ -1048,7 +1095,8 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
           Percent:=sglPercentComplete)
     End If
 
-    strCurrentStyle = thisDoc.Paragraphs(A).Style
+    strCurrentStyle = thisDoc.Paragraphs(A).Range.ParagraphStyle
+'    DebugPrint strCurrentStyle
 
   ' tag all non-Macmillan-style paragraphs with standard Macmillan styles
   ' Macmillan styles all end in close parens
@@ -1072,7 +1120,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
         InStr(strCurrentStyle, "(ct)") > 0 Or _
         InStr(strCurrentStyle, "(ctnp)") > 0 Then
 
-        strNextStyle = thisDoc.Paragraphs(A + 1).Style
+        strNextStyle = thisDoc.Paragraphs(A + 1).Range.ParagraphStyle
 
       ' is the next para non-Macmillan (and thus should be COTX1)
         If Right(strNextStyle, 1) <> ")" Then     ' it's not a Macmillan style
@@ -1086,7 +1134,7 @@ Private Sub TagUnstyledText(objTagProgress As ProgressBar, StartingPercent _
             InStr(strNextStyle, "(ct)") > 0 Or _
             InStr(strNextStyle, "(ctnp)") > 0 Then
 
-            strNextNextStyle = thisDoc.Paragraphs(A + 2).Style
+            strNextNextStyle = thisDoc.Paragraphs(A + 2).Range.ParagraphStyle
 
             If Right(strNextNextStyle, 1) <> ")" Then ' it's not Macmillan
             ' so it should be COTX1

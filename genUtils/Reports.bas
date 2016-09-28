@@ -877,11 +877,11 @@ Private Function StyleCleanup() As genUtils.Dictionary
   Next X
 
 ' Remove any section break characters. Can't assume they'll be in their own
-' paragraphs.
+' paragraphs, so add additional para break.
   genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = "^b"
-    .Replacement.Text = ""
+    .Replacement.Text = "^p"
     .Execute Replace:=wdReplaceAll
   
     If .Found = True Then
@@ -1165,7 +1165,7 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
-
+  
 ' Add paragraph breaks around every page break character (so we know for sure
 ' paragraph style of break won't apply to any body text). Will add extra blank
 ' paragraphs that we can clean up later.

@@ -35,15 +35,15 @@ Public Function EndnoteCheck() As genUtils.Dictionary
   Set dictReturn = New genUtils.Dictionary
   dictReturn.Add "pass", False
   
-  
+  Dim blnNotesExist As Boolean
   If activeDoc.Endnotes.Count > 0 Then
-    g_blnEndnotes = True
+    blnNotesExist = True
   Else
-    g_blnEndnotes = False
+    blnNotesExist = False
   End If
-  dictReturn.Add "endnotesExist", g_blnEndnotes
+  dictReturn.Add "endnotesExist", blnNotesExist
   
-  If g_blnEndnotes = True Then
+  If blnNotesExist = True Then
     Dim dictStep As genUtils.Dictionary
     Set dictStep = EndnoteUnlink(p_blnValidator:=True)
     Set dictReturn = genUtils.ClassHelpers.MergeDictionary(dictReturn, dictStep)
@@ -67,7 +67,23 @@ End Function
 
 Public Sub EndnoteDeEmbed()
   Dim dictNotes As genUtils.Dictionary
-  Set dictNotes = EndnoteUnlink(p_blnValidator:=False)
+  Set activeDoc = ActiveDocument
+
+  Dim blnNotesExist As Boolean
+  If activeDoc.Endnotes.Count > 0 Then
+    blnNotesExist = True
+  Else
+    blnNotesExist = False
+  End If
+  dictNotes.Add "endnotesExist", blnNotesExist
+  
+  If blnNotesExist = True Then
+    Dim dictStep As genUtils.Dictionary
+    Set dictStep = EndnoteUnlink(p_blnValidator:=False)
+    Set dictNotes = genUtils.ClassHelpers.MergeDictionary(dictNotes, dictStep)
+  Else
+    MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
+  End If
   
   ' Eventually do something with the dictionary (log?)
 
@@ -82,10 +98,7 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
   On Error GoTo EndnoteUnlinkError
   
   If p_blnValidator = False Then
-    '------- Check if document is saved ---------
-    If CheckSave = True Then
-        Exit Function
-    End If
+
   End If
     
     ' --------- Declare variables ---------------
@@ -124,6 +137,13 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
 
 ' This section only if being run by a person.
   If p_blnValidator = False Then
+  
+  '------- Check if document is saved ---------
+    If CheckSave = True Then
+        Exit Function
+    End If
+    
+  '
     For Each StoryRange In ActiveDocument.StoryRanges
         If StoryRange.StoryType = wdEndnotesStory Then
             EndnotesExist = True
@@ -131,7 +151,7 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
         End If
     Next StoryRange
     If EndnotesExist = False Then
-        MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
+        
         Exit Function
     End If
     
@@ -343,7 +363,7 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
     #End If
     
     Call RemoveAllBookmarks
-
+  
 Cleanup:
     ' ---- Close progress bar -----
     #If Mac Then
@@ -356,7 +376,14 @@ Cleanup:
     Application.DisplayStatusBar = currentStatusBar
     Application.ScreenUpdating = True
     Application.ScreenRefresh
-
+    Exit Function
+EndnoteUnlinkError:
+  Err.Source = c_strEndnotes & "EndnoteUnlink"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
 End Function
 
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -1664,19 +1664,15 @@ Public Function HeadingCheck() As genUtils.Dictionary
         End If
     End Select
   
-  ' Add styled section breaks to end of range. Do last; `.Collapse` changes rng
-  ' Don't add to final range, though
-    If D < UBound(rngSections) Then
+  ' Add styled section breaks to START of range. Do last; `.Collapse` changes rng
+  ' Don't add to first range, though
+    If D > LBound(rngSections) Then
       With rngSect
-       .Collapse Direction:=wdCollapseEnd
-       .InsertAfter vbNewLine
-  ' If need breaks: collapse, move 1 char left, insert continuous
-  ' then insert page break (no new line)
-  ' at end of loop, style all PB paragraphs as PB style
-  '     .InsertBreak Type:=wdSectionBreakContinuous
-  '     .InsertBreak Type:=wdPageBreak
-       .Style = strPageBreak
-       dictReturn.Add strSectionKey & "AddSectionBreak", True
+        .InsertBefore vbNewLine
+        .Collapse Direction:=wdCollapseStart
+        .Style = strPageBreak
+        .InsertBreak Type:=wdSectionBreakNextPage
+        dictReturn.Add strSectionKey & "AddSectionBreak", True
       End With
     End If
   Next D

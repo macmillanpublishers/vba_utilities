@@ -1,14 +1,92 @@
 Attribute VB_Name = "Endnotes"
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+'       ENDNOTES
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+' ====== PURPOSE ==============================================================
+' Manage endnote formatting, primarily for embedded notes.
+
+' ====== DEPENDENCIES ============
+' 1. Manuscript must be styled with Macmillan custom styles.
+' 2. Requires genUtils be referenced from calling project.
+
+
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+'    DECLARATIONS
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Option Explicit
 Option Base 1
+
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+'    GLOBAL VARIABLES and CONSTANTS
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Private Const c_strEndnotes As String = "genUtils.Endnotes."
 Dim activeRng As Range
 
-Sub EndnoteDeEmbed()
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+'    PUBLIC PROCEDURES
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+' ===== EndnoteCheck ==========================================================
+' Call this sub to run automated endnote cleanup for validator.
 
-'    '------- Check if document is saved ---------
-'    If CheckSave = True Then
-'        Exit Sub
-'    End If
+Public Function EndnoteCheck() As genUtils.Dictionary
+  On Error GoTo EndnoteCheckError
+  
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New genUtils.Dictionary
+  dictReturn.Add "pass", False
+  
+  
+  If activeDoc.Endnotes.Count > 0 Then
+    g_blnEndnotes = True
+  Else
+    g_blnEndnotes = False
+  End If
+  dictReturn.Add "endnotesExist", g_blnEndnotes
+  
+  If g_blnEndnotes = True Then
+    Dim dictStep As genUtils.Dictionary
+    Set dictStep = EndnoteUnlink(p_blnValidator:=True)
+    Set dictReturn = genUtils.ClassHelpers.MergeDictionary(dictReturn, dictStep)
+  End If
+  
+  Set EndnoteCheck = dictReturn
+  Exit Function
+
+EndnoteCheckError:
+  Err.Source = c_strEndnotes & "EndnoteCheck"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Function
+
+' ===== EndnoteDeEmbed ========================================================
+' Call this procedure if being run by a person (by clicking macro button), not
+' automatically on server.
+
+Public Sub EndnoteDeEmbed()
+  Dim dictNotes As genUtils.Dictionary
+  Set dictNotes = EndnoteUnlink(p_blnValidator:=False)
+  
+  ' Eventually do something with the dictionary (log?)
+
+End Sub
+
+' ===== EndnoteUnlink =========================================================
+' Unlinks embedded endnotes and places them in their own section at the end of
+' the document, with headings for each chapter. Note numbers restart at 1 for
+' each chapter.
+
+Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
+  On Error GoTo EndnoteUnlinkError
+  
+  If p_blnValidator = False Then
+    '------- Check if document is saved ---------
+    If CheckSave = True Then
+        Exit Function
+    End If
+  End If
     
     ' --------- Declare variables ---------------
     Dim refRng As Range
@@ -36,11 +114,16 @@ Sub EndnoteDeEmbed()
     palgraveTag = False
     
     '''Error checks, setup Doc with sections & numbering
-    If TheOS Like "*Mac*" Then
-'        MsgBox "It looks like you are on a Mac. Unfortunately, this macro only works properly on Windows. " & _
+    #If Mac Then
+        MsgBox "It looks like you are on a Mac. Unfortunately, this macro only works properly on Windows. " & _
         "Click OK to exit the Endnotes macro."
-        Exit Sub
-    End If
+        Exit Function
+    #End If
+
+    sectionCount = activeDoc.Sections.Count
+
+' This section only if being run by a person.
+  If p_blnValidator = False Then
     For Each StoryRange In ActiveDocument.StoryRanges
         If StoryRange.StoryType = wdEndnotesStory Then
             EndnotesExist = True
@@ -48,22 +131,22 @@ Sub EndnoteDeEmbed()
         End If
     Next StoryRange
     If EndnotesExist = False Then
-'        MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
-        Exit Sub
+        MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
+        Exit Function
     End If
-    sectionCount = ActiveDocument.Sections.Count
     
     If sectionCount = 1 Then
-'        iReply = MsgBox("Only one section found in document. Without section breaks, endnotes will be numbered " & _
-        "continuously from beginning to end." & vbNewLine & vbNewLine & "If you would like to continue " & _
-        "without section breaks, click OK." & vbNewLine & "If you would like to exit the macro and add " & _
-        "section breaks at the end of each chapter to trigger note numbering to restart at 1 for each chapter, click Cancel.", _
-        vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
-        
-'        If iReply = vbNo Then
-'            Exit Sub
-'        End If
+      iReply = MsgBox("Only one section found in document. Without section breaks, endnotes will be numbered " & _
+      "continuously from beginning to end." & vbNewLine & vbNewLine & "If you would like to continue " & _
+      "without section breaks, click OK." & vbNewLine & "If you would like to exit the macro and add " & _
+      "section breaks at the end of each chapter to trigger note numbering to restart at 1 for each chapter, click Cancel.", _
+      vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
+      
+      If iReply = vbNo Then
+          Exit Function
+      End If
     End If
+  End If
 
     '------------record status of current status bar and then turn on-------
     Dim currentStatusBar As Boolean
@@ -168,7 +251,7 @@ Sub EndnoteDeEmbed()
 '                    "Exiting macro, reverting to last save.", vbCritical, "Oh no!"
 '                    Documents.Open FileName:=ActiveDocument.FullName, Revert:=True
 '                    Application.ScreenUpdating = True
-                    Exit Sub
+                    Exit Function
                 End If
                 addChapterName = True
                 lastRefSection = refSection
@@ -274,7 +357,13 @@ Cleanup:
     Application.ScreenUpdating = True
     Application.ScreenRefresh
 
-End Sub
+End Function
+
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+'    PRIVATE PROCEDURES
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
 
 Function endnoteHeader(refSection As Integer) As String
 Dim sectionRng As Range

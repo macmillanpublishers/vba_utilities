@@ -118,19 +118,29 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
   Dim BookmarkNum As Integer
   Dim BookmarkName As String
   Dim strCurrentStyle As String
+  Dim sglPercentComplete As Single
+  Dim strStatus As String
+  Dim strTitle As String
   
   BookmarkNum = 1
   lastRefSection = 0
   addHeader = True
   TheOS = System.OperatingSystem
   palgraveTag = False
-  
 
+  '-----------Turn off track changes--------
+  Dim currentTracking As Boolean
+  currentTracking = ActiveDocument.TrackRevisions
+  ActiveDocument.TrackRevisions = False
 
 ' Record number of sections in doc
   sectionCount = activeDoc.Sections.Count
-
+  
+' ----------------------------------------------------------------------------------------------
+' ----------------------------------------------------------------------------------------------
 ' This section only if being run by a person.
+' ----------------------------------------------------------------------------------------------
+' ----------------------------------------------------------------------------------------------
   If p_blnValidator = False Then
 
   ' ------ Doesn't work on Mac ---------------
@@ -157,56 +167,50 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
           Exit Function
       End If
     End If
+    
+    ' ----- See if we're using custom Palgrave tags -----
+    iReply = MsgBox("To insert bracketed <NoteCallout> tags around your endnote references, click YES." & vbNewLine & vbNewLine & _
+        "To continue with standard superscripted endnote reference numbers only, click NO.", vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
+    If iReply = vbYes Then palgraveTag = True
+
+      '------------record status of current status bar and then turn on-------
+    Dim currentStatusBar As Boolean
+    currentStatusBar = Application.DisplayStatusBar
+    Application.DisplayStatusBar = True
+  
+    '--------Progress Bar------------------------------
+    'Percent complete and status for progress bar (PC) and status bar (Mac)
+    'Requires ProgressBar custom UserForm and Class
+    strTitle = "Unlink Endnotes"
+    sglPercentComplete = 0.04
+    strStatus = "* Getting started..."
+    
+    #If Mac Then
+      Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
+      DoEvents
+    #Else
+      Dim objProgressNotes As ProgressBar
+      Set objProgressNotes = New ProgressBar
+      
+      objProgressNotes.Title = strTitle
+      objProgressNotes.Show
+      
+      objProgressNotes.Increment sglPercentComplete, strStatus
+      Doze 50 ' Wait 50 milliseconds for progress bar to update
+    #End If
   End If
+' -----------------------------------------------------------------------
+' -----------------------------------------------------------------------
+' END SECTION FOR NON-VALIDATOR VERSION
+' -----------------------------------------------------------------------
+' -----------------------------------------------------------------------
 
-    '------------record status of current status bar and then turn on-------
-  Dim currentStatusBar As Boolean
-  currentStatusBar = Application.DisplayStatusBar
-  Application.DisplayStatusBar = True
-  
-  '-----------Turn off track changes--------
-  Dim currentTracking As Boolean
-  currentTracking = ActiveDocument.TrackRevisions
-  ActiveDocument.TrackRevisions = False
-  
-  '--------Progress Bar------------------------------
-  'Percent complete and status for progress bar (PC) and status bar (Mac)
-  'Requires ProgressBar custom UserForm and Class
-  Dim sglPercentComplete As Single
-  Dim strStatus As String
-  Dim strTitle As String
-  
-  strTitle = "Unlink Endnotes"
-  sglPercentComplete = 0.04
-  strStatus = "* Getting started..."
-  
-  #If Mac Then
-    Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-    DoEvents
-  #Else
-    Dim objProgressNotes As ProgressBar
-    Set objProgressNotes = New ProgressBar
-    
-    objProgressNotes.Title = strTitle
-    objProgressNotes.Show
-    
-    objProgressNotes.Increment sglPercentComplete, strStatus
-    Doze 50 ' Wait 50 milliseconds for progress bar to update
-  #End If
-
-  ' Setup global Endnote settings (continuous number, endnotes at document end, number with integers)
+  'Setup global Endnote settings (continuous number, endnotes at document end, number with integers)
   'ActiveDocument.Endnotes.StartingNumber = 1
   'ActiveDocument.Endnotes.NumberingRule = wdRestartContinuous
   ActiveDocument.Endnotes.NumberingRule = wdRestartSection
   ActiveDocument.Endnotes.Location = 1
   ActiveDocument.Endnotes.NumberStyle = wdNoteNumberStyleArabic
-  
-   
-  ' See if we're using custom Palgrave tags
-  iReply = MsgBox("To insert bracketed <NoteCallout> tags around your endnote references, click YES." & vbNewLine & vbNewLine & _
-      "To continue with standard superscripted endnote reference numbers only, click NO.", vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
-  If iReply = vbYes Then palgraveTag = True
-
   
   ' Begin working on Endnotes
   Application.ScreenUpdating = False
@@ -219,22 +223,26 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
   
   With ActiveDocument
     For Each eNote In .Endnotes
-      ' ----- Update progress bar -------------
-      intCurrentNote = intCurrentNote + 1
-      
-      If intCurrentNote Mod 10 = 0 Then
-        sglPercentComplete = (((intCurrentNote / intNotesCount) * 0.95) + 0.04)
-        strCountMsg = "* Unlinking endnote " & intCurrentNote & " of " & intNotesCount & vbNewLine & strStatus
+    
+      ' --------------- IF RUN BY USER, DISPLAY PROGRESS BAR ---------------------
+      If p_blnValidator = False Then
+        intCurrentNote = intCurrentNote + 1
         
-        #If Mac Then
-          Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strCountMsg
-          DoEvents
-        #Else
-          objProgressNotes.Increment sglPercentComplete, strCountMsg
-          Doze 50 ' Wait 50 milliseconds for progress bar to update
-        #End If
+        If intCurrentNote Mod 10 = 0 Then
+          sglPercentComplete = (((intCurrentNote / intNotesCount) * 0.95) + 0.04)
+          strCountMsg = "* Unlinking endnote " & intCurrentNote & " of " & intNotesCount & vbNewLine & strStatus
+          
+          #If Mac Then
+            Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strCountMsg
+            DoEvents
+          #Else
+            objProgressNotes.Increment sglPercentComplete, strCountMsg
+            Doze 50 ' Wait 50 milliseconds for progress bar to update
+          #End If
+        End If
       End If
-            
+    
+    ' ----------- START PROCESSING ENDNOTES -------------------
       With eNote
         With .Reference.Characters.First
           .Collapse wdCollapseStart
@@ -258,11 +266,16 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
             'MsgBox refSection & " is section of Endnote index #" & nref
             chapterName = endnoteHeader(refSection)
             If chapterName = "```No Header found```" Then
-              MsgBox "ERROR: Found endnote reference in a section without an approved header style (fmh, cn, ct or ctnp)." & vbNewLine & vbNewLine & _
-              "Exiting macro, reverting to last save.", vbCritical, "Oh no!"
-              Documents.Open FileName:=ActiveDocument.FullName, Revert:=True
-              Application.ScreenUpdating = True
-              Exit Function
+              ' Alert user if manual, use default text if automated
+              If p_blnValidator = False Then
+                MsgBox "ERROR: Found endnote reference in a section without an approved header style (fmh, cn, ct or ctnp)." & vbNewLine & vbNewLine & _
+                "Exiting macro, reverting to last save.", vbCritical, "Oh no!"
+                Documents.Open FileName:=ActiveDocument.FullName, Revert:=True
+                Application.ScreenUpdating = True
+                Exit Function
+              Else
+                chapterName = "Chapter"
+              End If
             End If
             addChapterName = True
             lastRefSection = refSection
@@ -293,7 +306,7 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
           addHeader = False
         End If
         If addChapterName = True Then
-          .InsertAfter chapterName '
+          .InsertAfter chapterName
           With .Paragraphs.Last.Range
               .Style = "BM Subhead (bmsh)"
           End With
@@ -340,28 +353,30 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
     .MatchAllWordForms = False
     .Execute Replace:=wdReplaceAll
   End With
-  
-      ' ----- Update progress bar -------------
-  sglPercentComplete = 0.99
-  strStatus = "* Finishing up..." & vbNewLine & strStatus
-  
-  #If Mac Then
-    Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-    DoEvents
-  #Else
-    objProgressNotes.Increment sglPercentComplete, strStatus
-    Doze 50 ' Wait 50 milliseconds for progress bar to update
-  #End If
-  
-  Call RemoveAllBookmarks
 
 Cleanup:
-  ' ---- Close progress bar -----
-  #If Mac Then
-    ' Nothing?
-  #Else
-    Unload objProgressNotes
-  #End If
+' ----- Update progress bar if run by user -------------
+  If p_blnValidator = False Then
+    sglPercentComplete = 0.99
+    strStatus = "* Finishing up..." & vbNewLine & strStatus
+    
+    #If Mac Then
+      Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
+      DoEvents
+    #Else
+      objProgressNotes.Increment sglPercentComplete, strStatus
+      Doze 50 ' Wait 50 milliseconds for progress bar to update
+    #End If
+
+      ' ---- Close progress bar -----
+    #If Mac Then
+      ' Nothing?
+    #Else
+      Unload objProgressNotes
+    #End If
+  End If
+
+  Call RemoveAllBookmarks
   
   ActiveDocument.TrackRevisions = currentTracking
   Application.DisplayStatusBar = currentStatusBar

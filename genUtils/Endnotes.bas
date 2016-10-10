@@ -7,7 +7,6 @@ Attribute VB_Name = "Endnotes"
 
 ' ====== DEPENDENCIES ============
 ' 1. Manuscript must be styled with Macmillan custom styles.
-' 2. Requires genUtils be referenced from calling project.
 
 
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -20,7 +19,7 @@ Option Base 1
 '    GLOBAL VARIABLES and CONSTANTS
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Private Const c_strEndnotes As String = "genUtils.Endnotes."
-Dim activeRng As Range
+Private g_rngNotes As Range
 
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 '    PUBLIC PROCEDURES
@@ -32,21 +31,15 @@ Public Function EndnoteCheck() As genUtils.Dictionary
   On Error GoTo EndnoteCheckError
   
   Dim dictReturn As genUtils.Dictionary
-  Set dictReturn = New genUtils.Dictionary
-  dictReturn.Add "pass", False
   
   Dim blnNotesExist As Boolean
   blnNotesExist = NotesExist()
   dictReturn.Add "endnotesExist", blnNotesExist
   
   If blnNotesExist = True Then
-    Dim dictStep As genUtils.Dictionary
-    Set dictStep = EndnoteUnlink(p_blnValidator:=True)
-    Set dictReturn = genUtils.ClassHelpers.MergeDictionary(dictReturn, dictStep)
-  ' Test that it worked
-    dictReturn.Item("pass") = Not NotesExist()
+    Set dictReturn = EndnoteUnlink(p_blnAutomated:=True)
   Else
-    dictReturn.Item("pass") = True
+    dictReturn.Add "pass", True
   End If
 
   Set EndnoteCheck = dictReturn
@@ -67,14 +60,14 @@ End Function
 ' needs to be a function, this needs to be a sub.
 
 Public Sub EndnoteDeEmbed()
-  Set activeDoc = ActiveDocument
+  Set activeDoc = activeDoc
 
   Dim blnNotesExist As Boolean
   blnNotesExist = NotesExist()
   
   If blnNotesExist = True Then
     Dim dictStep As genUtils.Dictionary
-    Set dictStep = EndnoteUnlink(p_blnValidator:=False)
+    Set dictStep = EndnoteUnlink(p_blnAutomated:=False)
   Else
     MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
   End If
@@ -83,8 +76,13 @@ Public Sub EndnoteDeEmbed()
 
 End Sub
 
+
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+'    PRIVATE PROCEDURES
+' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 ' ===== NotesExist ============================================================
-' Are there even endnote?
+' Are there even endnotes?
 
 Private Function NotesExist() As Boolean
   If activeDoc.Endnotes.Count > 0 Then
@@ -99,49 +97,32 @@ End Function
 ' the document, with headings for each chapter. Note numbers restart at 1 for
 ' each chapter.
 
-Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
+Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   On Error GoTo EndnoteUnlinkError
   
   ' --------- Declare and set variables ---------------
-  Dim refRng As Range
-  Dim refSection As Integer
-  Dim lastRefSection As Integer
-  Dim chapterName As String
-  Dim addChapterName As Boolean
-  Dim addHeader As Boolean
-  Dim nRng As Range, eNote As Endnote, nref As String, refCopy As String
-  Dim sectionCount As Long
-  Dim StoryRange As Range
-  Dim TheOS As String
+  Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New genUtils.Dictionary
+  dictReturn.Add "pass", False
+
   Dim palgraveTag As Boolean
   Dim iReply As Integer
-  Dim BookmarkNum As Integer
-  Dim BookmarkName As String
-  Dim strCurrentStyle As String
   Dim sglPercentComplete As Single
   Dim strStatus As String
   Dim strTitle As String
-  
-  BookmarkNum = 1
-  lastRefSection = 0
-  addHeader = True
-  TheOS = System.OperatingSystem
   palgraveTag = False
 
   '-----------Turn off track changes--------
   Dim currentTracking As Boolean
-  currentTracking = ActiveDocument.TrackRevisions
-  ActiveDocument.TrackRevisions = False
-
-' Record number of sections in doc
-  sectionCount = activeDoc.Sections.Count
+  currentTracking = activeDoc.TrackRevisions
+  activeDoc.TrackRevisions = False
   
 ' ----------------------------------------------------------------------------------------------
 ' ----------------------------------------------------------------------------------------------
 ' This section only if being run by a person.
 ' ----------------------------------------------------------------------------------------------
 ' ----------------------------------------------------------------------------------------------
-  If p_blnValidator = False Then
+  If p_blnAutomated = False Then
 
   ' ------ Doesn't work on Mac ---------------
     #If Mac Then
@@ -149,14 +130,8 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
       "Click OK to exit the Endnotes macro."
       Exit Function
     #End If
-  
-  '------- Check if document is saved ---------
-    If CheckSave = True Then
-        Exit Function
-    End If
-
     
-    If sectionCount = 1 Then
+    If activeDoc.Sections.Count = 1 Then
       iReply = MsgBox("Only one section found in document. Without section breaks, endnotes will be numbered " & _
       "continuously from beginning to end." & vbNewLine & vbNewLine & "If you would like to continue " & _
       "without section breaks, click OK." & vbNewLine & "If you would like to exit the macro and add " & _
@@ -185,19 +160,12 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
     sglPercentComplete = 0.04
     strStatus = "* Getting started..."
     
-    #If Mac Then
-      Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-      DoEvents
-    #Else
-      Dim objProgressNotes As ProgressBar
-      Set objProgressNotes = New ProgressBar
-      
-      objProgressNotes.Title = strTitle
-      objProgressNotes.Show
-      
-      objProgressNotes.Increment sglPercentComplete, strStatus
-      Doze 50 ' Wait 50 milliseconds for progress bar to update
-    #End If
+    Dim objProgressNotes As ProgressBar
+    Set objProgressNotes = New ProgressBar
+    
+    objProgressNotes.Title = strTitle
+    Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=objProgressNotes, _
+      Status:=strStatus, Percent:=sglPercentComplete)
   End If
 ' -----------------------------------------------------------------------
 ' -----------------------------------------------------------------------
@@ -205,180 +173,102 @@ Private Function EndnoteUnlink(p_blnValidator As Boolean) As genUtils.Dictionary
 ' -----------------------------------------------------------------------
 ' -----------------------------------------------------------------------
 
-  'Setup global Endnote settings (continuous number, endnotes at document end, number with integers)
-  'ActiveDocument.Endnotes.StartingNumber = 1
-  'ActiveDocument.Endnotes.NumberingRule = wdRestartContinuous
-  ActiveDocument.Endnotes.NumberingRule = wdRestartSection
-  ActiveDocument.Endnotes.Location = 1
-  ActiveDocument.Endnotes.NumberStyle = wdNoteNumberStyleArabic
-  
   ' Begin working on Endnotes
   Application.ScreenUpdating = False
   
-  Dim intNotesCount As Integer
-  Dim intCurrentNote As Integer
+  Dim lngTotalSections As Long
+  Dim lngTotalNotes As Long
+  Dim objSection As Section ' each section obj we're looking through
+  Dim rngPara As Range
+  Dim objEndnote As Endnote ' each Endnote obj in section
+  Dim strFirstStyle As String
+  Dim strHeading As String
+  Dim lngNoteNumber As Long ' Integer for the superscripted note number
+  Dim lngNoteCount As Long ' count of TOTAL notes in doc
+  Dim rngNoteNumber As Range
   Dim strCountMsg As String
-  intNotesCount = ActiveDocument.Endnotes.Count
-  intCurrentNote = 0
   
-  With ActiveDocument
-    For Each eNote In .Endnotes
-    
-      ' --------------- IF RUN BY USER, DISPLAY PROGRESS BAR ---------------------
-      If p_blnValidator = False Then
-        intCurrentNote = intCurrentNote + 1
-        
-        If intCurrentNote Mod 10 = 0 Then
-          sglPercentComplete = (((intCurrentNote / intNotesCount) * 0.95) + 0.04)
-          strCountMsg = "* Unlinking endnote " & intCurrentNote & " of " & intNotesCount & vbNewLine & strStatus
-          
-          #If Mac Then
-            Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strCountMsg
-            DoEvents
-          #Else
-            objProgressNotes.Increment sglPercentComplete, strCountMsg
-            Doze 50 ' Wait 50 milliseconds for progress bar to update
-          #End If
+  lngTotalSections = activeDoc.Sections.Count
+  lngTotalNotes = activeDoc.Endnotes.Count
+  lngNoteNumber = 1
+  lngNoteCount = 0
+  
+  dictReturn.Add "palgraveTags", palgraveTag
+  dictReturn.Add "numSections", lngTotalSections
+  dictReturn.Acc "numNotes", lngTotalNotes
+  
+' ----- Loop through sections -------------------------------------------------
+  For Each objSection In activeDoc.Sections
+  ' If no notes in this section, skip to next
+    If objSection.Range.Endnotes.Count > 0 Then
+    ' Need to check 1st para style for heading text, create heading in Notes section
+      Set rngPara = objSection.Range.Paragraphs.First.Range
+      strFirstStyle = rngPara.ParagraphStyle
+      ' If first paragraph is not an approved heading, just continue with notes
+      ' and numbering as if it is the same section as previous.
+      If Reports.IsHeading(strFirstStyle) = True Then
+      ' New section, so restart note numbers at 1
+        lngNoteNumber = 1
+        strHeading = rngPara.Text
+        ' If it's a CN / CT combo, get CT as well
+        If strFirstStyle = Reports.strChapNumber Then
+          rngPara.Move Unit:=wdParagraph, Count:=1
+          If rngPara.ParagraphStyle = Reports.strChapTitle Then
+            strHeading = strHeading & ": " & rngPara.Text
+          End If
         End If
+        strHeading = strHeading & vbNewLine
+        ' collapse first, so we can apply style to just-inserted text
+        g_rngNotes.Collapse Direction:=wdCollapseEnd
+        g_rngNotes.InsertAfter = strHeading
+        g_rngNotes.Style = "Note Level-1 Subhead (n1)"
       End If
-    
-    ' ----------- START PROCESSING ENDNOTES -------------------
-      With eNote
-        With .Reference.Characters.First
-          .Collapse wdCollapseStart
-          BookmarkName = "Endnote" & BookmarkNum
-          .Bookmarks.Add Name:=BookmarkName
-          .InsertCrossReference wdRefTypeEndnote, wdEndnoteNumberFormatted, eNote.Index
-          nref = .Characters.First.Fields(1).result
-          If palgraveTag = False Then
-            .Characters.First.Fields(1).Unlink
-          Else
-            eNote.Reference.InsertBefore "<NoteCallout>" & nref & "</NoteCallout>"   'tags location of old ref
-            .Characters.Last.Fields(1).Delete      ' delete old ref
-          End If
-  
-          'Now for the header business:
-          addChapterName = False
-          Set refRng = ActiveDocument.Bookmarks(BookmarkName).Range
-          refSection = ActiveDocument.Range(0, refRng.Sections(1).Range.End).Sections.Count
-          If refSection <> lastRefSection Then
-            'following line for debug: comment later
-            'MsgBox refSection & " is section of Endnote index #" & nref
-            chapterName = endnoteHeader(refSection)
-            If chapterName = "```No Header found```" Then
-              ' Alert user if manual, use default text if automated
-              If p_blnValidator = False Then
-                MsgBox "ERROR: Found endnote reference in a section without an approved header style (fmh, cn, ct or ctnp)." & vbNewLine & vbNewLine & _
-                "Exiting macro, reverting to last save.", vbCritical, "Oh no!"
-                Documents.Open FileName:=ActiveDocument.FullName, Revert:=True
-                Application.ScreenUpdating = True
-                Exit Function
-              Else
-                chapterName = "Chapter"
-              End If
-            End If
-            addChapterName = True
-            lastRefSection = refSection
-            'following line for debug: comment later
-            'MsgBox chapterName
-          End If
-          BookmarkNum = BookmarkNum + 1
-        End With
-        'strCurrentStyle = .Range.Style 'this is to apply save style as orig. note but breaks if more than 1 style.
-        .Range.Cut
-      End With
       
-  '''''Since I am not attempting to number at end of each secion,  commenting out parts of this clause
-      'If .Range.EndnoteOptions.Location = wdEndOfSection Then
-      '  Set nRng = eNote.Range.Sections.First.Range
-      'Else
-      Set nRng = .Range
-      'End If
-      With nRng
-        .Collapse wdCollapseEnd
-        .End = .End - 1
-        If .Characters.Last <> Chr(12) Then .InsertAfter vbCr
-        If addHeader = True Then
-          .InsertAfter "Notes" & vbCr
-          With .Paragraphs.Last.Range
-              .Style = "BM Head (bmh)"
-          End With
-          addHeader = False
+    ' Now loop through all notes in this section and add to Notes section
+      For Each objEndnote In objSection.Range.Endnotes
+      ' ----- Update progress bar if run by user ------------------------------
+        lngNoteCount = lngNoteCount + 1
+        If p_blnAutomated = False Then
+          If lngNoteCount Mod 10 = 0 Then
+            sglPercentComplete = (((lngNoteCount / lngTotalNotes) * 0.95) + 0.04)
+            strCountMsg = "* Unlinking endnote " & lngNoteCount & " of " & _
+              lngTotalNotes & vbNewLine & strStatus
+            Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=objProgressNotes, _
+              Status:=strCountMsg, Percent:=sglPercentComplete)
+          End If
         End If
-        If addChapterName = True Then
-          .InsertAfter chapterName
-          With .Paragraphs.Last.Range
-              .Style = "BM Subhead (bmsh)"
-          End With
+    
+      ' Add note text to end Notes section
+        Call AddNoteText(objEndnote.Range, lngNoteNumber)
+      
+      ' Add note number to text with superscript style
+        Set rngNoteNumber = objEndnote.Reference  ' returns Range of in-text note number
+        If palgraveTag = False Then
+          rngNoteNumber.InsertAfter lngNoteNumber
+        Else
+          rngNoteNumber.InsertAfter "<NoteCallout>" & lngNoteNumber & "</NoteCallout>"
         End If
-        .InsertAfter nref & ". "
-        With .Paragraphs.Last.Range
-          '.Style = strCurrentStyle 'This applies the same style as orig. note, but breaks if more than 1 style used.
-          .Style = "Endnote Text"
-          .Words.First.Style = "Default Paragraph Font"
-        End With
-        .Collapse wdCollapseEnd
-        .Paste
-        If .Characters.Last = Chr(12) Then .InsertAfter vbCr
-      End With
-    Next
+        rngNoteNumber.Style = "span superscript characters (sup)"
+        
+      ' Delete note
+        objEndnote.Delete
+      
+      ' Increment note number counter
+        lngNoteNumber = lngNoteNumber + 1
+      Next objEndnote
     
-    strStatus = "* Unlinking " & intNotesCount & " endnotes..." & vbNewLine & strStatus
-    
-  '''This deletes the endnote
-    For Each eNote In .Endnotes
-      eNote.Delete
-    Next
-  End With
-  Set nRng = Nothing
+    ' ---- Delete notes in separate loop ----
+      For Each objEndnote In objSection.Range
+        objEndnote.Delete
+      Next
+    End If
+  Next objSection
   
-  ' ---- apply superscript style to in-text note references -------
-  Call zz_clearFind
-  Selection.HomeKey wdStory
+  dictReturn.Item("pass") = Not NotesExist()
   
-  With Selection.Find
-    .ClearFormatting
-    .Replacement.ClearFormatting
-    .Text = ""
-    .Replacement.Text = ""
-    .Forward = True
-    .Wrap = wdFindStop
-    .Format = True
-    .Style = "Endnote Reference"
-    .Replacement.Style = "span superscript characters (sup)"
-    .MatchCase = False
-    .MatchWholeWord = False
-    .MatchWildcards = False
-    .MatchSoundsLike = False
-    .MatchAllWordForms = False
-    .Execute Replace:=wdReplaceAll
-  End With
-
-Cleanup:
-' ----- Update progress bar if run by user -------------
-  If p_blnValidator = False Then
-    sglPercentComplete = 0.99
-    strStatus = "* Finishing up..." & vbNewLine & strStatus
-    
-    #If Mac Then
-      Application.StatusBar = strTitle & " " & (100 * sglPercentComplete) & "% complete | " & strStatus
-      DoEvents
-    #Else
-      objProgressNotes.Increment sglPercentComplete, strStatus
-      Doze 50 ' Wait 50 milliseconds for progress bar to update
-    #End If
-
-      ' ---- Close progress bar -----
-    #If Mac Then
-      ' Nothing?
-    #Else
-      Unload objProgressNotes
-    #End If
-  End If
-
-  Call RemoveAllBookmarks
+  EndnoteUnlink = dictReturn
   
-  ActiveDocument.TrackRevisions = currentTracking
+  activeDoc.TrackRevisions = currentTracking
   Application.DisplayStatusBar = currentStatusBar
   Application.ScreenUpdating = True
   Application.ScreenRefresh
@@ -393,82 +283,32 @@ EndnoteUnlinkError:
   End If
 End Function
 
-' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-'    PRIVATE PROCEDURES
-' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+' ===== AddNoteText ===========================================================
+' Adds passed range to Notes section at back of manuscript. Returns if it was
+' successful or not.
 
+Private Function AddNoteText(p_rngNoteBody As Range, p_lngNoteNumber As Long) _
+  As Boolean
+  If g_rngNotes Is Nothing Then
+' ----- Set up range to hold Notes section we're adding -----------------------
+    Set g_rngNotes = activeDoc.Range.Collapse(wdCollapseEnd)
+    g_rngNotes.InsertAfter "Notes" & vbNewLine
+    g_rngNotes.Style = Reports.strBmHead  ' public constant from Reports module
+  End If
 
-Function endnoteHeader(refSection As Integer) As String
-Dim sectionRng As Range
-    Dim searchStylesArray(4) As String                       ' number of items in array should be declared here
-    Dim searchTest As Boolean
-    Dim i As Long
-    
-    Call zz_clearFind
-    
-    Set sectionRng = ActiveDocument.Sections(refSection).Range
-    searchStylesArray(1) = "FM Head (fmh)"
-    searchStylesArray(2) = "Chap Number (cn)"
-    searchStylesArray(3) = "Chap Title (ct)"
-    searchStylesArray(4) = "Chap Title Nonprinting (ctnp)"
-    searchTest = False
-    i = 1
-    
-    Do Until searchTest = True
-    Set sectionRng = ActiveDocument.Sections(refSection).Range
-    With sectionRng.Find
-      .ClearFormatting
-      .Style = searchStylesArray(i)
-      .Wrap = wdFindStop
-      .Forward = True
-    End With
-    If sectionRng.Find.Execute Then
-        endnoteHeader = sectionRng
-        searchTest = True
-    Else
-    'following line for debug: comment later
-        'MsgBox searchStylesArray(i) + " Not Found"
-        i = i + 1
-        If i = 5 Then
-            searchTest = True
-            endnoteHeader = "```No Header found```"
-        End If
-    End If
-    Loop
-        
-    Call zz_clearFind
-    
+  Dim objParagraph As Paragraph
+  With g_rngNotes
+  ' Collapse range so we can add style after we insert text
+    .Collapse Direction:=wdCollapseEnd
+    .InsertAfter p_lngNoteNumber & ". "
+  ' Loop through paragraphs to add each individually
+    For Each objParagraph In p_rngNoteBody
+      .InsertAfter objParagraph.Range.Text
+      .Style = objParagraph.Range.ParagraphStyle
+      .Collapse Direction:=wdCollapseEnd
+    Next objParagraph
+  End With
 End Function
-
-Sub RemoveAllBookmarks()
-
-'three options from http://wordribbon.tips.net/T009004_Removing_All_Bookmarks.html
-    'Version 1
-    Dim objBookmark As Bookmark
-    For Each objBookmark In ActiveDocument.Bookmarks
-        objBookmark.Delete
-    Next
-    
-    'Version 2
-    'Dim stBookmark As Bookmark
-    'ActiveDocument.Bookmarks.ShowHidden = True
-    'If ActiveDocument.Bookmarks.Count >= 1 Then
-    '   For Each stBookmark In ActiveDocument.Bookmarks
-    '      stBookmark.Delete
-    '   Next stBookmark
-    'End If
-    
-    'Version 3
-    'Dim objBookmark As Bookmark
-    '
-    'For Each objBookmark In ActiveDocument.Bookmarks
-    '    If Left(objBookmark.Name, 1) <> "_" Then objBookmark.Delete
-    'Next
-    
-    
-    'http://wordribbon.tips.net/T009004_Removing_All_Bookmarks.html
-
-End Sub
 
 

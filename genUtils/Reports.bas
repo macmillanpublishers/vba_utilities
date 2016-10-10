@@ -939,7 +939,7 @@ End Function
 ' Is this paragraph style a Macmillan heading style? Eventually store style
 ' names externally.
 
-Private Function IsHeading(StyleName As String) As Boolean
+Public Function IsHeading(StyleName As String) As Boolean
   On Error GoTo IsHeadingError
 ' `dictHeadings` is global scope so only have to create once
   If dictHeadings Is Nothing Then

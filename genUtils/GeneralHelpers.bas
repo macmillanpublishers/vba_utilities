@@ -74,7 +74,7 @@ Public Function ErrorChecker(objError As Object, Optional strValue As _
     "(" & objError.Source & ") " & objError.Number & ":" & vbNewLine _
     & objError.Description
   
-  If lngErrorCount > 5 Then
+  If lngErrorCount > 15 Then
     DebugPrint "ERROR LOOP STOPPED"
     End
   End If

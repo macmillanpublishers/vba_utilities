@@ -1504,6 +1504,8 @@ Public Function HeadingCheck() As genUtils.Dictionary
   Dim strSectionKey As String
   Dim blnRmCharFormat As Boolean
   Dim blnChapterNumber As Boolean: blnChapterNumber = False
+  Dim rngPara1 As Range
+  Dim rngParaLast As Range
 
   For D = UBound(rngSections) To LBound(rngSections) Step -1
     ' Replace with error message for infinite loop
@@ -1663,26 +1665,47 @@ Public Function HeadingCheck() As genUtils.Dictionary
           dictReturn.Add strSectionKey & "BmtToBmh", True
         End If
     End Select
-  
-  ' Add styled section breaks to START of range. Do last; `.Collapse` changes rng
-  ' Don't add to first range, though
+    
+  ' Add section breaks to START of range, i.e. end of section before
+  ' this one. Don't add to first range, though.
+  ' Get separate Range objects for first and last paragraphs, because
+  ' collapse method changes the range. Also, if have a single-paragraph
+  ' range, still need to add section before and PB after.
+    Set rngPara1 = rngSect.Paragraphs(1).Range
     If D > LBound(rngSections) Then
-      With rngSect
-        .InsertBefore vbNewLine
-        .Collapse Direction:=wdCollapseStart
-        .Style = strPageBreak
-        .InsertBreak Type:=wdSectionBreakNextPage
-        dictReturn.Add strSectionKey & "AddSectionBreak", True
-      End With
+      rngPara1.Collapse Direction:=wdCollapseStart
+      rngPara1.InsertBreak Type:=wdSectionBreakNextPage
+      dictReturn.Add strSectionKey & "AddSectionBreak", True
+    End If
+    
+    Set rngParaLast = rngSect.Paragraphs.Last.Range
+    If D < UBound(rngSections) Then
+       rngParaLast.Collapse Direction:=wdCollapseEnd
+       rngParaLast.InsertAfter vbNewLine
+       rngParaLast.Style = Reports.strPageBreak
+       dictReturn.Add strSectionKey & "AddPageBreak", True
     End If
   Next D
 
+'  Dim objSection As Section
+'  For Each objSection In activeDoc.Sections
+'  ' And add PAGE break at END of section, except last section
+'    With objSection.Range
+'      If D < activeDoc.Sections.Count Then
+'       .Collapse Direction:=wdCollapseEnd
+'       .InsertAfter vbNewLine
+'       .Paragraphs.Last.Style = strPageBreak
+'      End If
+'    End With
+'  Next objSection
+'
+  
 ' Add chapter numbers in separate step, because we are looping ranges backwards
   genUtils.zz_clearFind
   activeDoc.Select
   Selection.HomeKey Unit:=wdStory
   With Selection.Find
-    .Text = "Chapter" & Chr(13)
+    .Text = "Chapter^p"
     .Format = True
     .Style = strChapNonprinting
     .Forward = True

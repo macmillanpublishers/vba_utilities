@@ -31,6 +31,7 @@ Public Function EndnoteCheck() As genUtils.Dictionary
   On Error GoTo EndnoteCheckError
   
   Dim dictReturn As genUtils.Dictionary
+  Set dictReturn = New genUtils.Dictionary
   
   Dim blnNotesExist As Boolean
   blnNotesExist = NotesExist()
@@ -195,7 +196,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   
   dictReturn.Add "palgraveTags", palgraveTag
   dictReturn.Add "numSections", lngTotalSections
-  dictReturn.Acc "numNotes", lngTotalNotes
+  dictReturn.Add "numNotes", lngTotalNotes
   
 ' ----- Loop through sections -------------------------------------------------
   For Each objSection In activeDoc.Sections
@@ -220,7 +221,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
         strHeading = strHeading & vbNewLine
         ' collapse first, so we can apply style to just-inserted text
         g_rngNotes.Collapse Direction:=wdCollapseEnd
-        g_rngNotes.InsertAfter = strHeading
+        g_rngNotes.InsertAfter strHeading
         g_rngNotes.Style = "Note Level-1 Subhead (n1)"
       End If
       
@@ -228,6 +229,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
       For Each objEndnote In objSection.Range.Endnotes
       ' ----- Update progress bar if run by user ------------------------------
         lngNoteCount = lngNoteCount + 1
+        DebugPrint "Note " & lngNoteCount & " of " & lngTotalNotes
         If p_blnAutomated = False Then
           If lngNoteCount Mod 10 = 0 Then
             sglPercentComplete = (((lngNoteCount / lngTotalNotes) * 0.95) + 0.04)
@@ -249,16 +251,13 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
           rngNoteNumber.InsertAfter "<NoteCallout>" & lngNoteNumber & "</NoteCallout>"
         End If
         rngNoteNumber.Style = "span superscript characters (sup)"
-        
-      ' Delete note
-        objEndnote.Delete
       
       ' Increment note number counter
         lngNoteNumber = lngNoteNumber + 1
       Next objEndnote
     
     ' ---- Delete notes in separate loop ----
-      For Each objEndnote In objSection.Range
+      For Each objEndnote In objSection.Range.Endnotes
         objEndnote.Delete
       Next
     End If
@@ -266,7 +265,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   
   dictReturn.Item("pass") = Not NotesExist()
   
-  EndnoteUnlink = dictReturn
+  Set EndnoteUnlink = dictReturn
   
   activeDoc.TrackRevisions = currentTracking
   Application.DisplayStatusBar = currentStatusBar
@@ -290,9 +289,11 @@ End Function
 
 Private Function AddNoteText(p_rngNoteBody As Range, p_lngNoteNumber As Long) _
   As Boolean
+  On Error GoTo AddNoteTextError
   If g_rngNotes Is Nothing Then
 ' ----- Set up range to hold Notes section we're adding -----------------------
-    Set g_rngNotes = activeDoc.Range.Collapse(wdCollapseEnd)
+    Set g_rngNotes = activeDoc.Range
+    g_rngNotes.Collapse wdCollapseEnd
     g_rngNotes.InsertAfter "Notes" & vbNewLine
     g_rngNotes.Style = Reports.strBmHead  ' public constant from Reports module
   End If
@@ -303,12 +304,21 @@ Private Function AddNoteText(p_rngNoteBody As Range, p_lngNoteNumber As Long) _
     .Collapse Direction:=wdCollapseEnd
     .InsertAfter p_lngNoteNumber & ". "
   ' Loop through paragraphs to add each individually
-    For Each objParagraph In p_rngNoteBody
+    For Each objParagraph In p_rngNoteBody.Paragraphs
       .InsertAfter objParagraph.Range.Text
       .Style = objParagraph.Range.ParagraphStyle
       .Collapse Direction:=wdCollapseEnd
     Next objParagraph
   End With
+  Exit Function
+
+AddNoteTextError:
+  Err.Source = c_strEndnotes & "AddNoteText"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
 End Function
 
 

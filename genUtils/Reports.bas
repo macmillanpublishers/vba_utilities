@@ -1686,19 +1686,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
        dictReturn.Add strSectionKey & "AddPageBreak", True
     End If
   Next D
-
-'  Dim objSection As Section
-'  For Each objSection In activeDoc.Sections
-'  ' And add PAGE break at END of section, except last section
-'    With objSection.Range
-'      If D < activeDoc.Sections.Count Then
-'       .Collapse Direction:=wdCollapseEnd
-'       .InsertAfter vbNewLine
-'       .Paragraphs.Last.Style = strPageBreak
-'      End If
-'    End With
-'  Next objSection
-'
   
 ' Add chapter numbers in separate step, because we are looping ranges backwards
   genUtils.zz_clearFind

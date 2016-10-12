@@ -180,19 +180,22 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   Dim lngTotalSections As Long
   Dim lngTotalNotes As Long
   Dim objSection As Section ' each section obj we're looking through
-  Dim rngPara As Range
   Dim objEndnote As Endnote ' each Endnote obj in section
   Dim strFirstStyle As String
-  Dim strHeading As String
+  Dim strSecondStyle As String
+  Dim rngHeading As Range
   Dim lngNoteNumber As Long ' Integer for the superscripted note number
   Dim lngNoteCount As Long ' count of TOTAL notes in doc
   Dim rngNoteNumber As Range
   Dim strCountMsg As String
+  Dim lngSectionCount As Long
+  Dim blnAddText As Boolean
   
   lngTotalSections = activeDoc.Sections.Count
   lngTotalNotes = activeDoc.Endnotes.Count
   lngNoteNumber = 1
   lngNoteCount = 0
+  lngSectionCount = 0
   
   dictReturn.Add "palgraveTags", palgraveTag
   dictReturn.Add "numSections", lngTotalSections
@@ -200,32 +203,42 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   
 ' ----- Loop through sections -------------------------------------------------
   For Each objSection In activeDoc.Sections
+    lngSectionCount = lngSectionCount + 1
+    DebugPrint "Section " & lngSectionCount & " of " & lngTotalSections
+
   ' If no notes in this section, skip to next
     If objSection.Range.Endnotes.Count > 0 Then
-    ' Need to check 1st para style for heading text, create heading in Notes section
-      Set rngPara = objSection.Range.Paragraphs.First.Range
-      strFirstStyle = rngPara.ParagraphStyle
-      ' If first paragraph is not an approved heading, just continue with notes
-      ' and numbering as if it is the same section as previous.
-      If Reports.IsHeading(strFirstStyle) = True Then
-      ' New section, so restart note numbers at 1
-        lngNoteNumber = 1
-        strHeading = rngPara.Text
-        ' If it's a CN / CT combo, get CT as well
-        If strFirstStyle = Reports.strChapNumber Then
-          rngPara.Move Unit:=wdParagraph, Count:=1
-          If rngPara.ParagraphStyle = Reports.strChapTitle Then
-            strHeading = strHeading & ": " & rngPara.Text
+      With objSection.Range
+      ' Need to check 1st para style for heading text
+        strFirstStyle = .Paragraphs(1).Range.ParagraphStyle
+        DebugPrint "First para style: " & strFirstStyle
+        ' If first paragraph is not an approved heading, just continue with notes
+        ' and numbering as if it is the same section as previous.
+        If Reports.IsHeading(strFirstStyle) = True Then
+          DebugPrint "Heading!"
+        ' New section, so restart note numbers at 1
+          lngNoteNumber = 1
+          Set rngHeading = .Paragraphs(1).Range
+          DebugPrint "Heading text: " & rngHeading.Paragraphs.First.Range.Text
+          ' If it's a CN / CT combo, get CT as well
+          If strFirstStyle = Reports.strChapNumber Then
+            If .Paragraphs.Count > 1 Then
+              strSecondStyle = .Paragraphs(2).Range.ParagraphStyle
+              If strSecondStyle = Reports.strChapTitle Then
+                rngHeading.Expand Unit:=wdParagraph
+              End If
+            End If
           End If
+          DebugPrint "Note heading paragraphs: " & rngHeading.Paragraphs.Count
+        ' Add that text as a subhead to final notes section
+          blnAddText = AddNoteText(p_rngNoteBody:=rngHeading, p_blnHeading:=True)
+          dictReturn.Add "Section" & objSection.Index & "_NoteHeadAdded", _
+            blnAddText
         End If
-        strHeading = strHeading & vbNewLine
-        ' collapse first, so we can apply style to just-inserted text
-        g_rngNotes.Collapse Direction:=wdCollapseEnd
-        g_rngNotes.InsertAfter strHeading
-        g_rngNotes.Style = "Note Level-1 Subhead (n1)"
-      End If
+      End With
       
     ' Now loop through all notes in this section and add to Notes section
+      DebugPrint objSection.Range.Endnotes.Count
       For Each objEndnote In objSection.Range.Endnotes
       ' ----- Update progress bar if run by user ------------------------------
         lngNoteCount = lngNoteCount + 1
@@ -285,40 +298,130 @@ End Function
 
 ' ===== AddNoteText ===========================================================
 ' Adds passed range to Notes section at back of manuscript. Returns if it was
-' successful or not.
+' successful or not. p_lngNoteNumber and p_blnHeading are both optional, but
+' must supply one or the other.
 
-Private Function AddNoteText(p_rngNoteBody As Range, p_lngNoteNumber As Long) _
-  As Boolean
+Private Function AddNoteText(p_rngNoteBody As Range, Optional p_lngNoteNumber _
+  As Long = 1, Optional p_blnHeading As Boolean = False) As Boolean
   On Error GoTo AddNoteTextError
   If g_rngNotes Is Nothing Then
 ' ----- Set up range to hold Notes section we're adding -----------------------
-    Set g_rngNotes = activeDoc.Range
-    g_rngNotes.Collapse wdCollapseEnd
-    g_rngNotes.InsertAfter "Notes" & vbNewLine
-    g_rngNotes.Style = Reports.strBmHead  ' public constant from Reports module
+    Dim a_strText(1 To 2) As String
+    Dim a_strStyle(1 To 2) As String
+    Dim A As Long
+    
+    a_strText(1) = vbNewLine
+    a_strStyle(1) = Reports.strPageBreak
+    
+    a_strText(2) = "Notes"
+    a_strStyle(2) = Reports.strBmHead
+    Set g_rngNotes = activeDoc.StoryRanges(wdMainTextStory)
+    
+    For A = LBound(a_strText) To UBound(a_strText)
+      Call AddNewParagraph(p_strText:=a_strText(A), p_strStyle:=a_strStyle(A))
+    Next A
   End If
 
+' ----- Add text to that paragraph --------------------------------------------
   Dim objParagraph As Paragraph
-  With g_rngNotes
-  ' Collapse range so we can add style after we insert text
-    .Collapse Direction:=wdCollapseEnd
-    .InsertAfter p_lngNoteNumber & ". "
+  Dim strText As String
+  Dim strStyle As String
+
+  If p_blnHeading = False Then
+    strText = p_lngNoteNumber & ". "
+  End If
   ' Loop through paragraphs to add each individually
     For Each objParagraph In p_rngNoteBody.Paragraphs
-      .InsertAfter objParagraph.Range.Text
-      .Style = objParagraph.Range.ParagraphStyle
-      .Collapse Direction:=wdCollapseEnd
+      If p_blnHeading = True Then
+        strStyle = "Note Level-1 Subhead (n1)"
+      Else
+        strStyle = objParagraph.Range.ParagraphStyle
+      End If
+       
+      strText = strText & objParagraph.Range.Text
+      ' If last char is newline, remove it
+      If Right(strText, 1) = Chr(13) Then
+        strText = Left(strText, Len(strText) - 1)
+      End If
+      
+      Call AddNewParagraph(p_strText:=strText, p_strStyle:=strStyle)
+      strText = vbNullString
     Next objParagraph
-  End With
+
   Exit Function
 
 AddNoteTextError:
   Err.Source = c_strEndnotes & "AddNoteText"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
   End If
 End Function
 
+' ===== AddNewParagraph =======================================================
+' Add passed text as new paragraph at end of range with the passed style applied
+' to the whole paragraph If no range object is passed as argument, then will add
+' to global variable. Note that if range is end of DOCUMENT, the last paragraph
+' character ALWAYS remains AFTER the collapses range insertion point. This sub
+' adds the final newline, so remove from string (though worst case Char Styles
+' macro would remove it anyway).
 
+' All objects are passed by ref, so shouldn't need to return the revised range.
+
+Private Sub AddNewParagraph(p_strText As String, p_strStyle As String, _
+  Optional p_rngAppend As Range)
+  On Error GoTo AddNewParagraphError
+  Dim rngNewPara As Range
+  Dim blnFinalPara As Boolean
+  
+  If p_rngAppend Is Nothing Then
+    If g_rngNotes Is Nothing Then
+      Set g_rngNotes = activeDoc.Paragraphs.Last.Range
+    End If
+    Set rngNewPara = g_rngNotes
+  Else
+    Set rngNewPara = p_rngAppend
+  End If
+  
+  With rngNewPara
+    rngNewPara.Select
+    If GeneralHelpers.ParaIndex() = activeDoc.Paragraphs.Count Then
+      blnFinalPara = True
+    Else
+      blnFinalPara = False
+    End If
+    
+  ' If last para need to add an additional newline, to separate our range from
+  ' the previous para
+    If blnFinalPara = True Then
+      .InsertAfter vbNewLine
+      .Collapse wdCollapseEnd
+    End If
+  
+  ' adds new line to keep as a separate paragraph, then move back up to not be
+  ' in the new last paragraph, then apply style
+    .InsertAfter p_strText & vbNewLine
+    .Collapse wdCollapseEnd
+    .Move Unit:=wdCharacter, Count:=-1
+    .Style = p_strStyle
+  End With
+  
+' Now move original range to end of NEW paragraph
+  If p_rngAppend Is Nothing Then
+    g_rngNotes.Move Unit:=wdParagraph, Count:=1
+    g_rngNotes.Collapse wdCollapseEnd
+  Else
+    p_rngAppend.Move Unit:=wdParagraph, Count:=1
+    p_rngAppend.Collapse wdCollapseEnd
+  End If
+  Exit Sub
+
+AddNewParagraphError:
+  Err.Source = c_strEndnotes & "AddNewParagraph"
+  If ErrorChecker(Err) = False Then
+    Resume
+  Else
+    Call genUtils.Reports.ReportsTerminate
+  End If
+End Sub

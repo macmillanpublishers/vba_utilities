@@ -105,6 +105,11 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New genUtils.Dictionary
   dictReturn.Add "pass", False
+  
+  ' ----- reset global variable ----
+  If Not g_rngNotes Is Nothing Then
+    Set g_rngNotes = Nothing
+  End If
 
   Dim palgraveTag As Boolean
   Dim iReply As Integer
@@ -190,6 +195,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   Dim strCountMsg As String
   Dim lngSectionCount As Long
   Dim blnAddText As Boolean
+  Dim N As Long
   
   lngTotalSections = activeDoc.Sections.Count
   lngTotalNotes = activeDoc.Endnotes.Count
@@ -238,8 +244,10 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
       End With
       
     ' Now loop through all notes in this section and add to Notes section
+      N = 1
+      
       DebugPrint objSection.Range.Endnotes.Count
-      For Each objEndnote In objSection.Range.Endnotes
+      For N = 1 To objSection.Range.Endnotes.Count
       ' ----- Update progress bar if run by user ------------------------------
         lngNoteCount = lngNoteCount + 1
         DebugPrint "Note " & lngNoteCount & " of " & lngTotalNotes
@@ -252,7 +260,8 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
               Status:=strCountMsg, Percent:=sglPercentComplete)
           End If
         End If
-    
+        
+        Set objEndnote = objSection.Range.Endnotes(N)
       ' Add note text to end Notes section
         Call AddNoteText(objEndnote.Range, lngNoteNumber)
       
@@ -267,7 +276,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
       
       ' Increment note number counter
         lngNoteNumber = lngNoteNumber + 1
-      Next objEndnote
+      Next N
     
     ' ---- Delete notes in separate loop ----
       For Each objEndnote In objSection.Range.Endnotes
@@ -326,6 +335,7 @@ Private Function AddNoteText(p_rngNoteBody As Range, Optional p_lngNoteNumber _
   Dim objParagraph As Paragraph
   Dim strText As String
   Dim strStyle As String
+  Dim strParaText As String
 
   If p_blnHeading = False Then
     strText = p_lngNoteNumber & ". "
@@ -337,8 +347,17 @@ Private Function AddNoteText(p_rngNoteBody As Range, Optional p_lngNoteNumber _
       Else
         strStyle = objParagraph.Range.ParagraphStyle
       End If
+      
+      strParaText = objParagraph.Range.Text
+    ' text from embedded notes may include "note" character / if so, remove
+      DebugPrint strParaText
+
+      If Left(strParaText, 1) = Chr(2) Then
+        strParaText = Right(strParaText, Len(strParaText) - 1)
+      End If
        
-      strText = strText & objParagraph.Range.Text
+      strText = strText & strParaText
+
       ' If last char is newline, remove it
       If Right(strText, 1) = Chr(13) Then
         strText = Left(strText, Len(strText) - 1)

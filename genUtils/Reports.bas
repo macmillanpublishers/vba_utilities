@@ -1619,6 +1619,13 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "ChapTitleSwap", True
         End If
+        
+      ' Is next para ALSO a CT?
+        If strSecondStyle = strChapTitle Then
+        ' Combine into single para (delete paragraph return)
+          rngFirst.Characters.Last.Select
+          Selection.Delete
+        End If
   
       Case strPartTitle
         ' Is next para PN?
@@ -1631,6 +1638,12 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.Collapse (wdCollapseStart)
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "PartTitleSwap", True
+        End If
+      ' Is next para ALSO a PT?
+        If strSecondStyle = strPartTitle Then
+        ' Combine into single para (delete paragraph return)
+          rngFirst.Characters.Last.Select
+          Selection.Delete
         End If
 
       Case strFmTitle

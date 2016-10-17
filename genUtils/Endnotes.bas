@@ -19,7 +19,6 @@ Option Base 1
 '    GLOBAL VARIABLES and CONSTANTS
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 Private Const c_strEndnotes As String = "genUtils.Endnotes."
-Private g_rngNotes As Range
 
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 '    PUBLIC PROCEDURES
@@ -105,11 +104,6 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New genUtils.Dictionary
   dictReturn.Add "pass", False
-  
-  ' ----- reset global variable ----
-  If Not g_rngNotes Is Nothing Then
-    Set g_rngNotes = Nothing
-  End If
 
   Dim palgraveTag As Boolean
   Dim iReply As Integer
@@ -196,6 +190,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   Dim lngSectionCount As Long
   Dim blnAddText As Boolean
   Dim N As Long
+  Dim A As Long
   
   lngTotalSections = activeDoc.Sections.Count
   lngTotalNotes = activeDoc.Endnotes.Count
@@ -206,26 +201,45 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   dictReturn.Add "palgraveTags", palgraveTag
   dictReturn.Add "numSections", lngTotalSections
   dictReturn.Add "numNotes", lngTotalNotes
+
+  Dim rngNotes As Range
+  Set rngNotes = activeDoc.StoryRanges(wdMainTextStory).Paragraphs.Last.Range
+  Dim a_strText(1 To 2) As String
+  Dim a_strStyle(1 To 2) As String
   
+  a_strText(1) = vbNewLine
+  a_strStyle(1) = Reports.strPageBreak
+  
+  a_strText(2) = vbNewLine & "Notes"
+  a_strStyle(2) = Reports.strBmHead
+  
+  For A = LBound(a_strText) To UBound(a_strText)
+    With rngNotes
+      .InsertAfter a_strText(A)
+      .Collapse wdCollapseEnd
+      .Style = a_strStyle(A)
+    End With
+  Next A
+
 ' ----- Loop through sections -------------------------------------------------
   For Each objSection In activeDoc.Sections
     lngSectionCount = lngSectionCount + 1
-    DebugPrint "Section " & lngSectionCount & " of " & lngTotalSections
+'    DebugPrint "Section " & lngSectionCount & " of " & lngTotalSections
 
   ' If no notes in this section, skip to next
     If objSection.Range.Endnotes.Count > 0 Then
       With objSection.Range
       ' Need to check 1st para style for heading text
         strFirstStyle = .Paragraphs(1).Range.ParagraphStyle
-        DebugPrint "First para style: " & strFirstStyle
+'        DebugPrint "First para style: " & strFirstStyle
         ' If first paragraph is not an approved heading, just continue with notes
         ' and numbering as if it is the same section as previous.
         If Reports.IsHeading(strFirstStyle) = True Then
-          DebugPrint "Heading!"
+'          DebugPrint "Heading!"
         ' New section, so restart note numbers at 1
           lngNoteNumber = 1
           Set rngHeading = .Paragraphs(1).Range
-          DebugPrint "Heading text: " & rngHeading.Paragraphs.First.Range.Text
+'          DebugPrint "Heading text: " & rngHeading.Paragraphs.First.Range.Text
           ' If it's a CN / CT combo, get CT as well
           If strFirstStyle = Reports.strChapNumber Then
             If .Paragraphs.Count > 1 Then
@@ -235,7 +249,7 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
               End If
             End If
           End If
-          DebugPrint "Note heading paragraphs: " & rngHeading.Paragraphs.Count
+'          DebugPrint "Note heading paragraphs: " & rngHeading.Paragraphs.Count
         ' Add that text as a subhead to final notes section
           blnAddText = AddNoteText(p_rngNoteBody:=rngHeading, p_blnHeading:=True)
           dictReturn.Add "Section" & objSection.Index & "_NoteHeadAdded", _
@@ -246,11 +260,11 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
     ' Now loop through all notes in this section and add to Notes section
       N = 1
       
-      DebugPrint objSection.Range.Endnotes.Count
+'      DebugPrint objSection.Range.Endnotes.Count
       For N = 1 To objSection.Range.Endnotes.Count
       ' ----- Update progress bar if run by user ------------------------------
         lngNoteCount = lngNoteCount + 1
-        DebugPrint "Note " & lngNoteCount & " of " & lngTotalNotes
+'        DebugPrint "Note " & lngNoteCount & " of " & lngTotalNotes
         If p_blnAutomated = False Then
           If lngNoteCount Mod 10 = 0 Then
             sglPercentComplete = (((lngNoteCount / lngTotalNotes) * 0.95) + 0.04)
@@ -263,7 +277,8 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
         
         Set objEndnote = objSection.Range.Endnotes(N)
       ' Add note text to end Notes section
-        Call AddNoteText(objEndnote.Range, lngNoteNumber)
+        Call AddNoteText(p_rngNoteBody:=objEndnote.Range, _
+          p_lngNoteNumber:=lngNoteNumber)
       
       ' Add note number to text with superscript style
         Set rngNoteNumber = objEndnote.Reference  ' returns Range of in-text note number
@@ -311,136 +326,86 @@ End Function
 ' must supply one or the other.
 
 Private Function AddNoteText(p_rngNoteBody As Range, Optional p_lngNoteNumber _
-  As Long = 1, Optional p_blnHeading As Boolean = False) As Boolean
+  As Long, Optional p_blnHeading As Boolean = False) As Boolean
   On Error GoTo AddNoteTextError
-  If g_rngNotes Is Nothing Then
-' ----- Set up range to hold Notes section we're adding -----------------------
-    Dim a_strText(1 To 2) As String
-    Dim a_strStyle(1 To 2) As String
-    Dim A As Long
-    
-    a_strText(1) = vbNewLine
-    a_strStyle(1) = Reports.strPageBreak
-    
-    a_strText(2) = "Notes"
-    a_strStyle(2) = Reports.strBmHead
-    Set g_rngNotes = activeDoc.StoryRanges(wdMainTextStory)
-    
-    For A = LBound(a_strText) To UBound(a_strText)
-      Call AddNewParagraph(p_strText:=a_strText(A), p_strStyle:=a_strStyle(A))
-    Next A
-  End If
 
 ' ----- Add text to that paragraph --------------------------------------------
   Dim objParagraph As Paragraph
-  Dim strText As String
+  Dim rngNotes As Range
+  Dim rngParaText As Range
   Dim strStyle As String
-  Dim strParaText As String
+  Dim blnFirstChar As Boolean
+  Dim blnLastChar As Boolean
+  Dim lngStartChar As Long
+  Dim lngEndChar As Long
+  Dim strLastChar As String
+  Dim B As Long
 
   If p_blnHeading = False Then
-    strText = p_lngNoteNumber & ". "
+      p_rngNoteBody.InsertBefore p_lngNoteNumber & ". "
   End If
+  
   ' Loop through paragraphs to add each individually
-    For Each objParagraph In p_rngNoteBody.Paragraphs
-      If p_blnHeading = True Then
-        strStyle = "Note Level-1 Subhead (n1)"
-      Else
-        strStyle = objParagraph.Range.ParagraphStyle
+  For B = 1 To p_rngNoteBody.Paragraphs.Count
+    Set rngNotes = activeDoc.StoryRanges(wdMainTextStory).Paragraphs.Last.Range
+    Set objParagraph = p_rngNoteBody.Paragraphs(B)
+    If objParagraph.Range.Characters.First = Chr(2) Then
+      blnFirstChar = True
+    Else
+      blnFirstChar = False
+    End If
+    
+    If objParagraph.Range.Characters.Last = Chr(13) Then
+      blnLastChar = True
+    Else
+      blnLastChar = False
+    End If
+    
+    If p_blnHeading = True Then
+      strLastChar = ": "
+      strStyle = "Note Level-1 Subhead (n1)"
+    Else
+      strLastChar = Chr(13)
+      strStyle = objParagraph.Range.ParagraphStyle
+      If strStyle = "Endnote Text" Then
+        strStyle = strStyle & " (ntx)"
       End If
+    End If
+    
+    lngStartChar = 1 + Abs(blnFirstChar)
+'    DebugPrint "start character: " & lngStartChar
+    lngEndChar = objParagraph.Range.Characters.Count - Abs(blnLastChar)
+'    DebugPrint "end character: " & lngEndChar
+    Set rngParaText = objParagraph.Range
+    rngParaText.SetRange Start:=rngParaText.Characters(lngStartChar).Start, _
+      End:=rngParaText.Characters(lngEndChar).End
       
-      strParaText = objParagraph.Range.Text
-    ' text from embedded notes may include "note" character / if so, remove
-      DebugPrint strParaText
-
-      If Left(strParaText, 1) = Chr(2) Then
-        strParaText = Right(strParaText, Len(strParaText) - 1)
+    rngParaText.Copy
+    
+    With rngNotes
+      .InsertAfter vbNewLine
+      .Collapse wdCollapseEnd
+  
+    ' Add new paragraph text (with formatting!)
+      .PasteAndFormat Type:=wdFormatOriginalFormatting
+      .Style = strStyle
+    
+      If B < p_rngNoteBody.Paragraphs.Count Then
+        .InsertAfter strLastChar
       End If
-       
-      strText = strText & strParaText
-
-      ' If last char is newline, remove it
-      If Right(strText, 1) = Chr(13) Then
-        strText = Left(strText, Len(strText) - 1)
-      End If
-      
-      Call AddNewParagraph(p_strText:=strText, p_strStyle:=strStyle)
-      strText = vbNullString
-    Next objParagraph
+    End With
+    
+    Set rngNotes = Nothing
+    Set objParagraph = Nothing
+  Next B
 
   Exit Function
 
 AddNoteTextError:
   Err.Source = c_strEndnotes & "AddNoteText"
-  If ErrorChecker(Err, strStyle) = False Then
-    Resume
-  Else
-    Call genUtils.Reports.ReportsTerminate
-  End If
-End Function
-
-' ===== AddNewParagraph =======================================================
-' Add passed text as new paragraph at end of range with the passed style applied
-' to the whole paragraph If no range object is passed as argument, then will add
-' to global variable. Note that if range is end of DOCUMENT, the last paragraph
-' character ALWAYS remains AFTER the collapses range insertion point. This sub
-' adds the final newline, so remove from string (though worst case Char Styles
-' macro would remove it anyway).
-
-' All objects are passed by ref, so shouldn't need to return the revised range.
-
-Private Sub AddNewParagraph(p_strText As String, p_strStyle As String, _
-  Optional p_rngAppend As Range)
-  On Error GoTo AddNewParagraphError
-  Dim rngNewPara As Range
-  Dim blnFinalPara As Boolean
-  
-  If p_rngAppend Is Nothing Then
-    If g_rngNotes Is Nothing Then
-      Set g_rngNotes = activeDoc.Paragraphs.Last.Range
-    End If
-    Set rngNewPara = g_rngNotes
-  Else
-    Set rngNewPara = p_rngAppend
-  End If
-  
-  With rngNewPara
-    rngNewPara.Select
-    If GeneralHelpers.ParaIndex() = activeDoc.Paragraphs.Count Then
-      blnFinalPara = True
-    Else
-      blnFinalPara = False
-    End If
-    
-  ' If last para need to add an additional newline, to separate our range from
-  ' the previous para
-    If blnFinalPara = True Then
-      .InsertAfter vbNewLine
-      .Collapse wdCollapseEnd
-    End If
-  
-  ' adds new line to keep as a separate paragraph, then move back up to not be
-  ' in the new last paragraph, then apply style
-    .InsertAfter p_strText & vbNewLine
-    .Collapse wdCollapseEnd
-    .Move Unit:=wdCharacter, Count:=-1
-    .Style = p_strStyle
-  End With
-  
-' Now move original range to end of NEW paragraph
-  If p_rngAppend Is Nothing Then
-    g_rngNotes.Move Unit:=wdParagraph, Count:=1
-    g_rngNotes.Collapse wdCollapseEnd
-  Else
-    p_rngAppend.Move Unit:=wdParagraph, Count:=1
-    p_rngAppend.Collapse wdCollapseEnd
-  End If
-  Exit Sub
-
-AddNewParagraphError:
-  Err.Source = c_strEndnotes & "AddNewParagraph"
   If ErrorChecker(Err) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate
   End If
-End Sub
+End Function

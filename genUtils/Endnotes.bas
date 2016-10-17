@@ -3,10 +3,12 @@ Attribute VB_Name = "Endnotes"
 '       ENDNOTES
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ' ====== PURPOSE ==============================================================
-' Manage endnote formatting, primarily for embedded notes.
+' Unlink embedded endnotes and add to new section in main doc, with correct
+' headings and numbering
 
 ' ====== DEPENDENCIES ============
 ' 1. Manuscript must be styled with Macmillan custom styles.
+' 2. Assumes section breaks have already been added at end of each section.
 
 
 ' +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -56,7 +58,7 @@ End Function
 
 ' ===== EndnoteDeEmbed ========================================================
 ' Call this sub if being run by a person (by clicking macro button), not
-' automatically on server. Can't combine the and EndnoteCheck because that
+' automatically on server. Can't combine this and EndnoteCheck because that
 ' needs to be a function, this needs to be a sub.
 
 Public Sub EndnoteDeEmbed()
@@ -69,7 +71,8 @@ Public Sub EndnoteDeEmbed()
     Dim dictStep As genUtils.Dictionary
     Set dictStep = EndnoteUnlink(p_blnAutomated:=False)
   Else
-    MsgBox "Sorry, no linked endnotes found in document. Click OK to exit the Endnotes macro."
+    MsgBox "Sorry, no linked endnotes found in document. Click OK to exit" _
+      & " the Endnotes macro."
   End If
   
   ' Eventually do something with the dictionary (log?)
@@ -117,38 +120,42 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   currentTracking = activeDoc.TrackRevisions
   activeDoc.TrackRevisions = False
   
-' ----------------------------------------------------------------------------------------------
-' ----------------------------------------------------------------------------------------------
+' -----------------------------------------------------------------------------
+' -----------------------------------------------------------------------------
 ' This section only if being run by a person.
-' ----------------------------------------------------------------------------------------------
-' ----------------------------------------------------------------------------------------------
+' -----------------------------------------------------------------------------
+' -----------------------------------------------------------------------------
   If p_blnAutomated = False Then
 
   ' ------ Doesn't work on Mac ---------------
+  ' TEST THIS NOW THAT IT'S BEEN REFACTORED...
     #If Mac Then
-      MsgBox "It looks like you are on a Mac. Unfortunately, this macro only works properly on Windows. " & _
-      "Click OK to exit the Endnotes macro."
+      MsgBox "It looks like you are on a Mac. Unfortunately, this macro only" & _
+        " works properly on Windows. Click OK to exit the Endnotes macro."
       Exit Function
     #End If
     
     If activeDoc.Sections.Count = 1 Then
-      iReply = MsgBox("Only one section found in document. Without section breaks, endnotes will be numbered " & _
-      "continuously from beginning to end." & vbNewLine & vbNewLine & "If you would like to continue " & _
-      "without section breaks, click OK." & vbNewLine & "If you would like to exit the macro and add " & _
-      "section breaks at the end of each chapter to trigger note numbering to restart at 1 for each chapter, click Cancel.", _
-      vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
-      
+      iReply = MsgBox("Only one section found in document. Without section " & _
+        "breaks, endnotes will be numbered continuously from beginning to end." _
+        & vbNewLine & vbNewLine & "If you would like to continue without " & _
+        "section breaks, click OK." & vbNewLine & "If you would like to exit " & _
+        "the macro and add section breaks at the end of each chapter to " & _
+        "trigger note numbering to restart at 1 for each chapter, click Cancel.", _
+        vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
       If iReply = vbNo Then
-          Exit Function
+        Exit Function
       End If
     End If
     
     ' ----- See if we're using custom Palgrave tags -----
-    iReply = MsgBox("To insert bracketed <NoteCallout> tags around your endnote references, click YES." & vbNewLine & vbNewLine & _
-        "To continue with standard superscripted endnote reference numbers only, click NO.", vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
+    iReply = MsgBox("To insert bracketed <NoteCallout> tags around your " & _
+      "endnote references, click YES." & vbNewLine & vbNewLine & "To " & _
+      "continue with standard superscripted endnote reference numbers only," & _
+      " click NO.", vbYesNo + vbExclamation + vbDefaultButton2, "Alert")
     If iReply = vbYes Then palgraveTag = True
 
-      '------------record status of current status bar and then turn on-------
+    '------------record status of current status bar and then turn on-------
     Dim currentStatusBar As Boolean
     currentStatusBar = Application.DisplayStatusBar
     Application.DisplayStatusBar = True
@@ -202,14 +209,19 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
   dictReturn.Add "numSections", lngTotalSections
   dictReturn.Add "numNotes", lngTotalNotes
 
+' ----- ADD NOTES SECTION HEADING TO END OF DOC -------------------------------
   Dim rngNotes As Range
   Set rngNotes = activeDoc.StoryRanges(wdMainTextStory).Paragraphs.Last.Range
   Dim a_strText(1 To 2) As String
   Dim a_strStyle(1 To 2) As String
   
+  ' Add page break before new section
   a_strText(1) = vbNewLine
   a_strStyle(1) = Reports.strPageBreak
   
+  ' N.B., If your Range includes the final paragraph return of the doc,
+  ' wdCollapseEnd leaves the insertion point BEFORE that last paragraph
+  ' return character. Hence newline BEFORE text below.
   a_strText(2) = vbNewLine & "Notes"
   a_strStyle(2) = Reports.strBmHead
   
@@ -224,23 +236,22 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
 ' ----- Loop through sections -------------------------------------------------
   For Each objSection In activeDoc.Sections
     lngSectionCount = lngSectionCount + 1
-'    DebugPrint "Section " & lngSectionCount & " of " & lngTotalSections
 
   ' If no notes in this section, skip to next
     If objSection.Range.Endnotes.Count > 0 Then
       With objSection.Range
       ' Need to check 1st para style for heading text
         strFirstStyle = .Paragraphs(1).Range.ParagraphStyle
-'        DebugPrint "First para style: " & strFirstStyle
-        ' If first paragraph is not an approved heading, just continue with notes
+
+        ' If first paragraph is NOT an approved heading, just continue with notes
         ' and numbering as if it is the same section as previous.
         If Reports.IsHeading(strFirstStyle) = True Then
-'          DebugPrint "Heading!"
         ' New section, so restart note numbers at 1
           lngNoteNumber = 1
           Set rngHeading = .Paragraphs(1).Range
-'          DebugPrint "Heading text: " & rngHeading.Paragraphs.First.Range.Text
+
           ' If it's a CN / CT combo, get CT as well
+          ' THIS ISN'T WORKING YET ...
           If strFirstStyle = Reports.strChapNumber Then
             If .Paragraphs.Count > 1 Then
               strSecondStyle = .Paragraphs(2).Range.ParagraphStyle
@@ -249,22 +260,22 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
               End If
             End If
           End If
-'          DebugPrint "Note heading paragraphs: " & rngHeading.Paragraphs.Count
+
         ' Add that text as a subhead to final notes section
           blnAddText = AddNoteText(p_rngNoteBody:=rngHeading, p_blnHeading:=True)
-          dictReturn.Add "Section" & objSection.Index & "_NoteHeadAdded", _
-            blnAddText
+          dictReturn.Add objSection.Index & "_NoteHeadAdded", blnAddText
         End If
       End With
       
-    ' Now loop through all notes in this section and add to Notes section
+    ' ----- Now loop through all notes in this section ------------------------
+    ' ----- and add to Notes section ------------------------------------------
+    ' reset N from last section
       N = 1
       
-'      DebugPrint objSection.Range.Endnotes.Count
       For N = 1 To objSection.Range.Endnotes.Count
-      ' ----- Update progress bar if run by user ------------------------------
         lngNoteCount = lngNoteCount + 1
-'        DebugPrint "Note " & lngNoteCount & " of " & lngTotalNotes
+        
+      ' ----- Update progress bar if run by user ------------------------------
         If p_blnAutomated = False Then
           If lngNoteCount Mod 10 = 0 Then
             sglPercentComplete = (((lngNoteCount / lngTotalNotes) * 0.95) + 0.04)
@@ -274,14 +285,17 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
               Status:=strCountMsg, Percent:=sglPercentComplete)
           End If
         End If
-        
+      
+      ' ----- Add note text to Notes section ----------------------------------
+      ' Endnote.Range returns the Range object of the end-of-book note
         Set objEndnote = objSection.Range.Endnotes(N)
       ' Add note text to end Notes section
         Call AddNoteText(p_rngNoteBody:=objEndnote.Range, _
           p_lngNoteNumber:=lngNoteNumber)
       
-      ' Add note number to text with superscript style
-        Set rngNoteNumber = objEndnote.Reference  ' returns Range of in-text note number
+      ' ----- Add note number to text -----------------------------------------
+      ' Endnote.Reference returns Range object of the in-text note number.
+        Set rngNoteNumber = objEndnote.Reference
         If palgraveTag = False Then
           rngNoteNumber.InsertAfter lngNoteNumber
         Else
@@ -293,13 +307,15 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
         lngNoteNumber = lngNoteNumber + 1
       Next N
     
-    ' ---- Delete notes in separate loop ----
+    ' ---- Delete notes -------------------------------------------------------
+    ' Separate loop than above so we don't mess up our counting in prev. section
       For Each objEndnote In objSection.Range.Endnotes
         objEndnote.Delete
       Next
     End If
   Next objSection
-  
+
+' ---- Test if successful -----------------------------------------------------
   dictReturn.Item("pass") = Not NotesExist()
   
   Set EndnoteUnlink = dictReturn
@@ -323,13 +339,12 @@ End Function
 ' ===== AddNoteText ===========================================================
 ' Adds passed range to Notes section at back of manuscript. Returns if it was
 ' successful or not. p_lngNoteNumber and p_blnHeading are both optional, but
-' must supply one or the other.
+' must supply one or the other for it to work correctly.
 
 Private Function AddNoteText(p_rngNoteBody As Range, Optional p_lngNoteNumber _
   As Long, Optional p_blnHeading As Boolean = False) As Boolean
   On Error GoTo AddNoteTextError
 
-' ----- Add text to that paragraph --------------------------------------------
   Dim objParagraph As Paragraph
   Dim rngNotes As Range
   Dim rngParaText As Range
@@ -341,47 +356,72 @@ Private Function AddNoteText(p_rngNoteBody As Range, Optional p_lngNoteNumber _
   Dim strLastChar As String
   Dim B As Long
 
+' ----- Add note number to start of note text ---------------------------------
+' N.B., for note text (not headings), p_rngNoteBody is Endnote.Range, which is
+' the Range of the end of note text NOT including the embedded note number. But
+' p_rngNoteBody.Paragraph(1) DOES include that character (we fix that later).
   If p_blnHeading = False Then
-      p_rngNoteBody.InsertBefore p_lngNoteNumber & ". "
+    p_rngNoteBody.InsertBefore p_lngNoteNumber & ". "
   End If
   
-  ' Loop through paragraphs to add each individually
+' ----- Loop through paragraphs to add each individually ----------------------
+' This way we can maintain original paragraph styles.
+' For Each objParagraph in p_rngNoteBody.Paragraphs always looped through all
+' notes in document, not just paragraphs in this note.
   For B = 1 To p_rngNoteBody.Paragraphs.Count
+  ' Set working range at end of main document
     Set rngNotes = activeDoc.StoryRanges(wdMainTextStory).Paragraphs.Last.Range
     Set objParagraph = p_rngNoteBody.Paragraphs(B)
+    
+  ' Embedded note number is Chr(2); we need to remove thise from the text we're
+  ' adding to the main document b/c it appears as a square.
     If objParagraph.Range.Characters.First = Chr(2) Then
       blnFirstChar = True
     Else
       blnFirstChar = False
     End If
-    
+  
+  ' Chr(13) is paragraph return; we can't insert anything AFTER the final para
+  ' return in the document, so we need to remove from insert text to avoid extra
+  ' paragraphs. We'll add back if not last paragraph in this note.
     If objParagraph.Range.Characters.Last = Chr(13) Then
       blnLastChar = True
     Else
       blnLastChar = False
     End If
-    
+  
+  ' If this is a heading and it is MULTIPLE paragraphs, we want to concatenate
+  ' into a single line, separated by colon (i.e., CN and CT). Otherwise, we need
+  ' to replace the newline removed above.
     If p_blnHeading = True Then
       strLastChar = ": "
       strStyle = "Note Level-1 Subhead (n1)"
     Else
       strLastChar = Chr(13)
       strStyle = objParagraph.Range.ParagraphStyle
+    ' Built-in "Endnote Text" style will get converted to "Text - Standard" in
+    ' Char Styles macro later if it doesn't have Macmillan code.
       If strStyle = "Endnote Text" Then
         strStyle = strStyle & " (ntx)"
       End If
     End If
-    
+  
+  ' Calculate where to start and end text to add. Boolean True converts to -1
+  ' so we need to take absolute value here. blnFirstChar = True means that we
+  ' do NOT want the first character, and thus Abs(blnFirstChar) = 1 and we will
+  ' start our new Range at character 2. Ditto for end character.
     lngStartChar = 1 + Abs(blnFirstChar)
-'    DebugPrint "start character: " & lngStartChar
     lngEndChar = objParagraph.Range.Characters.Count - Abs(blnLastChar)
-'    DebugPrint "end character: " & lngEndChar
     Set rngParaText = objParagraph.Range
     rngParaText.SetRange Start:=rngParaText.Characters(lngStartChar).Start, _
       End:=rngParaText.Characters(lngEndChar).End
-      
+  
+  ' Copy/paste range text instead of .InsertAfter so we can maintain formatting
     rngParaText.Copy
-    
+  
+  ' Range right now is final paragraph; reminder we can't add anything AFTER final
+  ' paragraph return, so we enter a newline FIRST, then collapse so insertion point
+  ' is just before the final paragraph return.
     With rngNotes
       .InsertAfter vbNewLine
       .Collapse wdCollapseEnd

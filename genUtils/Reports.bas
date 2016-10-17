@@ -249,7 +249,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   dictReturn.Add "pass", False
 
 ' First test if our body style is even available in the doc (if not, not styled)
-  If genUtils.GeneralHelpers.IsStyleInDoc(strBodyStyle) = False Then
+  If genUtils.GeneralHelpers.IsStyleInUse(strBodyStyle) = False Then
     dictReturn.Add "body_style_present", False
     Set StyleCheck = dictReturn
     Exit Function

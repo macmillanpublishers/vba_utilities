@@ -1717,27 +1717,6 @@ Public Function HeadingCheck() As genUtils.Dictionary
     End If
   Next D
   
-' Add chapter numbers in separate step, because we are looping ranges backwards
-  genUtils.zz_clearFind
-  activeDoc.Select
-  Selection.HomeKey Unit:=wdStory
-  With Selection.Find
-    .Text = "Chapter^p"
-    .Format = True
-    .Style = strChapNonprinting
-    .Forward = True
-    .Execute
-
-    Do While .Found = True And lngChapCount < 100
-      lngChapCount = lngChapCount + 1
-      strFirstText = "Chapter " & lngChapCount
-      Selection.Text = strFirstText & vbNewLine
-      Selection.Style = strChapNonprinting
-      dictReturn.Add "add_chap_num" & lngChapCount, strFirstText
-      .Execute
-    Loop
-  End With
-  
 ' Reset Note Options to restart numbering at each section?
   dictReturn.Item("pass") = True
   Set HeadingCheck = dictReturn

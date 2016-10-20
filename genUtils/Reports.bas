@@ -85,8 +85,8 @@ End Enum
 
 
 ' ===== ReportsStartup ========================================================
-' Set some global vars, check some things. Probably should be a class Initialize
-' eventually.
+' Set some global vars, check some things. Probably should be an Initialize
+' event at some point?
 
 Public Function ReportsStartup(DocPath As String, AlertPath As String) _
   As genUtils.Dictionary
@@ -118,14 +118,31 @@ Public Function ReportsStartup(DocPath As String, AlertPath As String) _
     Err.Raise MacError.err_FileNotThere
   End If
 
+' Check that doc is not password protected, if so exit
+' value will be written to JSON, validator will have to report to user.
+  If activeDoc.ProtectionType <> wdNoProtection Then
+    dictReturn.Add "password_protected", True
+    Set ReportsStartup = dictReturn
+    Exit Function
+  Else
+    dictReturn.Add "password_protected", False
+  End If
+
 ' Turn off Track Changes
   activeDoc.TrackRevisions = False
   
-' Check that doc is not password protected
-  If activeDoc.ProtectionType <> wdNoProtection Then
-    Err.Raise MacError.err_DocProtectionOn
-  End If
-
+' Check for placeholders (from failed macros), remove if found
+  Dim blnPlaceholders As Boolean
+  With activeDoc.Range.Find
+    genUtils.zz_clearFind
+    .MatchWildcards = True
+    .Text = "([`|]{1,2}[0-9A-Z][`|]{1,2}){1,}"
+    .Replacement.Text = ""
+    .Execute Replace:=wdReplaceAll
+    
+    blnPlaceholders = .Found
+  End With
+  dictReturn.Add "cleanup_placeholders_found", blnPlaceholders
   
   If Not dictBookInfo Is Nothing Then
     dictReturn.Item("pass") = True

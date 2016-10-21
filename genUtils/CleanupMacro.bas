@@ -197,7 +197,7 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   Call genUtils.ClassHelpers.UpdateBarAndWait(Bar:=oProgressCleanup, _
     Status:=strStatus, Percent:=sglPercentComplete)
 
-  Call genUtils.GeneralHelpers.CleanUp
+  Call genUtils.GeneralHelpers.Cleanup
   Unload oProgressCleanup
     
 '    MsgBox "Hurray, the Macmillan Cleanup macro has finished running! Your manuscript looks great!"                                 'v. 3.1 patch / request  v. 3.2 made a little more fun
@@ -332,7 +332,7 @@ Private Sub RmWhiteSpaceB(StoryType As WdStoryType)
 
   Dim wsFindArray(33) As String              'number of items in array should be declared here
   Dim wsReplaceArray(33) As String       'and here
-  Dim I As Long
+  Dim i As Long
 
   wsFindArray(1) = ".{4,}"             '4 or more consecutive periods, into proper 4 dot ellipse
   wsFindArray(2) = "..."                  '3 consecutive periods, into 3 dot ellipse
@@ -417,10 +417,10 @@ Private Sub RmWhiteSpaceB(StoryType As WdStoryType)
   #End If
   
   Call genUtils.GeneralHelpers.zz_clearFind
-  For I = 1 To UBound(wsFindArray())
+  For i = 1 To UBound(wsFindArray())
     With activeRng.Find
-      .Text = wsFindArray(I)
-      .Replacement.Text = wsReplaceArray(I)
+      .Text = wsFindArray(i)
+      .Replacement.Text = wsReplaceArray(i)
       .Wrap = wdFindContinue
       .MatchWildcards = True
       .Execute Replace:=wdReplaceAll

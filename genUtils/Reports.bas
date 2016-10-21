@@ -1085,7 +1085,7 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
 ' JSON key = first word in style passed to us
   Dim strFirst As String
   strFirst = Left(StyleName, InStr(StyleName, " ") - 1)
-'  Debug.Print strFirst
+  ' DebugPrint strFirst
 ' If style is in JSON...
   If dictSections.Exists(strFirst) = True Then
   ' ... get object for that style.
@@ -1108,6 +1108,7 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
 ' Retrieve value
   If dictItem.Exists(strJsonString) Then
     SectionName = dictItem.Item(strJsonString)
+    ' DebugPrint SectionName
   End If
   Exit Function
 
@@ -1314,14 +1315,14 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Loop counter
       lngCount = lngCount + 1
       lngParaInd = genUtils.GeneralHelpers.ParaIndex
-'      DebugPrint "Page break: " & lngParaInd
+      ' DebugPrint "Page break: " & lngParaInd
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
         strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Range.ParagraphStyle
-'        DebugPrint "Next para style: " & strNextStyle
+        ' DebugPrint "Next para style: " & strNextStyle
         If IsHeading(strNextStyle) = False Then
-'          DebugPrint "Next style is NOT heading"
+          ' DebugPrint "Next style is NOT heading"
           ' ... add a CTNP heading
           If AddHeading(lngParaInd + 1) = True Then
 '            DebugPrint "Heading added"
@@ -1527,7 +1528,7 @@ Public Function HeadingCheck() As genUtils.Dictionary
   For D = UBound(rngSections) To LBound(rngSections) Step -1
     ' Replace with error message for infinite loop
     If D > 200 Then
-      DebugPrint "Section loop exit!"
+      ' DebugPrint "Section loop exit!"
     End If
 
     strSectionKey = "section" & D

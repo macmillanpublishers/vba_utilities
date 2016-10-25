@@ -767,7 +767,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   Dim blnAuthor As Boolean
 
 ' Does Book Title exist?
-  blnTitle = dictStyles.Exists(strBookTitle)
+  blnTitle = genUtils.IsStyleInUse(strBookTitle)
   dictReturn.Item("book_title_exists") = blnTitle
   If blnTitle = False Then
     dictReturn.Item("book_title_added") = AddBookInfo(bk_Title)
@@ -800,7 +800,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   End If
 
 ' Does Author Name exist?
-  blnAuthor = dictStyles.Exists(strAuthorName)
+  blnAuthor = genUtils.IsStyleInUse(strAuthorName)
   dictReturn.Item("author_name_exists") = blnAuthor
   If blnAuthor = False Then
     dictReturn.Item("author_name_added") = AddBookInfo(bk_Authors)

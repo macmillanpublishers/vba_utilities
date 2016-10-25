@@ -630,6 +630,7 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   Dim rngNew As Range
   Set rngNew = activeDoc.Paragraphs(lngStartPara).Range
   rngNew.InsertBefore (strNewText)
+  rngNew.Collapse wdCollapseStart
   rngNew.Style = strInfoStyle
   
   ' Test if it was successful

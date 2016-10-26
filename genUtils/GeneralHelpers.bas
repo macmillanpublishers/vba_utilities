@@ -2173,7 +2173,7 @@ Private Sub AutoFormatHyperlinks()
     Dim oNote As Range
     Dim oRng As Range
 
-    Set oTemp = Documents.Add(Template:=activeDoc.FullName, Visible:=False)
+    Set oTemp = Documents.Add(Visible:=False)
     
     If activeDoc.Footnotes.Count >= 1 Then
         Dim oFN As Footnote

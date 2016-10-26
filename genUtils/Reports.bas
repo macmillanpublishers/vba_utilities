@@ -88,8 +88,8 @@ End Enum
 ' Set some global vars, check some things. Probably should be an Initialize
 ' event at some point?
 
-Public Function ReportsStartup(DocPath As String, AlertPath As String) _
-  As genUtils.Dictionary
+Public Function ReportsStartup(DocPath As String, AlertPath As String, Optional _
+  BookInfoReqd As Boolean = True) As genUtils.Dictionary
   On Error GoTo ReportsStartupError
   
 ' Store test data
@@ -110,12 +110,16 @@ Public Function ReportsStartup(DocPath As String, AlertPath As String) _
   Set activeDoc = Documents(DocPath)
   
 ' Check for `book_info.json` file, read into global dictionary variable
-  Dim strInfoPath As String
-  strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
-  If GeneralHelpers.IsItThere(strInfoPath) = True Then
-    Set dictBookInfo = genUtils.ClassHelpers.ReadJson(strInfoPath)
+  If BookInfoReqd = True Then
+    Dim strInfoPath As String
+    strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
+    If GeneralHelpers.IsItThere(strInfoPath) = True Then
+      Set dictBookInfo = genUtils.ClassHelpers.ReadJson(strInfoPath)
+    Else
+      Err.Raise MacError.err_FileNotThere
+    End If
   Else
-    Err.Raise MacError.err_FileNotThere
+    Set dictBookInfo = New genUtils.Dictionary
   End If
 
 ' Check that doc is not password protected, if so exit

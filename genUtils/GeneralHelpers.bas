@@ -356,7 +356,7 @@ End Sub
 
 Public Sub DebugPrint(Optional StringExpression As Variant)
 
-  If Environ("VbaDebug") = "True" Then
+  If Environ("VbaDebug") = True Then
   ' First just DebugPrint:
   ' Get the string we'll write
     Dim strMessage As String

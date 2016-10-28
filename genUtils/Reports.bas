@@ -629,7 +629,7 @@ Private Function AddBookInfo(InfoType As BookInfo) As Boolean
 ' Styles were added to dictStyles in order they appear in the MS,
 ' So the first instance we find is the first present, ditto last
   For Each key1 In dictStyles.Keys
-    DebugPrint key1
+'    DebugPrint key1
     If InStr(key1, strInfoSection) > 0 Then
       colSectionStyles.Add key1
     End If
@@ -850,6 +850,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
       Selection.HomeKey Unit:=wdStory
       With Selection
         .Find.Format = True
+        .Find.Forward = True
         .Find.Style = strBookTitle
         .Find.Execute
         

@@ -587,55 +587,121 @@ End Function
 Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   On Error GoTo AddBookInfoError
   Dim strInfoKey As String
-  Dim strInfoStyle As String
-  Dim strInfoSection As String
-  Dim strNewText As String
+  Dim strInfoStyle As String ' style for new paragraph
+  Dim enumParaDirection As WdCollapseDirection ' do we want to insert before or
+                                           ' after found paragraph?
+  Dim blnSearchFwd As Boolean ' Do we want to add to start of section?
+  Dim lngStartPara As Long ' Default to first or last para?
   
-  ' Assign info key and ultimate paragraph style
+' set vars based on what we're adding
   Select Case InfoType
     Case BookInfo.bk_Title
+    ' Want to add BEFORE the FIRST Titlepage style
       strInfoKey = "title"
       strInfoStyle = strBookTitle
+      enumParaDirection = wdCollapseStart
+      blnSearchFwd = True
+      lngStartPara = activeDoc.Paragraphs.Count
     Case BookInfo.bk_Authors
+    ' Want to add AFTER the FIRST Titlepage style
+    ' b/c Au not allowed section heading
       strInfoKey = "author"
       strInfoStyle = strAuthorName
+      enumParaDirection = wdCollapseEnd
+      blnSearchFwd = True
+      lngStartPara = activeDoc.Paragraphs.Count
     Case BookInfo.bk_ISBN
+    ' Want to add AFTER the LAST Copyright style
       strInfoKey = "isbn"
       strInfoStyle = strCopyright
+      enumParaDirection = wdCollapseEnd
+      blnSearchFwd = False
+      lngStartPara = 1
   End Select
+
+' ----- Find the section this should be added to ------------------------------
+  Dim key1 As Variant
+  Dim strInfoSection As String
+  Dim colSectionStyles As Collection: Set colSectionStyles = New Collection
+  strInfoSection = Left(strInfoStyle, InStr(strInfoStyle, " ") - 1)
+
+' Find first paragraph in doc with style in same section as new text
+' Styles were added to dictStyles in order they appear in the MS,
+' So the first instance we find is the first present, ditto last
+  For Each key1 In dictStyles.Keys
+    DebugPrint key1
+    If InStr(key1, strInfoSection) > 0 Then
+      colSectionStyles.Add key1
+    End If
+  Next key1
   
-' Get info string
+' Find index of first (or last) paragraph of each style in that section
+  Dim lngCurrentStart As Long
+  Dim varStyle As Variant
+  Dim enumDocDirection As WdCollapseDirection
+
+' if searching from end backward, collapse end
+  If blnSearchFwd = True Then
+    enumDocDirection = wdCollapseStart
+  Else
+    enumDocDirection = wdCollapseEnd
+  End If
+  
+  If colSectionStyles.Count > 0 Then
+    For Each varStyle In colSectionStyles
+      genUtils.zz_clearFind
+      activeDoc.Select
+      With Selection
+        .Collapse enumDocDirection
+        With .Find
+          .Format = True
+          .Style = varStyle
+          .Forward = blnSearchFwd
+          .Execute
+        End With
+      ' Get paragraph index of that paragraph
+        lngCurrentStart = GeneralHelpers.ParaIndex
+      ' If we're looking for the LAST paragraph though, keep
+      ' looping through the dictionary
+        If blnSearchFwd = True Then
+          If lngCurrentStart < lngStartPara Then
+            lngStartPara = lngCurrentStart
+          End If
+        Else
+          If lngCurrentStart > lngStartPara Then
+            lngStartPara = lngCurrentStart
+          End If
+        End If
+      
+      End With
+    Next varStyle
+  End If
+
+' Get string to add
+  Dim strNewText As String
   If dictBookInfo.Exists(strInfoKey) = True Then
-    strNewText = dictBookInfo.Item(strInfoKey) & vbNewLine
+  ' If adding AFTER the LAST paragraph in the doc, add newline
+  ' BEFORE the text, because we can't add after final paragraph mark
+    If enumParaDirection = wdCollapseEnd And lngStartPara = _
+      activeDoc.Paragraphs.Count Then
+        strNewText = vbNewLine & dictBookInfo.Item(strInfoKey)
+    Else
+      strNewText = dictBookInfo.Item(strInfoKey) & vbNewLine
+    End If
   Else
     AddBookInfo = False
     Exit Function
   End If
   
-' Find where this should go
-  strInfoSection = Left(strInfoStyle, InStr(strInfoStyle, " ") - 1)
-  
-' Does section exist at all? Check in-use style dictionary for any style
-  Dim key1 As Variant
-  Dim lngCurrentStart As Long
-  Dim lngStartPara As Long: lngStartPara = 1  ' Default if not found
-  For Each key1 In dictStyles.Keys
-    If InStr(key1, strInfoSection) > 0 Then
-      lngCurrentStart = dictStyles(key1).Item("start_paragraph")
-      ' Should return LAST paragraph with that section's style.
-      If lngCurrentStart > lngStartPara Then
-        lngStartPara = lngCurrentStart
-      End If
-    End If
-  Next key1
-  
   ' Add text just before paragraph id'd above
   ' Once entered, new para takes index of lngStartPara.
   Dim rngNew As Range
   Set rngNew = activeDoc.Paragraphs(lngStartPara).Range
-  rngNew.InsertBefore (strNewText)
-  rngNew.Collapse wdCollapseStart
-  rngNew.Style = strInfoStyle
+  With rngNew
+    .Collapse enumParaDirection
+    .InsertAfter strNewText
+    .Style = strInfoStyle
+  End With
   
   ' Test if it was successful
   If genUtils.GeneralHelpers.IsStyleInUse(strInfoStyle) = True Then

@@ -85,11 +85,11 @@ End Enum
 
 
 ' ===== ReportsStartup ========================================================
-' Set some global vars, check some things. Probably should be a class Initialize
-' eventually.
+' Set some global vars, check some things. Probably should be an Initialize
+' event at some point?
 
-Public Function ReportsStartup(DocPath As String, AlertPath As String) _
-  As genUtils.Dictionary
+Public Function ReportsStartup(DocPath As String, AlertPath As String, Optional _
+  BookInfoReqd As Boolean = True) As genUtils.Dictionary
   On Error GoTo ReportsStartupError
   
 ' Store test data
@@ -110,22 +110,43 @@ Public Function ReportsStartup(DocPath As String, AlertPath As String) _
   Set activeDoc = Documents(DocPath)
   
 ' Check for `book_info.json` file, read into global dictionary variable
-  Dim strInfoPath As String
-  strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
-  If GeneralHelpers.IsItThere(strInfoPath) = True Then
-    Set dictBookInfo = genUtils.ClassHelpers.ReadJson(strInfoPath)
+  If BookInfoReqd = True Then
+    Dim strInfoPath As String
+    strInfoPath = activeDoc.Path & Application.PathSeparator & "book_info.json"
+    If GeneralHelpers.IsItThere(strInfoPath) = True Then
+      Set dictBookInfo = genUtils.ClassHelpers.ReadJson(strInfoPath)
+    Else
+      Err.Raise MacError.err_FileNotThere
+    End If
   Else
-    Err.Raise MacError.err_FileNotThere
+    Set dictBookInfo = New genUtils.Dictionary
+  End If
+
+' Check that doc is not password protected, if so exit
+' value will be written to JSON, validator will have to report to user.
+  If activeDoc.ProtectionType <> wdNoProtection Then
+    dictReturn.Add "password_protected", True
+    Set ReportsStartup = dictReturn
+    Exit Function
+  Else
+    dictReturn.Add "password_protected", False
   End If
 
 ' Turn off Track Changes
   activeDoc.TrackRevisions = False
   
-' Check that doc is not password protected
-  If activeDoc.ProtectionType <> wdNoProtection Then
-    Err.Raise MacError.err_DocProtectionOn
-  End If
-
+' Check for placeholders (from failed macros), remove if found
+  Dim blnPlaceholders As Boolean
+  With activeDoc.Range.Find
+    genUtils.zz_clearFind
+    .MatchWildcards = True
+    .Text = "([`|]{1,2}[0-9A-Z][`|]{1,2}){1,}"
+    .Replacement.Text = ""
+    .Execute Replace:=wdReplaceAll
+    
+    blnPlaceholders = .Found
+  End With
+  dictReturn.Add "cleanup_placeholders_found", blnPlaceholders
   
   If Not dictBookInfo Is Nothing Then
     dictReturn.Item("pass") = True
@@ -249,7 +270,7 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
   dictReturn.Add "pass", False
 
 ' First test if our body style is even available in the doc (if not, not styled)
-  If genUtils.GeneralHelpers.IsStyleInDoc(strBodyStyle) = False Then
+  If genUtils.GeneralHelpers.IsStyleInUse(strBodyStyle) = False Then
     dictReturn.Add "body_style_present", False
     Set StyleCheck = dictReturn
     Exit Function
@@ -566,54 +587,121 @@ End Function
 Private Function AddBookInfo(InfoType As BookInfo) As Boolean
   On Error GoTo AddBookInfoError
   Dim strInfoKey As String
-  Dim strInfoStyle As String
-  Dim strInfoSection As String
-  Dim strNewText As String
+  Dim strInfoStyle As String ' style for new paragraph
+  Dim enumParaDirection As WdCollapseDirection ' do we want to insert before or
+                                           ' after found paragraph?
+  Dim blnSearchFwd As Boolean ' Do we want to add to start of section?
+  Dim lngStartPara As Long ' Default to first or last para?
   
-  ' Assign info key and ultimate paragraph style
+' set vars based on what we're adding
   Select Case InfoType
     Case BookInfo.bk_Title
+    ' Want to add BEFORE the FIRST Titlepage style
       strInfoKey = "title"
       strInfoStyle = strBookTitle
+      enumParaDirection = wdCollapseStart
+      blnSearchFwd = True
+      lngStartPara = activeDoc.Paragraphs.Count
     Case BookInfo.bk_Authors
+    ' Want to add AFTER the FIRST Titlepage style
+    ' b/c Au not allowed section heading
       strInfoKey = "author"
       strInfoStyle = strAuthorName
+      enumParaDirection = wdCollapseEnd
+      blnSearchFwd = True
+      lngStartPara = activeDoc.Paragraphs.Count
     Case BookInfo.bk_ISBN
+    ' Want to add AFTER the LAST Copyright style
       strInfoKey = "isbn"
       strInfoStyle = strCopyright
+      enumParaDirection = wdCollapseEnd
+      blnSearchFwd = False
+      lngStartPara = 1
   End Select
+
+' ----- Find the section this should be added to ------------------------------
+  Dim key1 As Variant
+  Dim strInfoSection As String
+  Dim colSectionStyles As Collection: Set colSectionStyles = New Collection
+  strInfoSection = Left(strInfoStyle, InStr(strInfoStyle, " ") - 1)
+
+' Find first paragraph in doc with style in same section as new text
+' Styles were added to dictStyles in order they appear in the MS,
+' So the first instance we find is the first present, ditto last
+  For Each key1 In dictStyles.Keys
+'    DebugPrint key1
+    If InStr(key1, strInfoSection) > 0 Then
+      colSectionStyles.Add key1
+    End If
+  Next key1
   
-' Get info string
+' Find index of first (or last) paragraph of each style in that section
+  Dim lngCurrentStart As Long
+  Dim varStyle As Variant
+  Dim enumDocDirection As WdCollapseDirection
+
+' if searching from end backward, collapse end
+  If blnSearchFwd = True Then
+    enumDocDirection = wdCollapseStart
+  Else
+    enumDocDirection = wdCollapseEnd
+  End If
+  
+  If colSectionStyles.Count > 0 Then
+    For Each varStyle In colSectionStyles
+      genUtils.zz_clearFind
+      activeDoc.Select
+      With Selection
+        .Collapse enumDocDirection
+        With .Find
+          .Format = True
+          .Style = varStyle
+          .Forward = blnSearchFwd
+          .Execute
+        End With
+      ' Get paragraph index of that paragraph
+        lngCurrentStart = GeneralHelpers.ParaIndex
+      ' If we're looking for the LAST paragraph though, keep
+      ' looping through the dictionary
+        If blnSearchFwd = True Then
+          If lngCurrentStart < lngStartPara Then
+            lngStartPara = lngCurrentStart
+          End If
+        Else
+          If lngCurrentStart > lngStartPara Then
+            lngStartPara = lngCurrentStart
+          End If
+        End If
+      
+      End With
+    Next varStyle
+  End If
+
+' Get string to add
+  Dim strNewText As String
   If dictBookInfo.Exists(strInfoKey) = True Then
-    strNewText = dictBookInfo.Item(strInfoKey) & vbNewLine
+  ' If adding AFTER the LAST paragraph in the doc, add newline
+  ' BEFORE the text, because we can't add after final paragraph mark
+    If enumParaDirection = wdCollapseEnd And lngStartPara = _
+      activeDoc.Paragraphs.Count Then
+        strNewText = vbNewLine & dictBookInfo.Item(strInfoKey)
+    Else
+      strNewText = dictBookInfo.Item(strInfoKey) & vbNewLine
+    End If
   Else
     AddBookInfo = False
     Exit Function
   End If
   
-' Find where this should go
-  strInfoSection = Left(strInfoStyle, InStr(strInfoStyle, " ") - 1)
-  
-' Does section exist at all? Check in-use style dictionary for any style
-  Dim key1 As Variant
-  Dim lngCurrentStart As Long
-  Dim lngStartPara As Long: lngStartPara = 1  ' Default if not found
-  For Each key1 In dictStyles.Keys
-    If InStr(key1, strInfoSection) > 0 Then
-      lngCurrentStart = dictStyles(key1).Item("start_paragraph")
-      ' Should return LAST paragraph with that section's style.
-      If lngCurrentStart > lngStartPara Then
-        lngStartPara = lngCurrentStart
-      End If
-    End If
-  Next key1
-  
   ' Add text just before paragraph id'd above
   ' Once entered, new para takes index of lngStartPara.
   Dim rngNew As Range
   Set rngNew = activeDoc.Paragraphs(lngStartPara).Range
-  rngNew.InsertBefore (strNewText)
-  rngNew.Style = strInfoStyle
+  With rngNew
+    .Collapse enumParaDirection
+    .InsertAfter strNewText
+    .Style = strInfoStyle
+  End With
   
   ' Test if it was successful
   If genUtils.GeneralHelpers.IsStyleInUse(strInfoStyle) = True Then
@@ -749,7 +837,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   Dim blnAuthor As Boolean
 
 ' Does Book Title exist?
-  blnTitle = dictStyles.Exists(strBookTitle)
+  blnTitle = genUtils.IsStyleInUse(strBookTitle)
   dictReturn.Item("book_title_exists") = blnTitle
   If blnTitle = False Then
     dictReturn.Item("book_title_added") = AddBookInfo(bk_Title)
@@ -762,6 +850,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
       Selection.HomeKey Unit:=wdStory
       With Selection
         .Find.Format = True
+        .Find.Forward = True
         .Find.Style = strBookTitle
         .Find.Execute
         
@@ -782,7 +871,7 @@ Public Function TitlepageCheck() As genUtils.Dictionary
   End If
 
 ' Does Author Name exist?
-  blnAuthor = dictStyles.Exists(strAuthorName)
+  blnAuthor = genUtils.IsStyleInUse(strAuthorName)
   dictReturn.Item("author_name_exists") = blnAuthor
   If blnAuthor = False Then
     dictReturn.Item("author_name_added") = AddBookInfo(bk_Authors)
@@ -877,11 +966,11 @@ Private Function StyleCleanup() As genUtils.Dictionary
   Next X
 
 ' Remove any section break characters. Can't assume they'll be in their own
-' paragraphs.
+' paragraphs, so add additional para break.
   genUtils.zz_clearFind
   With activeDoc.Range.Find
     .Text = "^b"
-    .Replacement.Text = ""
+    .Replacement.Text = "^p"
     .Execute Replace:=wdReplaceAll
   
     If .Found = True Then
@@ -939,7 +1028,7 @@ End Function
 ' Is this paragraph style a Macmillan heading style? Eventually store style
 ' names externally.
 
-Private Function IsHeading(StyleName As String) As Boolean
+Public Function IsHeading(StyleName As String) As Boolean
   On Error GoTo IsHeadingError
 ' `dictHeadings` is global scope so only have to create once
   If dictHeadings Is Nothing Then
@@ -1068,7 +1157,7 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
 ' JSON key = first word in style passed to us
   Dim strFirst As String
   strFirst = Left(StyleName, InStr(StyleName, " ") - 1)
-'  Debug.Print strFirst
+  ' DebugPrint strFirst
 ' If style is in JSON...
   If dictSections.Exists(strFirst) = True Then
   ' ... get object for that style.
@@ -1091,6 +1180,7 @@ Private Function SectionName(StyleName As String, Optional JsonString As _
 ' Retrieve value
   If dictItem.Exists(strJsonString) Then
     SectionName = dictItem.Item(strJsonString)
+    ' DebugPrint SectionName
   End If
   Exit Function
 
@@ -1165,7 +1255,7 @@ Private Function PageBreakCleanup() As genUtils.Dictionary
   Dim dictReturn As genUtils.Dictionary
   Set dictReturn = New Dictionary
   dictReturn.Add "pass", False
-
+  
 ' Add paragraph breaks around every page break character (so we know for sure
 ' paragraph style of break won't apply to any body text). Will add extra blank
 ' paragraphs that we can clean up later.
@@ -1297,14 +1387,14 @@ Private Function PageBreakCheck() As genUtils.Dictionary
       ' Loop counter
       lngCount = lngCount + 1
       lngParaInd = genUtils.GeneralHelpers.ParaIndex
-'      DebugPrint "Page break: " & lngParaInd
+      ' DebugPrint "Page break: " & lngParaInd
       ' Errors if we try to access para after end, so check that
       If lngParaCount > lngParaInd Then
       ' If the NEXT paragraph is NOT an approved heading style...
         strNextStyle = activeDoc.Paragraphs(lngParaInd + 1).Range.ParagraphStyle
-'        DebugPrint "Next para style: " & strNextStyle
+        ' DebugPrint "Next para style: " & strNextStyle
         If IsHeading(strNextStyle) = False Then
-'          DebugPrint "Next style is NOT heading"
+          ' DebugPrint "Next style is NOT heading"
           ' ... add a CTNP heading
           If AddHeading(lngParaInd + 1) = True Then
 '            DebugPrint "Heading added"
@@ -1504,11 +1594,13 @@ Public Function HeadingCheck() As genUtils.Dictionary
   Dim strSectionKey As String
   Dim blnRmCharFormat As Boolean
   Dim blnChapterNumber As Boolean: blnChapterNumber = False
+  Dim rngPara1 As Range
+  Dim rngParaLast As Range
 
   For D = UBound(rngSections) To LBound(rngSections) Step -1
     ' Replace with error message for infinite loop
     If D > 200 Then
-      DebugPrint "Section loop exit!"
+      ' DebugPrint "Section loop exit!"
     End If
 
     strSectionKey = "section" & D
@@ -1617,6 +1709,13 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "ChapTitleSwap", True
         End If
+        
+      ' Is next para ALSO a CT?
+        If strSecondStyle = strChapTitle Then
+        ' Combine into single para (delete paragraph return)
+          rngFirst.Characters.Last.Select
+          Selection.Delete
+        End If
   
       Case strPartTitle
         ' Is next para PN?
@@ -1629,6 +1728,12 @@ Public Function HeadingCheck() As genUtils.Dictionary
           rngFirst.Collapse (wdCollapseStart)
           rngFirst.PasteAndFormat (wdFormatOriginalFormatting)
           dictReturn.Add strSectionKey & "PartTitleSwap", True
+        End If
+      ' Is next para ALSO a PT?
+        If strSecondStyle = strPartTitle Then
+        ' Combine into single para (delete paragraph return)
+          rngFirst.Characters.Last.Select
+          Selection.Delete
         End If
 
       Case strFmTitle
@@ -1663,44 +1768,27 @@ Public Function HeadingCheck() As genUtils.Dictionary
           dictReturn.Add strSectionKey & "BmtToBmh", True
         End If
     End Select
-  
-  ' Add styled section breaks to end of range. Do last; `.Collapse` changes rng
-  ' Don't add to final range, though
+    
+  ' Add section breaks to START of range, i.e. end of section before
+  ' this one. Don't add to first range, though.
+  ' Get separate Range objects for first and last paragraphs, because
+  ' collapse method changes the range. Also, if have a single-paragraph
+  ' range, still need to add section before and PB after.
+    Set rngPara1 = rngSect.Paragraphs(1).Range
+    If D > LBound(rngSections) Then
+      rngPara1.Collapse Direction:=wdCollapseStart
+      rngPara1.InsertBreak Type:=wdSectionBreakNextPage
+      dictReturn.Add strSectionKey & "AddSectionBreak", True
+    End If
+    
+    Set rngParaLast = rngSect.Paragraphs.Last.Range
     If D < UBound(rngSections) Then
-      With rngSect
-       .Collapse Direction:=wdCollapseEnd
-       .InsertAfter vbNewLine
-  ' If need breaks: collapse, move 1 char left, insert continuous
-  ' then insert page break (no new line)
-  ' at end of loop, style all PB paragraphs as PB style
-  '     .InsertBreak Type:=wdSectionBreakContinuous
-  '     .InsertBreak Type:=wdPageBreak
-       .Style = strPageBreak
-       dictReturn.Add strSectionKey & "AddSectionBreak", True
-      End With
+       rngParaLast.Collapse Direction:=wdCollapseEnd
+       rngParaLast.InsertAfter vbNewLine
+       rngParaLast.Style = Reports.strPageBreak
+       dictReturn.Add strSectionKey & "AddPageBreak", True
     End If
   Next D
-
-' Add chapter numbers in separate step, because we are looping ranges backwards
-  genUtils.zz_clearFind
-  activeDoc.Select
-  Selection.HomeKey Unit:=wdStory
-  With Selection.Find
-    .Text = "Chapter" & Chr(13)
-    .Format = True
-    .Style = strChapNonprinting
-    .Forward = True
-    .Execute
-
-    Do While .Found = True And lngChapCount < 100
-      lngChapCount = lngChapCount + 1
-      strFirstText = "Chapter " & lngChapCount
-      Selection.Text = strFirstText & vbNewLine
-      Selection.Style = strChapNonprinting
-      dictReturn.Add "add_chap_num" & lngChapCount, strFirstText
-      .Execute
-    Loop
-  End With
   
 ' Reset Note Options to restart numbering at each section?
   dictReturn.Item("pass") = True

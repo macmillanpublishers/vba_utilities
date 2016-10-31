@@ -68,7 +68,7 @@ Sub ActualCharStyles(oProgressChar As ProgressBar, StartPercent As Single, _
 ' True means a check failed (e.g., doc protection on)
   If genUtils.GeneralHelpers.StartupSettings(StoriesUsed:=stStories) = True Then
         
-    Call genUtils.GeneralHelpers.CleanUp
+    Call genUtils.GeneralHelpers.Cleanup
     Exit Sub
   End If
   
@@ -253,7 +253,7 @@ Sub ActualCharStyles(oProgressChar As ProgressBar, StartPercent As Single, _
   
 ' If this is the whole macro, close out; otherwise calling macro will close it all down
   If TotalPercent = 1 Then
-    Call genUtils.GeneralHelpers.CleanUp
+    Call genUtils.GeneralHelpers.Cleanup
     Unload oProgressChar
 '        MsgBox "Macmillan character styles have been applied throughout your manuscript."
   End If

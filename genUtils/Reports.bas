@@ -1838,7 +1838,7 @@ Private Function FirstParaCheck() As genUtils.Dictionary
   
 FirstParaCheckError:
   Err.Source = strReports & "FirstParaCheck"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strHeadingStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate

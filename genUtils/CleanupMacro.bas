@@ -722,7 +722,7 @@ Private Sub ShapeDelete()
     For A = lngCount To 1 Step -1
       Set objShape = activeDoc.Shapes(A)
       typeShape = objShape.Type
-      DebugPrint typeShape
+'      DebugPrint typeShape
       Select Case typeShape
         Case msoTextBox
           ' Do nothing for now, will need to find a solution eventually

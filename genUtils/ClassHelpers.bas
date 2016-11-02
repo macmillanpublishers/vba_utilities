@@ -200,7 +200,7 @@ End Function
 '
 ' ===== UpdateBarAndWait ======================================================
 ' Call this to update the progress bar. Can't be in the ProgressBar class,
-' because that class updates async and can crash the program if it gets called
+' because that class can crash the program if it gets called
 ' again before it finishes the first call. This includes `DoEvents` which allows
 ' other work to finish before returning to the calling procedure.
 
@@ -212,7 +212,7 @@ Public Sub UpdateBarAndWait(Bar As ProgressBar, Status As String, _
     Do
         DoEvents  ' Allows other macro execution to continue
     Loop Until Bar.Done = True
-    Exit Sub
+    DebugPrint "Progress: " & (Percent * 100) & "%"
   Exit Sub
 
 UpdateBarAndWaitError:

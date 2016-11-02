@@ -29,6 +29,7 @@ Public Function MacmillanCharStyles() As genUtils.Dictionary
   Set CharacterProgress = New ProgressBar
   
   CharacterProgress.Title = "Macmillan Character Styles Macro"
+  DebugPrint "Starting Character Styles macro"
   
   Call genUtils.CharacterStyles.ActualCharStyles(oProgressChar:= _
     CharacterProgress, StartPercent:=0, TotalPercent:=1)

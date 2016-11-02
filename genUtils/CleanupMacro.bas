@@ -83,6 +83,7 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   Set oProgressCleanup = New ProgressBar
 
   oProgressCleanup.Title = strTitle
+  DebugPrint "Starting Cleanup macro"
   
 ' This sub calls ProgressBar.Increment and waits for it to finish before
 ' returning here

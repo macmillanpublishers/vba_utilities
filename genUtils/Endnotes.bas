@@ -314,11 +314,22 @@ Private Function EndnoteUnlink(p_blnAutomated As Boolean) As genUtils.Dictionary
       Next
     End If
   Next objSection
+  
+' ----- Delete section breaks -------------------------------------------------
+' Since we don't need them for endnotes any more. Before rolling this out to
+' users though, need to deal with other uses for section breaks (like page numbers)
+  genUtils.zz_clearFind
+  With activeDoc.Range.Find
+    .Text = "^b"  ' Section break character
+    .Replacement.Text = vbNullString
+  End With
 
 ' ---- Test if successful -----------------------------------------------------
   dictReturn.Item("pass") = Not NotesExist()
   
   Set EndnoteUnlink = dictReturn
+  
+  
   
   activeDoc.TrackRevisions = currentTracking
   Application.DisplayStatusBar = currentStatusBar

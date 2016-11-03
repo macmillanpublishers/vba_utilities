@@ -1599,8 +1599,8 @@ Public Function HeadingCheck() As genUtils.Dictionary
 
   For D = UBound(rngSections) To LBound(rngSections) Step -1
     ' Replace with error message for infinite loop
-    If D > 200 Then
-      ' DebugPrint "Section loop exit!"
+    If D Mod 10 = 0 Then
+       DebugPrint "Checking section " & D
     End If
 
     strSectionKey = "section" & D
@@ -1838,7 +1838,7 @@ Private Function FirstParaCheck() As genUtils.Dictionary
   
 FirstParaCheckError:
   Err.Source = strReports & "FirstParaCheck"
-  If ErrorChecker(Err) = False Then
+  If ErrorChecker(Err, strHeadingStyle) = False Then
     Resume
   Else
     Call genUtils.Reports.ReportsTerminate

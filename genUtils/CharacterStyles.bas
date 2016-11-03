@@ -29,6 +29,7 @@ Public Function MacmillanCharStyles() As genUtils.Dictionary
   Set CharacterProgress = New ProgressBar
   
   CharacterProgress.Title = "Macmillan Character Styles Macro"
+  DebugPrint "Starting Character Styles macro"
   
   Call genUtils.CharacterStyles.ActualCharStyles(oProgressChar:= _
     CharacterProgress, StartPercent:=0, TotalPercent:=1)
@@ -364,13 +365,12 @@ Private Sub RemoveBreaks(StoryType As WdStoryType)
   Dim wsFindArray(1 To 2) As String
   Dim wsReplaceArray(1 To 2) As String
   Dim Q As Long
-
-' Find any page break characters (^m) that are followed by anything other than
-' the break-style tags, and remove the page break. Mostly this will just be a
-' paragraph return, but you can add characters after the page break, so this
-' preserves 'em while removing the un-styled page break.
-  wsFindArray(1) = "^m([!`0-9LNR]@)"
-  wsReplaceArray(1) = "\1"
+  
+' Remove page break and section break characters. Will have to re-evaluate
+' before we move this to user-macro to determine what breaks to preserve
+' (though section-start styles may make this moot).
+  wsFindArray(1) = "^m"
+  wsReplaceArray(1) = vbNullString
 
 ' Now that we've cleaned up errant page breaks, remove any blank paragraphs
   wsFindArray(2) = "^13{2,}"               '2 or more paragraphs

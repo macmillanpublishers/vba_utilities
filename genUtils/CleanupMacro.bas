@@ -83,6 +83,7 @@ Public Function MacmillanManuscriptCleanup() As genUtils.Dictionary
   Set oProgressCleanup = New ProgressBar
 
   oProgressCleanup.Title = strTitle
+  DebugPrint "Starting Cleanup macro"
   
 ' This sub calls ProgressBar.Increment and waits for it to finish before
 ' returning here
@@ -721,7 +722,7 @@ Private Sub ShapeDelete()
     For A = lngCount To 1 Step -1
       Set objShape = activeDoc.Shapes(A)
       typeShape = objShape.Type
-      DebugPrint typeShape
+'      DebugPrint typeShape
       Select Case typeShape
         Case msoTextBox
           ' Do nothing for now, will need to find a solution eventually

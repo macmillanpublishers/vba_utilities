@@ -329,6 +329,7 @@ End Function
 
 Sub GlobalCleanup()
   On Error GoTo GlobalCleanupError
+  GeneralHelpers.zz_clearFind
   If Not activeDoc Is Nothing Then
     Set activeDoc = Nothing
   End If
@@ -993,6 +994,11 @@ Public Sub zz_clearFind()
     End With
   Exit Sub
 zz_clearFindError:
+' Can't do any replace if doc is password protected, but this runs
+' as part of cleanup so need to handle that here:
+  If Err.Number = 9099 Then ' "Command is not available"
+    Exit Sub
+  End If
   Err.Source = strModule & "zz_clearFind"
   If ErrorChecker(Err) = False Then
     Resume

@@ -1,6 +1,15 @@
-Attribute VB_Name = "GeneralHelpers"
+Attribute VB_Name = "Utils"
+' =============================================================================
+'         UTILS
+' =============================================================================
 
-' All should be declared as Public for use from other modules
+' ***** USE *******************************************************************
+' Procedures that can be used in multiple VBA projects. Trying to be as general
+' purpose as possible.
+
+' ***** DEPENDENCIES **********************************************************
+' Must be imported with other submodules: VBA-Dictionary, VBA-JSON
+
 
 ' *****************************************************************************
 '           DECLARATIONS
@@ -449,3 +458,126 @@ Public Function ReadTextFile(Path As String, Optional FirstLineOnly As Boolean _
     ReadTextFile = strTextWeWant
 
 End Function
+
+
+' =============================================================================
+'     JSON HELPERS
+' =============================================================================
+' I don't feel like forking that repo now to add these additional functions, so
+' I'll drop them here.
+
+' ===== ReadJson ==============================================================
+' To get from JSON file to Dictionary object, must read file to string, then
+' convert string to Dictionary. This does all of that (and some error handling)
+
+Public Function ReadJson(JsonPath As String) As Dictionary
+  Dim dictJson As Dictionary
+  
+  If Utils.IsItThere(JsonPath) = True Then
+    Dim strJson As String
+    
+    strJson = Utils.ReadTextFile(JsonPath, False)
+    If strJson <> vbNullString Then
+      Set dictJson = JsonConverter.ParseJson(strJson)
+    Else
+      ' If file exists but has no content, return empty dictionary
+      Set dictJson = New Dictionary
+    End If
+  End If
+  
+  If dictJson Is Nothing Then
+    Utils.DebugPrint "ReadJson fail"
+  Else
+'    DebugPrint "dictJson count: " & dictJson.Count
+  End If
+  
+  Set ReadJson = dictJson
+End Function
+
+
+' ===== WriteJson =============================================================
+' JsonConverter.ConvertToJson returns a string, when we then need to write to
+' a text file if we want the output. This combines those. Will overwrite the
+' original file if already exists, will create file if it does not.
+
+Public Sub WriteJson(JsonPath As String, JsonData As Dictionary)
+  Dim strJson As String
+  strJson = JsonConverter.ConvertToJson(JsonData, Whitespace:=2)
+  ' `OverwriteTextFile` validates directory
+  Utils.OverwriteTextFile JsonPath, strJson
+End Sub
+
+
+' ===== AddToJson =============================================================
+' Adds the key/value pair to an already existing JSON file. Creates file if it
+' doesn't exist yet. `NewValue` can be anything valid for JSON: string,
+' number, boolean, dictionary, array. `JsonFile` is full path to file.
+
+' NOTE!! If `NewKey` already exists, the value will be overwritten. Could change
+' to check for existance and do something else instead (append number to key,
+' add value to array, return false, whatever).
+
+Public Sub AddToJson(JsonFile As String, NewKey As String, NewValue As Variant)
+  Dim dictJson As Dictionary
+  
+  ' READ JSON FILE IF IT EXISTS
+  ' Does the file exist yet?
+  If Utils.IsItThere(JsonFile) = True Then
+    Set dictJson = ReadJson(JsonFile)
+  Else
+    ' File doesn't exist yet, we'll be creating it
+    Set dictJson = New Dictionary
+  End If
+  
+  ' ADD NEW ITEM TO DICTIONARY
+  ' `.Item("key")` method will add if key is new, overwrite if not
+  If VBA.IsObject(NewValue) = True Then
+    ' Need `Set` keyword for object
+    Set dictJson.Item(NewKey) = NewValue
+  Else
+    dictJson.Item(NewKey) = NewValue
+  End If
+
+  ' WRITE UPDATED DICTIONARY (BACK) TO JSON FILE
+  Call WriteJson(JsonFile, dictJson)
+End Sub
+
+' =============================================================================
+'       DICTIONARY HELPERS
+' =============================================================================
+
+' ===== MergeDictionary =======================================================
+' Add all key:value pairs of one dictionary to another dictionary. Default is
+' to overwrite value in DictOne if a key in DictTwo matches; Overwrite = False
+' adds an integer to the key name and adds a new key:value pair.
+
+Public Function MergeDictionary(DictOne As Dictionary, DictTwo As Dictionary, _
+  Optional Overwrite As Boolean = True) As Dictionary
+
+  Dim key2 As Variant
+  Dim lngCount As Long
+  Dim strKey As String
+  
+  lngCount = 0
+  
+  ' Use .Item() not .Add, because .Add errors if same key is used
+  For Each key2 In DictTwo.Keys
+    If Overwrite = False Then
+      If DictOne.Exists(key2) = True Then
+        lngCount = lngCount + 1
+        strKey = key2 & lngCount
+      Else
+        strKey = key2
+      End If
+    Else
+      strKey = key2
+    End If
+    
+    DictOne.Item(strKey) = DictTwo(key2)
+  
+  Next key2
+  
+  Set MergeDictionary = DictOne
+End Function
+
+

@@ -513,11 +513,14 @@ Public Function ReadJson(JsonPath As String) As Dictionary
     
     strJson = Utils.ReadTextFile(JsonPath, False)
     If strJson <> vbNullString Then
+'      DebugPrint strJson
       Set dictJson = JsonConverter.ParseJson(strJson)
     Else
       ' If file exists but has no content, return empty dictionary
       Set dictJson = New Dictionary
     End If
+  Else
+    DebugPrint "Can't find JSON: " & JsonPath
   End If
   
   If dictJson Is Nothing Then

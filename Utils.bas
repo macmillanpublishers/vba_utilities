@@ -12,13 +12,48 @@ Attribute VB_Name = "Utils"
 
 
 ' *****************************************************************************
-'           DECLARATIONS
+'     DECLARATIONS
 ' *****************************************************************************
 Option Explicit
 
 ' assign to actual document we're working on
-' to do: probably better managed via a class
+' TODO: probably better managed via a class
 Public activeDoc As Document
+
+
+' *****************************************************************************
+'     PROCEDURES
+' *****************************************************************************
+
+' ===== GetFileExtension =======================================================
+' Returns file extension WITHOUT dot
+
+Public Function GetFileExtension(File As String) As String
+  GetFileExtension = Right(File, InStr(StrReverse(File), ".") - 1)
+End Function
+
+' ===== GetFileNameOnly ========================================================
+' Strips file extension from end and path from beginning of string.
+
+Public Function GetFileNameOnly(File As String) As String
+  Dim lngLastSeparatorPosition As Long
+  Dim lngExtensionDotLen As Long
+  Dim lngFileNameStart As Long
+  Dim lngFileNameLength As Long
+  
+  lngLastSeparatorPosition = InStrRev(File, Application.PathSeparator)
+  lngExtensionDotLen = InStr(StrReverse(File), ".")
+  lngFileNameStart = lngLastSeparatorPosition + 1
+  lngFileNameLength = Len(File) - lngLastSeparatorPosition - lngExtensionDotLen
+  GetFileNameOnly = Mid(File, lngFileNameStart, lngFileNameLength)
+End Function
+
+' ===== GetFileName ===========================================================
+' Strips path and returns file name with extension.
+
+Public Function GetFileName(File As String) As String
+  GetFileName = Right(File, InStr(StrReverse(File), "."))
+End Function
 
 
 ' ===== DebugPrint =============================================================
@@ -368,7 +403,7 @@ Public Function CloseOpenDocs() As Boolean
     Dim strSaveWarning As String
     Dim objDocument As Document
     Dim B As Long
-    Dim Doc As Document
+    Dim doc As Document
     
     strInstallerName = ThisDocument.Name
 
@@ -380,15 +415,15 @@ Public Function CloseOpenDocs() As Boolean
           ActiveDocument.Close
           Exit Function
       Else
-        For Each Doc In Documents
+        For Each doc In Documents
             'DebugPrint doc.Name
           'But don't close THIS document
-          If Doc.Name <> strInstallerName Then
+          If doc.Name <> strInstallerName Then
               'separate step to trigger Save As prompt for previously unsaved docs
-              Doc.Save
-              Doc.Close
+              doc.Save
+              doc.Close
           End If
-        Next Doc
+        Next doc
       End If
     End If
 

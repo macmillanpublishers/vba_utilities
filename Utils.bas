@@ -26,10 +26,17 @@ Public activeDoc As Document
 ' *****************************************************************************
 
 ' ===== GetFileExtension =======================================================
-' Returns file extension WITHOUT dot
+' Returns file extension WITHOUT dot. If no dot, returns null string.
 
 Public Function GetFileExtension(File As String) As String
-  GetFileExtension = Right(File, InStr(StrReverse(File), ".") - 1)
+  Dim lngExtLen As Long
+  lngExtLen = InStr(StrReverse(File), ".") - 1
+  
+  If lngExtLen > 0 Then
+    GetFileExtension = Right(File, lngExtLen)
+  Else
+    GetFileExtension = vbNullString
+  End If
 End Function
 
 ' ===== GetFileNameOnly ========================================================
@@ -319,6 +326,30 @@ Public Function IsInstalledAddIn(FileName As String) As Boolean
       Exit For
     End If
   Next objAddIn
+End Function
+
+
+' ===== UnloadAddIn ===========================================================
+' Checks if file is loaded as a Word add-in, and if it is, it unloads it.
+
+' ASSUMPTIONS
+' Addin name is same as file name plus extension
+
+' PARAMS
+' AddinName[String]: usually AddinName is file name with extension, but it can
+'   be other things so be careful
+
+' RETURNS
+' True = file was loaded as an addin
+' False = file was NOT loaded as an addin
+
+Public Function UnloadAddIn(AddinName As String) As Boolean
+  If Utils.IsInstalledAddIn(AddinName) = False Then
+    UnloadAddIn = False
+  Else
+    Application.AddIns(AddinName).Installed = False
+    UnloadAddIn = True
+  End If
 End Function
 
 ' ===== ShellAndWaitMac =======================================================

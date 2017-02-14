@@ -59,7 +59,8 @@ End Function
 ' Strips path and returns file name with extension.
 
 Public Function GetFileName(File As String) As String
-  GetFileName = Right(File, InStr(StrReverse(File), "."))
+  GetFileName = Right(File, InStr(StrReverse(File), _
+    Application.PathSeparator) - 1)
 End Function
 
 
@@ -355,11 +356,11 @@ End Function
 ' ===== ShellAndWaitMac =======================================================
 ' Sends shell command to AppleScript on Mac (to replace missing functions!)
 
-Public Function ShellAndWaitMac(cmd As String) As String
+Public Function ShellAndWaitMac(Cmd As String) As String
   Dim result As String
   Dim scriptCmd As String ' Macscript command
   #If Mac Then
-    scriptCmd = "do shell script " & Chr(34) & cmd & Chr(34) & Chr(34)
+    scriptCmd = "do shell script " & Chr(34) & Cmd & Chr(34) & Chr(34)
     result = MacScript(scriptCmd) ' result contains stdout, should you care
     'DebugPrint result
     ShellAndWaitMac = result
@@ -514,7 +515,7 @@ Public Function ReadTextFile(Path As String, Optional FirstLineOnly As Boolean _
     Open Path For Input As fnum
     
     If FirstLineOnly = False Then
-        strTextWeWant = Input$(LOF(fnum), #fnum)
+        strTextWeWant = Input$(LOF(fnum), fnum)
     Else
         Line Input #fnum, strTextWeWant
     End If
@@ -588,7 +589,7 @@ End Sub
 
 Public Sub AddToJson(JsonFile As String, NewKey As String, NewValue As Variant)
   Dim dictJson As Dictionary
-  
+
   ' READ JSON FILE IF IT EXISTS
   ' Does the file exist yet?
   If Utils.IsItThere(JsonFile) = True Then

@@ -353,6 +353,79 @@ Public Function UnloadAddIn(AddinName As String) As Boolean
   End If
 End Function
 
+' ===== LoadAddin =============================================================
+' If file isn't already INSTALLED as an add-in (not just part of Addins), this
+' installed/loads it. Writes a file
+
+' ASSUMPTIONS
+' You've already checked that the file is in the AddIns collection, but haven't
+' checked that it's "Installed" (i.e. loaded)
+
+' PARAMS
+' AddinName[String]: usually AddinName is file name with extension, but it can
+'   be other things so be careful
+' DisableAutoExec[Boolean]: If True, writes a text file to same path as addin.
+'   The AutoExec macro needs to check for existance of this file, and quit if found
+
+' NOTES
+' The AddIn.Installed property doesn't actually test if it is part of the AddIns
+' collection. It sets whether the AddIn is "loaded" to run or not. The file must
+' already be in the AddIns collection or you'll get an error when you try to
+' get that property.
+
+Public Sub LoadAddIn(AddinName As String, DisableAutoExec As Boolean)
+  If Utils.IsInstalledAddIn(AddinName) = False Then
+    Dim objAddIn As AddIn
+    Set objAddIn = Application.AddIns(AddinName)
+
+  ' If we need to disable AutoExec macros, write a file to signal that procedure
+    If DisableAutoExec = True Then
+    ' Get path where addin file is saved
+      Dim strDisableFlagFile As String
+      strDisableFlagFile = objAddIn.Path & Application.PathSeparator & _
+        "DISABLE_AUTO_EXEC.txt"
+      
+    ' Write a file there (content doesn't really matter)
+      Utils.OverwriteTextFile TextFile:=strAddInPath, NewText:="True"
+    End If
+    
+  ' Load the add-in
+    objAddIn.Installed = True
+    
+  ' Delete that file if we wrote it earlier
+    If DisableAutoExec = True Then
+      Utils.KillAll Path:=strDisableFlagFile
+    End If
+  
+  End If
+End Sub
+
+
+' ===== DisableAutoExec =======================================================
+' Checks if the "DISABLE_AUTO_EXEC.txt" file written in LoadAddIn is present in
+' same dir as the file executing the code.
+
+' PARAMS
+' TemplatePath[String]: Path to directory the template file you are trying to load
+' is in, with no trailing separator.
+
+' ASSUMPTIONS
+' You use Utils.LoadAddIn to load an addin, and indicate whether you want to
+' disable autoexec macros or not.
+' You check this function at the start of any AutoExec macros.
+
+' RETURNS: Boolean
+' True: file is present, exit AutoExec
+' False: file is not present, do not exit
+
+Public Function DisableAutoExec(TemplatePath As String) As Boolean
+  Dim strFlagFilePath As String
+  strFlagFilePath = TemplatePath & Application.PathSeparator & "DISABLE_AUTO_EXEC.txt"
+  DisableAutoExec = Utils.IsItThere(strFlagFilePath)
+End Function
+
+
+
 ' ===== ShellAndWaitMac =======================================================
 ' Sends shell command to AppleScript on Mac (to replace missing functions!)
 

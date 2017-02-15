@@ -373,27 +373,28 @@ End Function
 ' already be in the AddIns collection or you'll get an error when you try to
 ' get that property.
 
-Public Sub LoadAddIn(AddinName As String, DisableAutoExec As Boolean)
+Public Sub LoadAddIn(AddinName As String, DisableAutoMacros As Boolean)
   If Utils.IsInstalledAddIn(AddinName) = False Then
     Dim objAddIn As AddIn
     Set objAddIn = Application.AddIns(AddinName)
 
   ' If we need to disable AutoExec macros, write a file to signal that procedure
-    If DisableAutoExec = True Then
+    If DisableAutoMacros = True Then
     ' Get path where addin file is saved
       Dim strDisableFlagFile As String
       strDisableFlagFile = objAddIn.Path & Application.PathSeparator & _
         "DISABLE_AUTO_EXEC.txt"
       
     ' Write a file there (content doesn't really matter)
-      Utils.OverwriteTextFile TextFile:=strAddInPath, NewText:="True"
+
+      Utils.OverwriteTextFile TextFile:=strDisableFlagFile, NewText:="True"
     End If
     
   ' Load the add-in
     objAddIn.Installed = True
     
   ' Delete that file if we wrote it earlier
-    If DisableAutoExec = True Then
+    If DisableAutoMacros = True Then
       Utils.KillAll Path:=strDisableFlagFile
     End If
   

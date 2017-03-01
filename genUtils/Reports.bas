@@ -363,10 +363,25 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
     blnPass = False
   End If
   
+' Check number of "Page Break (pb)" paragraphs, proxy for number of sections
+' If more than 200, quit.
+  Dim lngNumPageBrk As Long
+  If dictStyles.Exists(strPageBreak) Then
+    lngNumPageBrk = dictStyles(strPageBreak).Item("count")
+  Else
+    lngNumPageBrk = 0
+  End If
+  
+  Dim blnTooManySections As Boolean
+  If lngNumPageBrk > 200 Then
+    blnPass = False
+  End If
+  
 ' update values in test dictionary
   dictReturn.Item("pass") = blnPass
   dictReturn.Item("unique_styles") = dictStyles.Count
   dictReturn.Item("percent_styled") = lngPercent
+  dictReturn.Item("pg_brk_count") = lngNumPageBrk
   
   Set StyleCheck = dictReturn
   Exit Function

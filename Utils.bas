@@ -608,42 +608,6 @@ Public Function SetPathSeparator(strOrigPath As String) As String
 
 End Function
 
-' ===== CloseOpenDocs =========================================================
-' Closes all open Word documents.
-
-Public Function CloseOpenDocs() As Boolean
-
-    '-------------Check for/close open documents-------------------------------
-    Dim strInstallerName As String
-    Dim strSaveWarning As String
-    Dim objDocument As Document
-    Dim B As Long
-    Dim doc As Document
-    
-    strInstallerName = ThisDocument.Name
-
-    If Documents.Count > 1 Then
-      strSaveWarning = "All other Word documents must be closed to run the macro." & vbNewLine & vbNewLine & _
-        "Click OK and I will save and close your documents." & vbNewLine & _
-        "Click Cancel to exit without running the macro and close the documents yourself."
-      If MsgBox(strSaveWarning, vbOKCancel, "Close documents?") = vbCancel Then
-          ActiveDocument.Close
-          Exit Function
-      Else
-        For Each doc In Documents
-            'DebugPrint doc.Name
-          'But don't close THIS document
-          If doc.Name <> strInstallerName Then
-              'separate step to trigger Save As prompt for previously unsaved docs
-              doc.Save
-              doc.Close
-          End If
-        Next doc
-      End If
-    End If
-
-End Function
-
 ' ===== IsReadOnly ============================================================
 ' Tests if the file or directory is read-only -- does NOT test if file exists,
 ' because sometimes you'll need to do that before this anyway to do something

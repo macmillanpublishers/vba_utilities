@@ -289,13 +289,6 @@ Public Function StyleCheck(Optional FixUnstyled As Boolean = True) As _
 ' Loop through all paragraphs in document from END to START so we end up with
 ' FIRST page, and if we need to delete paras we don't mess up the count order
   For A = lngParaCt To 1 Step -1
-  ' To break infinite loops.
-
-  ' To do: increase? Add actual Err.Raise
-    If A = 10000 Then
-      DebugPrint "A = " & A
-      Exit For
-    End If
     
     If A Mod 200 = 0 Then
       DebugPrint "Paragraph " & A

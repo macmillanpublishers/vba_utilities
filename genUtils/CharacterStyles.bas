@@ -278,7 +278,7 @@ ActualCharStylesError:
 End Sub
 
 
-Private Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
+Sub PreserveWhiteSpaceinBrkStylesA(StoryType As WdStoryType)
  On Error GoTo PreserveWhiteSpaceinBrkStylesAError:
   Set activeRng = activeDoc.StoryRanges(StoryType)
 
@@ -398,7 +398,7 @@ RemoveBreaksError:
   End If
 End Sub
 
-Private Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
+Sub PreserveWhiteSpaceinBrkStylesB(StoryType As WdStoryType)
   On Error GoTo PreserveWhiteSpaceinBrkStylesBError
   
   Set activeRng = activeDoc.StoryRanges(StoryType)
